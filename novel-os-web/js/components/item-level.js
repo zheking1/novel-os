@@ -1,93 +1,92 @@
 /**
- * Novel OS - Item Level Manager (Alpine.js)
- * 物品等级管理 — 凡品→灵品→仙品→神器
+ * Novel OS - Item Level Manager (Alpine.js + i18n)
  */
 document.addEventListener('alpine:init', () => {
   Alpine.data('itemLevelManager', () => ({
     levels: [],
     editing: null,
-    form: { name: '', description: '', order: 0, numericRange: '' },
+    form: { name: '', desc: '', order: 0, range: '' },
     status: '',
+
+    t(key) { return (window.t && window.t(key)) || key; },
 
     async init() {
       await this.load();
-      this.status = '';
     },
 
     async load() {
-      this.status = 'Loading...';
+      this.status = this.t('status.loading');
       try {
+        const ws = (document.getElementById('workspaceSelect')?.value) || 'default';
         const r = await window.api('/api/tool', {
           tool: 'setting.item.list',
-          arguments: { workspace: window.currentWs || 'default', category_id: 'item-level' }
+          arguments: { workspace: ws, category_id: 'item-level' }
         });
         this.levels = (r.ok && r.result) ? r.result : [];
         this.status = '';
       } catch (e) {
-        this.status = 'Load failed: ' + e.message;
+        this.status = 'Error: ' + e.message;
       }
     },
 
     add() {
       this.editing = -1;
-      this.form = { name: '', description: '', order: this.levels.length + 1, numericRange: '' };
+      this.form = { name: '', desc: '', order: this.levels.length + 1, range: '' };
     },
 
     edit(idx) {
       const l = this.levels[idx];
       this.editing = idx;
       this.form = {
-        name: l.name || '',
-        description: l.description || l.data?.description || '',
+        name: l.core_summary || l.name || '',
+        desc: l.detailed_expansion || l.data?.description || '',
         order: l.sort_order || idx + 1,
-        numericRange: l.data?.numeric_range || ''
+        range: l.data?.numeric_range || ''
       };
     },
 
-    cancel() {
-      this.editing = null;
-      this.form = { name: '', description: '', order: 0, numericRange: '' };
-    },
+    cancel() { this.editing = null; },
 
     async save() {
-      if (!this.form.name) { window.showToast('warning', '请输入等级名称'); return; }
-      this.status = 'Saving...';
+      if (!this.form.name) { window.showToast('warning', 'Name required'); return; }
+      this.status = this.t('status.running');
       try {
-        const result = await window.api('/api/tool', {
+        const ws = (document.getElementById('workspaceSelect')?.value) || 'default';
+        const r = await window.api('/api/tool', {
           tool: 'setting.item.upsert',
           arguments: {
-            workspace: window.currentWs || 'default',
-            category_id: 'item-level',
+            workspace: ws, category_id: 'item-level',
             core_summary: this.form.name,
-            detailed_expansion: this.form.description,
+            detailed_expansion: this.form.desc,
             sort_order: this.form.order,
-            data: { numeric_range: this.form.numericRange },
+            data: { numeric_range: this.form.range },
             is_global: true
           }
         });
-        if (result.ok) {
-          window.showToast('success', 'Saved');
+        if (r.ok) {
+          window.showToast('success', this.t('msg.saved'));
           this.cancel();
           await this.load();
         }
       } catch (e) {
-        this.status = 'Save failed: ' + e.message;
+        this.status = 'Error: ' + e.message;
       }
     },
 
     async remove(idx) {
       const l = this.levels[idx];
-      if (!confirm('Delete ' + (l.name || l.core_summary) + '?')) return;
-      this.status = 'Deleting...';
+      if (!confirm('Delete ' + (l.core_summary || l.name) + '?')) return;
+      this.status = this.t('status.running');
       try {
+        const ws = (document.getElementById('workspaceSelect')?.value) || 'default';
         await window.api('/api/tool', {
           tool: 'setting.item.delete',
-          arguments: { workspace: window.currentWs || 'default', item_id: l.id }
+          arguments: { workspace: ws, item_id: l.id }
         });
-        window.showToast('success', 'Deleted');
+        window.showToast('success', this.t('msg.deleted'));
         await this.load();
       } catch (e) {
-        this.status = 'Delete failed: ' + e.message;
+        this.status = 'Error: ' + e.message;
       }
     }
   }));
