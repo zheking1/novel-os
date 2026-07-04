@@ -5729,18 +5729,6 @@
       if (el) el.textContent = hasToken ? t("status.tokenStored") : t("status.tokenMissing");
     }
 
-    function applyLanguage(language) {
-      currentLanguage = translations[language] ? language : "en";
-      localStorage.setItem("novel_os_language", currentLanguage);
-      document.documentElement.lang = currentLanguage === "zh" ? "zh-CN" : "en";
-      document.querySelectorAll("[data-i18n]").forEach((node) => {
-        node.textContent = t(node.dataset.i18n);
-      });
-      document.querySelectorAll("[data-i18n-placeholder]").forEach((node) => {
-        node.placeholder = t(node.dataset.i18nPlaceholder);
-      });
-      updateTokenState(window.__hasMcpToken);
-    }
 
     // ========== Navigation ==========
     const loadedModules = new Set();
@@ -5774,133 +5762,10 @@
       }
     }
 
-    async function loadKnowledgeModule(pageName) {
-      switch (pageName) {
-        case "knowledge-stats":
-          await loadKnowledgeStats();
-          break;
-        case "knowledge-maintain":
-          await loadKnowledgeMaintain();
-          break;
-        case "knowledge-review":
-          await loadReviewList();
-          break;
-        case "knowledge-list":
-          await loadKnowledgeList();
-          break;
-        case "knowledge-search":
-          break;
-        case "knowledge-edit":
-          break;
-        case "uk-manage":
-          await initUkManage();
-          break;
-        case "auto-search":
-          init_auto_search();
-          break;
-        case "knowledge-graph":
-          init_knowledge_graph();
-          break;
-        case "knowledge-expiry":
-          init_knowledge_expiry();
-          break;
-      }
-    }
 
-    function init_auto_search() {
-      const btn = $("autoSearchBtn");
-      if (btn) {
-        btn.onclick = async () => {
-          const topic = $("autoSearchTopic").value;
-          const category = $("autoSearchCategory").value;
-          if (!topic) return;
-          setStatus("Searching...");
-          const result = await api("/api/tool", {
-            tool: "knowledge_base.auto_search",
-            arguments: { topic, category }
-          });
-          if (result.ok) {
-            $("autoSearchResultCard").style.display = "block";
-            $("autoSearchResult").innerHTML = "<p>Search completed. Results added to knowledge base.</p>";
-            setStatus("Done");
-          } else {
-            setStatus("Search failed");
-          }
-        };
-      }
-    }
 
-    function init_knowledge_graph() {
-      const container = $("knowledgeGraphContent");
-      if (!container) return;
-      container.innerHTML = "<p>Loading...</p>";
-      // Wire refresh button
-      const refreshBtn = $("refreshKnowledgeGraphBtn");
-      if (refreshBtn) {
-        refreshBtn.onclick = () => init_knowledge_graph();
-      }
-      // Load knowledge items grouped by category
-      api("/api/tool", { tool: "kb.category.list", arguments: { parent_slug: "" } }).then(function(catResult) {
-        if (catResult && catResult.categories) {
-          var cats = catResult.categories;
-          var html = '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px;">';
-          cats.forEach(function(cat) {
-            html += '<div class="card" style="cursor:pointer;" onclick="loadKnowledgeGraphCategory(\'' + cat.slug + '\')">' +
-              '<div class="card-title">' + escapeHtml(cat.name || cat.slug) + '</div>' +
-              '<div style="font-size:12px;color:var(--muted);">Slug: ' + escapeHtml(cat.slug) + '</div>' +
-              '</div>';
-          });
-          html += '</div>';
-          container.innerHTML = html;
-        } else {
-          container.innerHTML = '<p style="color:var(--muted);">No categories found</p>';
-        }
-      });
-    }
 
-    async function loadKnowledgeGraphCategory(slug) {
-      var container = $("knowledgeGraphContent");
-      container.innerHTML = "<p>Loading " + slug + "...</p>";
-      var result = await api("/api/tool", { tool: "kb.uk.search", arguments: { category: slug, limit: 50 } });
-      if (result && result.items) {
-        var html = '<div style="margin-bottom:12px;"><button class="btn btn-sm" onclick="init_knowledge_graph()">← Back</button></div>';
-        html += '<div class="list-container">';
-        result.items.forEach(function(item) {
-          html += '<div class="list-item">' +
-            '<div class="list-item-header"><span style="font-weight:500;">' + escapeHtml(item.topic || item.title || "") + '</span>' +
-            '<span class="badge">' + (item.status || "active") + '</span></div>' +
-            '<div class="list-item-meta">' + escapeHtml((item.summary || "").substring(0, 150)) + '</div>' +
-            '</div>';
-        });
-        html += '</div>';
-        container.innerHTML = html;
-      } else {
-        container.innerHTML = '<p style="color:var(--muted);">No items in ' + slug + '</p>';
-      }
-    }
 
-    function init_knowledge_expiry() {
-      const container = $("knowledgeExpiryResult");
-      if (!container) return;
-      container.innerHTML = "<p>Loading...</p>";
-      // Search for items with expiry-related keywords
-      api("/api/tool", { tool: "kb.uk.search", arguments: { query: "过期 失效 待更新", limit: 100 } }).then(function(result) {
-        if (result && result.items && result.items.length > 0) {
-          var html = '<div class="list-container">';
-          result.items.forEach(function(item) {
-            html += '<div class="list-item">' +
-              '<div class="list-item-header"><span style="font-weight:500;">' + escapeHtml(item.topic || item.title || "") + '</span>' +
-              '<span class="badge badge-warning">需更新</span></div>' +
-              '<div class="list-item-meta">' + escapeHtml((item.summary || "").substring(0, 150)) + '</div>' +
-              '</div>';
-          });
-          html += '</div>';
-          container.innerHTML = html;
-        } else {
-          container.innerHTML = '<p style="color:var(--muted);padding:20px;">暂无过期或需更新的知识条目</p>';
-        }
-      });
-    }
 
     // ========== Universal Knowledge Manager ==========
     let ukCurrentCategory = null;
@@ -5911,49 +5776,9 @@
     let ukAllSlugs = [];
     let ukCategoryCounts = {};
 
-    async function initUkManage() {
-      // Load stats FIRST so counts are available when rendering tree
-      await loadUkStats();
-      await loadUkTree();
-      await loadUkItems(null);
-      $("ukSearchInput").value = "";
-      $("ukSearchBtn").onclick = () => loadUkItems($("ukSearchInput").value.trim());
-      $("ukResetBtn").onclick = () => { $("ukSearchInput").value = ""; ukCurrentCategory = null; loadUkItems(); renderUkTree(); };
-      $("ukCreateBtn").onclick = () => openUkEdit(null);
-      $("ukEditClose").onclick = () => $("ukEditModal").classList.add("hidden");
-      $("ukEditCancel").onclick = () => $("ukEditModal").classList.add("hidden");
-      $("ukEditSave").onclick = saveUkEntry;
-      $("ukRefreshCatBtn").onclick = async () => { await loadUkStats(); await loadUkTree(); await loadUkItems(); };
-      $("ukExpandAllBtn").onclick = () => { ukAllSlugs.forEach(s => ukExpandedNodes.add(s)); renderUkTree(); };
-      $("ukCollapseAllBtn").onclick = () => { ukExpandedNodes.clear(); renderUkTree(); };
-      $("ukSearchInput").onkeydown = (e) => { if (e.key === "Enter") loadUkItems($("ukSearchInput").value.trim()); };
-      // Category management
-      $("ukCatManageBtn").onclick = openCatManage;
-      $("ukCatClose").onclick = () => $("ukCatModal").classList.add("hidden");
-      $("ukCatCancel").onclick = () => $("ukCatModal").classList.add("hidden");
-      $("ukCatSave").onclick = saveCategory;
-      $("ukCatDeleteClose").onclick = () => $("ukCatDeleteModal").classList.add("hidden");
-      $("ukCatDeleteCancel").onclick = () => $("ukCatDeleteModal").classList.add("hidden");
-      $("ukCatDeleteConfirm").onclick = confirmDeleteCategory;
-    }
 
     let ukCatDeleteTargetId = null;
 
-    async function openCatManage() {
-      const modal = $("ukCatModal");
-      const parentSelect = $("ukCatParent");
-      // Build parent options from current categories
-      const rootCats = ukAllCategories.filter(c => !c.parent_id);
-      parentSelect.innerHTML = `<option value="">— ${t("uk.topLevel")} —</option>` +
-        rootCats.map(c => `<option value="${c.id}">${c.name || c.slug}</option>`).join("");
-      // Clear form
-      $("ukCatEditId").value = "";
-      $("ukCatName").value = "";
-      $("ukCatSlug").value = "";
-      parentSelect.value = "";
-      $("ukCatDesc").value = "";
-      modal.classList.remove("hidden");
-    }
 
     window.editCategory = (id) => {
       const cat = ukAllCategories.find(c => c.id === id);
@@ -5999,149 +5824,12 @@
       $("ukCatDeleteModal").classList.remove("hidden");
     };
 
-    async function confirmDeleteCategory() {
-      if (!ukCatDeleteTargetId) return;
-      const result = await api("/api/tool", { tool: "kb.category.delete", arguments: { category_id: ukCatDeleteTargetId } });
-      $("ukCatDeleteModal").classList.add("hidden");
-      ukCatDeleteTargetId = null;
-      if (result.ok) { await loadUkStats(); await loadUkTree(); setStatus(t("msg.deleted")); }
-      else setStatus(t("status.error"));
-    }
 
-    async function loadUkStats() {
-      const result = await api("/api/tool", { tool: "kb.uk.stats", arguments: {} });
-      if (result.ok && result.result && result.result.by_category) {
-        ukCategoryCounts = {};
-        let total = 0;
-        result.result.by_category.forEach(c => {
-          ukCategoryCounts[c.slug] = c.count || 0;
-          total += (c.count || 0);
-        });
-        ukCategoryCounts["_total"] = total;
-      }
-    }
 
-    async function loadUkTree() {
-      console.log("### FILE VERSION: 2026-07-02-v5 ###");
-      // Get ALL categories at once (including children)
-      const allResult = await api("/api/tool", { tool: "kb.category.tree", arguments: {} });
-      if (!allResult.ok || !Array.isArray(allResult.result)) return;
-      ukAllCategories = allResult.result;
 
-      // DEBUG: log what we received
-      console.log("=== loadUkTree DEBUG ===");
-      console.log("Total categories:", ukAllCategories.length);
-      ukAllCategories.forEach(c => {
-        console.log(`  slug=${c.slug}, name=${c.name}, parent_id=${c.parent_id}, type=${typeof c.parent_id}`);
-      });
 
-      buildTree();
-      ukAllSlugs = ukAllCategories.map(c => c.slug);
 
-      // DEBUG: log tree structure
-      console.log("=== buildTree DEBUG ===");
-      Object.keys(ukTreeData).forEach(slug => {
-        const node = ukTreeData[slug];
-        console.log(`  ${slug}: children=${JSON.stringify(node.children)}, parent_id=${node.parent_id}`);
-      });
 
-      console.log(">>> About to call renderUkTree() <<<");
-      try {
-        renderUkTree();
-        console.log(">>> renderUkTree() completed successfully <<<");
-      } catch (e) {
-        console.error(">>> renderUkTree() FAILED:", e);
-      }
-    }
-
-    function buildTree() {
-      ukTreeData = {};
-      const idToSlug = {};
-      ukAllCategories.forEach(c => {
-        idToSlug[c.id] = c.slug;
-        ukTreeData[c.slug] = { ...c, children: [] };
-      });
-      ukAllCategories.forEach(c => {
-        if (c.parent_id) {
-          const parentSlug = idToSlug[c.parent_id];
-          if (parentSlug && ukTreeData[parentSlug]) {
-            ukTreeData[parentSlug].children.push(c.slug);
-          }
-        }
-      });
-    }
-
-    function renderUkTree() {
-      console.log(">>> renderUkTree CALLED <<<");
-      const container = $("ukCatTree");
-      console.log("container:", container);
-      if (!container) {
-        console.log("renderUkTree: container is NULL, returning early");
-        return;
-      }
-
-      const totalItems = ukCategoryCounts["_total"] || 0;
-      let html = `<div class="uk-tree-item" style="cursor:pointer;padding:8px 12px;font-weight:600;${!ukCurrentCategory ? 'background:var(--accent-light);border-radius:4px;' : ''}" onclick="selectUkCategory(null)">
-        <span>📚 ${t("uk.allCategories")} (${totalItems})</span>
-      </div>`;
-
-      const rootNodes = ukAllCategories.filter(c => !c.parent_id);
-
-      // DEBUG
-      console.log("=== renderUkTree DEBUG ===");
-      console.log("rootNodes:", rootNodes.map(c => c.slug));
-
-      rootNodes.forEach(node => {
-        html += renderTreeNode(node.slug, 0);
-      });
-
-      container.innerHTML = html;
-    }
-
-    function renderTreeNode(slug, depth) {
-      const node = ukTreeData[slug];
-      if (!node) return "";
-      const hasChildren = node.children && node.children.length > 0;
-      const isExpanded = ukExpandedNodes.has(slug);
-      const isSelected = ukCurrentCategory === slug;
-      const indent = depth * 16;
-      const icon = hasChildren ? (isExpanded ? "▾" : "▸") : "·";
-      const itemCount = getNodeCount(slug);
-
-      let html = `<div class="uk-tree-item" style="cursor:pointer;padding:6px 12px 6px ${12 + indent}px;display:flex;align-items:center;gap:6px;${isSelected ? 'background:var(--accent-light);border-radius:4px;' : ''}" onclick="toggleUkNode('${slug}')">
-        <span style="width:14px;text-align:center;color:var(--muted);font-size:12px;">${icon}</span>
-        <span style="flex:1;font-size:13px;">${node.name || slug}</span>
-        <span class="badge" style="font-size:10px;padding:1px 5px;">${itemCount}</span>
-        <span class="uk-cat-actions" style="display:none;gap:2px;">
-          <button class="btn btn-sm" style="padding:1px 4px;font-size:10px;" onclick="event.stopPropagation();editCategory('${node.id}')" title="Edit">✎</button>
-          <button class="btn btn-sm" style="padding:1px 4px;font-size:10px;color:var(--danger);" onclick="event.stopPropagation();deleteCategory('${node.id}','${(node.name||slug).replace(/'/g,"\\'")}')" title="Delete">✕</button>
-        </span>
-      </div>`;
-
-      if (hasChildren && isExpanded) {
-        node.children.forEach(childSlug => {
-          html += renderTreeNode(childSlug, depth + 1);
-        });
-      }
-
-      return html;
-    }
-
-    function getNodeCount(slug) {
-      const node = ukTreeData[slug];
-      if (!node) return ukCategoryCounts[slug] || 0;
-
-      // If this node has children, sum their counts recursively
-      if (node.children && node.children.length > 0) {
-        let total = ukCategoryCounts[slug] || 0;
-        node.children.forEach(childSlug => {
-          total += getNodeCount(childSlug);
-        });
-        return total;
-      }
-
-      return ukCategoryCounts[slug] || 0;
-    }
 
     window.toggleUkNode = (slug) => {
       if (ukExpandedNodes.has(slug)) {
@@ -6162,98 +5850,8 @@
       loadUkItems();
     };
 
-    async function loadUkItems(query) {
-      const container = $("ukListResult");
-      if (!container) return;
-      container.innerHTML = `<p>${t("status.loading")}</p>`;
 
-      let allItems = [];
-      if (ukCurrentCategory) {
-        const childSlugs = getAllChildSlugs(ukCurrentCategory);
-        const slugsToQuery = [ukCurrentCategory, ...childSlugs];
-        const promises = slugsToQuery.map(slug =>
-          api("/api/tool", { tool: "kb.uk.search", arguments: { query: query || "", category_slug: slug, limit: 1000 } })
-        );
-        const results = await Promise.all(promises);
-        results.forEach(r => {
-          if (r.ok && Array.isArray(r.result)) allItems.push(...r.result);
-        });
-      } else {
-        const result = await api("/api/tool", { tool: "kb.uk.search", arguments: { query: query || "", limit: 1000 } });
-        if (result.ok && Array.isArray(result.result)) allItems = result.result;
-      }
 
-      ukCurrentItems = allItems;
-      $("ukListCount").textContent = allItems.length;
-      if (allItems.length === 0) {
-        container.innerHTML = `<p style="color:var(--muted);text-align:center;padding:20px;">${t("status.noData")}</p>`;
-        return;
-      }
-      container.innerHTML = allItems.map(item => `
-        <div class="list-item" style="cursor:default;">
-          <div class="list-item-header">
-            <span style="font-weight:600;">${item.topic || "—"}</span>
-            <div style="display:flex;gap:6px;align-items:center;">
-              <span class="badge" style="background:var(--accent-light);color:var(--accent);">${item.category_name || item.category_slug || "—"}</span>
-              <span class="badge badge-secondary">r:${item.reliability || "?"}</span>
-            </div>
-          </div>
-          <div class="list-item-meta">
-            <span>${item.summary || ""}</span>
-            ${item.tags && item.tags.length ? `<span style="margin-left:8px;">${item.tags.join(", ")}</span>` : ""}
-          </div>
-          ${item.content ? `<div style="font-size:12px;color:var(--muted);margin-top:4px;line-height:1.5;">${item.content.substring(0, 200)}${item.content.length > 200 ? "..." : ""}</div>` : ""}
-          <div style="margin-top:8px;display:flex;gap:6px;">
-            <button class="btn btn-sm" onclick="openUkEdit('${item.id}')">${t("action.edit")}</button>
-            <button class="btn btn-sm btn-danger" onclick="deleteUkEntry('${item.id}', '${(item.topic||"").replace(/'/g,"\\'")}')">${t("action.delete")}</button>
-          </div>
-        </div>
-      `).join("");
-    }
-
-    function getAllChildSlugs(slug) {
-      const node = ukTreeData[slug];
-      if (!node || !node.children) return [];
-      let result = [...node.children];
-      node.children.forEach(child => { result = result.concat(getAllChildSlugs(child)); });
-      return result;
-    }
-
-    async function openUkEdit(item) {
-      const modal = $("ukEditModal");
-      const catSelect = $("ukEditCategory");
-      const buildOptions = (cats, depth = 0) => {
-        return cats.map(c => {
-          const prefix = "\u00A0\u00A0".repeat(depth);
-          return `<option value="${c.slug}">${prefix}${c.name || c.slug}</option>`;
-        }).join("");
-      };
-      const rootCats = ukAllCategories.filter(c => !c.parent_id);
-      catSelect.innerHTML = `<option value="">—</option>` + buildOptions(rootCats);
-
-      if (item) {
-        $("ukEditTitle").textContent = t("uk.editEntry");
-        $("ukEditId").value = item.id || "";
-        $("ukEditTopic").value = item.topic || "";
-        catSelect.value = item.category_slug || "";
-        $("ukEditSummary").value = item.summary || "";
-        $("ukEditContent").value = item.content || "";
-        $("ukEditReliability").value = item.reliability || 0.8;
-        $("ukEditSource").value = item.source || "manual";
-        $("ukEditTags").value = (item.tags || []).join(", ");
-      } else {
-        $("ukEditTitle").textContent = t("uk.newEntry");
-        $("ukEditId").value = "";
-        $("ukEditTopic").value = "";
-        catSelect.value = ukCurrentCategory || "";
-        $("ukEditSummary").value = "";
-        $("ukEditContent").value = "";
-        $("ukEditReliability").value = 0.8;
-        $("ukEditSource").value = "manual";
-        $("ukEditTags").value = "";
-      }
-      modal.classList.remove("hidden");
-    }
 
     window.openUkEdit = async (id) => {
       if (!id) {
@@ -6315,29 +5913,6 @@
       }
     };
 
-    async function saveUkEntry() {
-      const id = $("ukEditId").value;
-      const topic = $("ukEditTopic").value.trim();
-      if (!topic) { setStatus(t("uk.topic") + " " + t("status.error")); return; }
-      const catSlug = $("ukEditCategory").value;
-      const tags = $("ukEditTags").value.split(",").map(s => s.trim()).filter(Boolean);
-      if (id) {
-        const result = await api("/api/tool", { tool: "kb.uk.update", arguments: {
-          entry_id: id, topic, summary: $("ukEditSummary").value, content: $("ukEditContent").value,
-          reliability: parseFloat($("ukEditReliability").value), source: $("ukEditSource").value, tags
-        }});
-        if (result.ok) { $("ukEditModal").classList.add("hidden"); await loadUkItems(); setStatus(t("msg.saved")); }
-        else setStatus(t("status.error"));
-      } else {
-        const result = await api("/api/tool", { tool: "kb.uk.create", arguments: {
-          topic, summary: $("ukEditSummary").value, content: $("ukEditContent").value,
-          category_slug: catSlug, reliability: parseFloat($("ukEditReliability").value),
-          source: $("ukEditSource").value, tags
-        }});
-        if (result.ok) { $("ukEditModal").classList.add("hidden"); await loadUkItems(); setStatus(t("msg.saved")); }
-        else setStatus(t("status.error"));
-      }
-    }
 
     window.deleteUkEntry = async (id, name) => {
       if (!confirm(t("uk.confirmDelete"))) return;
@@ -6438,569 +6013,37 @@
     let kbListOffset = 0;
     const kbListLimit = 50;
 
-    async function loadKnowledgeStats() {
-      setStatus(t("status.running"));
-      const result = await api("/api/tool", { tool: "knowledge.stats", arguments: {} });
-      if (result.ok && result.result) {
-        const stats = result.result;
-        $("kbTotalItems").textContent = stats.total_items || 0;
-        $("kbActiveItems").textContent = stats.active_items || 0;
-        $("kbOpencodeItems").textContent = stats.opencode_items || 0;
-        $("kbTotalViews").textContent = stats.total_views || 0;
-        const categories = stats.categories || [];
-        $("knowledgeCategoriesResult").innerHTML = categories.length > 0 ?
-          `<div class="grid-3">${categories.map(cat => `
-            <div class="stat-card" style="cursor: pointer;" onclick="goToKnowledgeList('${cat.slug}')">
-              <span class="stat-label">${cat.name || cat.slug}</span>
-              <span class="stat-value" style="font-size: 20px;">${cat.item_count || 0}</span>
-              <span style="font-size: 11px; color: var(--muted);">${cat.slug}</span>
-            </div>
-          `).join('')}</div>` :
-          '<p style="color:var(--muted);text-align:center;padding:20px;">No categories found</p>';
-        setStatus(t("status.ready"));
-      } else {
-        setStatus(t("status.error"));
-      }
-    }
 
-    async function loadKnowledgeCategories() {
-      const result = await api("/api/tool", { tool: "knowledge.category.list", arguments: { include_inactive: false } });
-      if (result.ok && Array.isArray(result.result)) {
-        const categories = result.result;
-        const categoryOptions = categories.map(c => `<option value="${c.slug}">${c.name || c.slug}</option>`).join('');
-        ["kbListCategory", "kbSearchCategory", "kbCategory"].forEach(id => {
-          const select = $(id);
-          if (select) {
-            select.innerHTML = `<option value="">All Categories</option>${categoryOptions}`;
-          }
-        });
-      }
-    }
 
-    async function loadKnowledgeList() {
-      setStatus(t("status.running"));
-      kbListOffset = 0;
-      const category = $("kbListCategory").value;
-      const source = $("kbListSource").value;
-      const level = $("kbListLevel").value;
-      const args = { limit: kbListLimit, offset: 0 };
-      if (category) args.category_slug = category;
-      if (source) args.source = source;
-      if (level) args.level = level;
-      const result = await api("/api/tool", { tool: "knowledge.item.list", arguments: args });
-      if (result.ok && Array.isArray(result.result)) {
-        const items = result.result;
-        $("kbListCount").textContent = `Items Found: ${items.length}`;
-        renderKnowledgeList(items);
-        renderKnowledgeListPagination(items.length);
-        setStatus(t("status.ready"));
-      } else {
-        setStatus(t("status.error"));
-      }
-    }
 
-    function renderKnowledgeList(items) {
-      const container = $("knowledgeListResult");
-      if (!items || items.length === 0) {
-        container.innerHTML = '<p style="color:var(--muted);text-align:center;padding:20px;">No items found</p>';
-        return;
-      }
-      container.innerHTML = items.map(item => `
-        <div class="list-item" onclick="selectKnowledgeItem('${item.id}', '${item.code}')" style="cursor: pointer;">
-          <div class="list-item-header">
-            <span style="font-weight: 600;">${item.title || item.code}</span>
-            <div style="display:flex;gap:6px;align-items:center;">
-              <span class="badge" style="background: var(--accent-light); color: var(--accent);">${item.category_name || item.category_slug || 'N/A'}</span>
-              ${item.level ? `<span class="badge badge-secondary">${item.level}</span>` : ''}
-              ${item.source === 'opencode' ? '<span class="badge badge-success">OpenCode</span>' : '<span class="badge badge-warning">Manual</span>'}
-            </div>
-          </div>
-          <div class="list-item-meta">
-            <span style="font-weight:500;">${item.code}</span>
-            <span style="margin:0 6px;">|</span>
-            <span>views: ${item.view_count || 0}</span>
-            <span style="margin:0 6px;">|</span>
-            <span>uses: ${item.use_count || 0}</span>
-          </div>
-          ${item.summary ? `<div style="font-size:12px;color:var(--muted);margin-top:6px;line-height:1.5;">${item.summary.substring(0, 150)}${item.summary.length > 150 ? '...' : ''}</div>` : ''}
-        </div>
-      `).join("");
-    }
 
-    function renderKnowledgeListPagination(totalCount) {
-      const container = $("knowledgeListPagination");
-      const totalPages = Math.ceil(totalCount / kbListLimit);
-      if (totalPages <= 1) {
-        container.innerHTML = '';
-        return;
-      }
-      container.innerHTML = `
-        <button class="btn btn-sm" onclick="loadMoreKnowledgeList()" ${kbListOffset >= totalCount - kbListLimit ? 'disabled' : ''}>Load More</button>
-      `;
-    }
 
-    async function loadMoreKnowledgeList() {
-      kbListOffset += kbListLimit;
-      const category = $("kbListCategory").value;
-      const source = $("kbListSource").value;
-      const level = $("kbListLevel").value;
-      const args = { limit: kbListLimit, offset: kbListOffset };
-      if (category) args.category_slug = category;
-      if (source) args.source = source;
-      if (level) args.level = level;
-      setStatus(t("status.running"));
-      const result = await api("/api/tool", { tool: "knowledge.item.list", arguments: args });
-      if (result.ok && Array.isArray(result.result)) {
-        const items = result.result;
-        renderKnowledgeList(items);
-        setStatus(t("status.ready"));
-      }
-    }
 
-    function resetKnowledgeList() {
-      $("kbListCategory").value = "";
-      $("kbListSource").value = "";
-      $("kbListLevel").value = "";
-      kbListOffset = 0;
-      loadKnowledgeList();
-    }
 
     let selectedCategorySlug = null;
     let selectedItemId = null;
     let selectedItemType = null;
 
-    async function loadKnowledgeMaintain() {
-      await renderCategoryTree();
-      await loadKnowledgeItems();
-    }
-
-    async function renderCategoryTree() {
-      const result = await api("/api/tool", { tool: "knowledge.category.list", arguments: { include_inactive: false } });
-      if (result.ok && Array.isArray(result.result)) {
-        const categories = result.result;
-        const parentMap = {};
-        categories.forEach(cat => {
-          const parentKey = cat.parent_id === null || cat.parent_id === 'null' || cat.parent_id === '' ? 'root' : cat.parent_id;
-          if (!parentMap[parentKey]) parentMap[parentKey] = [];
-          parentMap[parentKey].push(cat);
-        });
-
-        const container = $("kbCategoryTree");
-        container.innerHTML = '';
-
-        function buildTree(parentKey, depth = 0, parentElement = container) {
-          const children = parentMap[parentKey] || [];
-          if (children.length === 0) return;
-
-          children.forEach(cat => {
-            const childKey = cat.id;
-            const hasChildren = parentMap[childKey] && parentMap[childKey].length > 0;
-
-            const itemDiv = document.createElement('div');
-            itemDiv.style.cursor = 'pointer';
-            itemDiv.style.padding = '4px 6px';
-            itemDiv.style.borderRadius = '4px';
-            
-            itemDiv.onmouseover = () => { itemDiv.style.background = 'var(--bg)'; };
-            itemDiv.onmouseout = () => { itemDiv.style.background = 'transparent'; };
-
-            if (hasChildren) {
-              const iconSpan = document.createElement('span');
-              iconSpan.textContent = '▶';
-              iconSpan.style.display = 'inline-block';
-              iconSpan.style.width = '18px';
-              iconSpan.style.textAlign = 'center';
-              iconSpan.style.fontSize = '12px';
-              itemDiv.appendChild(iconSpan);
-            } else {
-              const spacerSpan = document.createElement('span');
-              spacerSpan.style.display = 'inline-block';
-              spacerSpan.style.width = '18px';
-              itemDiv.appendChild(spacerSpan);
-            }
-
-            const nameSpan = document.createElement('span');
-            nameSpan.textContent = cat.name;
-
-            itemDiv.appendChild(nameSpan);
-
-            itemDiv.addEventListener('click', (e) => {
-              if (hasChildren) {
-                e.stopPropagation();
-                toggleCategory(childKey);
-              }
-              selectCategory(cat.slug, cat.name);
-            });
-
-            parentElement.appendChild(itemDiv);
-
-            if (hasChildren) {
-              const childrenContainer = document.createElement('div');
-              childrenContainer.id = 'cat-children-' + childKey;
-              childrenContainer.style.display = 'block';
-              childrenContainer.style.paddingLeft = '20px';
-              parentElement.appendChild(childrenContainer);
-              buildTree(childKey, depth + 1, childrenContainer);
-            }
-          });
-        }
-
-        buildTree('root', 0);
-      }
-    }
-
-    function toggleCategory(catId) {
-      const container = document.getElementById('cat-children-' + catId);
-      if (container) {
-        const icon = container.previousElementSibling.querySelector('span:first-child');
-        if (container.style.display === 'none') {
-          container.style.display = 'block';
-          if (icon) icon.textContent = '▶';
-        } else {
-          container.style.display = 'none';
-          if (icon) icon.textContent = '▸';
-        }
-      }
-    }
-
-    async function selectCategory(slug, name) {
-      selectedCategorySlug = slug;
-      $("kbItemListTitle").textContent = name ? `${name} (${slug})` : "Items";
-      await loadKnowledgeItems();
-    }
-
-    async function loadKnowledgeItems() {
-      const source = $("kbItemSource").value;
-      const args = { limit: 100, offset: 0 };
-      if (selectedCategorySlug) args.category_slug = selectedCategorySlug;
-      
-      let toolName = "knowledge.item.list";
-      if (source === "user") {
-        toolName = "knowledge.user.list";
-      }
-      
-      const result = await api("/api/tool", { tool: toolName, arguments: args });
-      if (result.ok && Array.isArray(result.result)) {
-        const items = result.result;
-        renderKnowledgeItemList(items, source);
-      }
-    }
-
-    function renderKnowledgeItemList(items, source) {
-      const container = $("kbItemList");
-      container.innerHTML = '';
-      
-      if (!items || items.length === 0) {
-        container.innerHTML = '<p style="color:var(--muted);text-align:center;padding:20px;">No items found</p>';
-        return;
-      }
-      
-      items.forEach(item => {
-        const isUser = source === "user";
-        const reviewBadge = isUser && item.review_status === 'pending' ? 
-          '<span class="badge badge-warning">Pending Review</span>' : 
-          isUser && item.review_status === 'approved' ? 
-          '<span class="badge badge-success">Approved</span>' : 
-          isUser && item.review_status === 'rejected' ? 
-          '<span class="badge badge-danger">Rejected</span>' : '';
-          
-        const div = document.createElement('div');
-        div.className = 'list-item';
-        div.style.cursor = 'pointer';
-        div.innerHTML = `
-          <div class="list-item-header">
-            <span style="font-weight: 600;">${item.title || item.code}</span>
-            <div style="display:flex;gap:6px;align-items:center;">
-              <span class="badge" style="background: var(--accent-light); color: var(--accent);">${item.category_name || item.category_slug || 'N/A'}</span>
-              ${reviewBadge}
-            </div>
-          </div>
-          <div class="list-item-meta">
-            <span style="font-weight:500;">${item.code || 'N/A'}</span>
-            <span style="margin:0 6px;">|</span>
-            <span>${isUser ? 'My Item' : 'Public'}</span>
-          </div>
-          ${item.summary ? `<div style="font-size:12px;color:var(--muted);margin-top:6px;line-height:1.5;">${item.summary.substring(0, 150)}${item.summary.length > 150 ? '...' : ''}</div>` : ''}
-        `;
-        div.addEventListener('click', () => {
-          selectKnowledgeItemEdit(item.id, item.code, source);
-        });
-        container.appendChild(div);
-      });
-    }
-
-    async function selectKnowledgeItemEdit(itemId, code, source) {
-      selectedItemId = itemId;
-      selectedItemType = source;
-      $("kbEditorCloseBtn").style.display = "block";
-      
-      const toolName = source === "user" ? "knowledge.user.get" : "knowledge.item.get";
-      const args = source === "user" ? { item_id: itemId } : { item_id: itemId };
-      
-      console.log("selectKnowledgeItemEdit called:", { toolName, args });
-      
-      const result = await api("/api/tool", { tool: toolName, arguments: args });
-      
-      console.log("API result:", result);
-      
-      if (result.ok && result.result) {
-        renderKnowledgeEditor(result.result, source);
-      } else {
-        console.error("API error:", result);
-        showToast("error", "Failed to load item", result.error || result.message || "Unknown error");
-      }
-    }
-
-    function renderKnowledgeEditor(item, source) {
-      const isUser = source === "user";
-      const canSubmit = isUser && item.status !== 'submitted';
-      
-      $("kbEditorContent").innerHTML = `
-        <div class="form-group">
-          <label class="form-label">${t("knowledge.code")}</label>
-          <input type="text" class="form-input" id="kbEditCode" value="${item.code || ''}" placeholder="Code">
-        </div>
-        <div class="form-group">
-          <label class="form-label">${t("knowledge.title")}</label>
-          <input type="text" class="form-input" id="kbEditTitle" value="${item.title || ''}" placeholder="Title">
-        </div>
-        <div class="form-group">
-          <label class="form-label">${t("knowledge.content")}</label>
-          <textarea class="form-textarea" id="kbEditContent" style="min-height: 250px; font-size: 14px; line-height: 1.6;" placeholder="Content">${item.content || ''}</textarea>
-        </div>
-        <div class="form-group">
-          <label class="form-label">${t("knowledge.summary")}</label>
-          <textarea class="form-textarea" id="kbEditSummary" style="min-height: 100px; font-size: 14px;" placeholder="Summary">${item.summary || ''}</textarea>
-        </div>
-        <div class="form-group">
-          <label class="form-label">${t("knowledge.examples")}</label>
-          <textarea class="form-textarea" id="kbEditExamples" style="min-height: 100px; font-size: 14px;" placeholder="Examples">${item.examples || ''}</textarea>
-        </div>
-        <div class="form-group">
-          <label class="form-label">${t("knowledge.counterExamples")}</label>
-          <textarea class="form-textarea" id="kbEditCounterExamples" style="min-height: 100px; font-size: 14px;" placeholder="Counter Examples">${item.counterExamples || ''}</textarea>
-        </div>
-        ${item.review_comment ? `<div style="background: var(--accent-light); padding: 12px; border-radius: 6px; margin-bottom: 12px;">
-          <strong>Review Comment:</strong><br>${item.review_comment}
-        </div>` : ''}
-        <div style="display: flex; gap: 12px; flex-wrap: wrap; margin-top: 16px;">
-          <button class="btn" onclick="saveKnowledgeEditor('${source}', '${item.id}')">${t("action.save")}</button>
-          ${isUser ? `<button class="btn btn-secondary" onclick="deleteKnowledgeItemEdit('${item.id}')">${t("action.delete")}</button>` : ''}
-          ${canSubmit ? `<button class="btn btn-success" onclick="submitKnowledgeForReview('${item.id}')">Submit for Review</button>` : ''}
-          ${!isUser && item.id ? `<button class="btn btn-secondary" onclick="createPrivateCopy('${item.id}')">Create Private Copy</button>` : ''}
-        </div>
-      `;
-    }
-
-    async function saveKnowledgeEditor(source, itemId) {
-      const code = $("kbEditCode").value;
-      const title = $("kbEditTitle").value;
-      const content = $("kbEditContent").value;
-      const summary = $("kbEditSummary").value;
-      const examples = $("kbEditExamples").value;
-      const counterExamples = $("kbEditCounterExamples").value;
-      
-      if (!title || !content) {
-        showToast("warning", "Title and Content are required");
-        return;
-      }
-      
-      const toolName = source === "user" ? "knowledge.user.upsert" : "knowledge.item.upsert";
-      const args = {
-        title,
-        content,
-        code,
-        summary,
-        examples,
-        counter_examples: counterExamples,
-      };
-      
-      if (source === "user") {
-        args.item_id = itemId;
-      } else {
-        args.item_id = itemId;
-      }
-      
-      const result = await api("/api/tool", { tool: toolName, arguments: args });
-      if (result.ok) {
-        showToast("success", "Saved successfully");
-        await loadKnowledgeItems();
-      }
-    }
-
-    async function deleteKnowledgeItemEdit(itemId) {
-      if (!confirm("Are you sure you want to delete this item?")) return;
-      
-      const result = await api("/api/tool", { tool: "knowledge.user.delete", arguments: { item_id: itemId } });
-      if (result.ok) {
-        showToast("success", "Deleted successfully");
-        closeKnowledgeEditor();
-        await loadKnowledgeItems();
-      }
-    }
-
-    async function submitKnowledgeForReview(itemId) {
-      const reason = prompt("Enter reason for review submission:");
-      if (!reason) return;
-      
-      const result = await api("/api/tool", { tool: "knowledge.user.submit_review", arguments: { item_id: itemId, reason } });
-      if (result.ok) {
-        showToast("success", "Submitted for review successfully");
-        await loadKnowledgeItems();
-      }
-    }
-
-    async function createPrivateCopy(baseId) {
-      const result = await api("/api/tool", { tool: "knowledge.user.create_from_base", arguments: { base_knowledge_id: baseId } });
-      if (result.ok) {
-        showToast("success", "Private copy created successfully");
-        $("kbItemSource").value = "user";
-        await loadKnowledgeItems();
-      }
-    }
-
-    async function createNewKnowledgeItem() {
-      $("kbEditorCloseBtn").style.display = "block";
-      selectedItemId = null;
-      selectedItemType = "user";
-      
-      $("kbEditorContent").innerHTML = `
-        <div class="form-group">
-          <label class="form-label">${t("knowledge.title")}</label>
-          <input type="text" class="form-input" id="kbNewTitle" placeholder="Title">
-        </div>
-        <div class="form-group">
-          <label class="form-label">${t("knowledge.content")}</label>
-          <textarea class="form-textarea" id="kbNewContent" style="min-height: 150px;" placeholder="Content"></textarea>
-        </div>
-        <div class="form-group">
-          <label class="form-label">${t("knowledge.summary")}</label>
-          <textarea class="form-textarea" id="kbNewSummary" style="min-height: 80px;" placeholder="Summary"></textarea>
-        </div>
-        <div style="display: flex; gap: 8px;">
-          <button class="btn" onclick="saveNewKnowledgeItem()">${t("action.save")}</button>
-          <button class="btn btn-secondary" onclick="closeKnowledgeEditor()">${t("action.cancel")}</button>
-        </div>
-      `;
-    }
-
-    async function saveNewKnowledgeItem() {
-      const title = $("kbNewTitle").value;
-      const content = $("kbNewContent").value;
-      const summary = $("kbNewSummary").value;
-      
-      if (!title || !content) {
-        showToast("warning", "Title and Content are required");
-        return;
-      }
-      
-      const args = { title, content, summary };
-      if (selectedCategorySlug) {
-        args.category_slug = selectedCategorySlug;
-      }
-      
-      const result = await api("/api/tool", { tool: "knowledge.user.upsert", arguments: args });
-      if (result.ok) {
-        showToast("success", "Created successfully");
-        $("kbItemSource").value = "user";
-        await loadKnowledgeItems();
-      }
-    }
-
-    function closeKnowledgeEditor() {
-      $("kbEditorCloseBtn").style.display = "none";
-      selectedItemId = null;
-      selectedItemType = null;
-      $("kbEditorContent").innerHTML = `
-        <div style="text-align:center; color:var(--muted); padding:40px;">
-          <p>${t("knowledge.selectItem")}</p>
-          <p style="font-size:12px; margin-top:8px;">${t("knowledge.editTip")}</p>
-        </div>
-      `;
-    }
-
-    async function loadReviewList() {
-      const status = $("kbReviewStatus").value;
-      const args = { limit: 50 };
-      if (status) args.review_status = status;
-      
-      const result = await api("/api/tool", { tool: "knowledge.review.list", arguments: args });
-      if (result.ok && Array.isArray(result.result)) {
-        renderReviewList(result.result);
-      }
-    }
 
 
-    async function selectReviewItem(reviewId) {
-      const result = await api("/api/tool", { tool: "knowledge.review.get", arguments: { review_id: reviewId } });
-      if (result.ok && result.result) {
-        renderReviewDetail(result.result);
-      }
-    }
 
-    function renderReviewDetail(item) {
-      $("kbReviewDetail").innerHTML = `
-        <div style="margin-bottom: 16px;">
-          <h3 style="margin-bottom: 8px;">${item.title || item.code}</h3>
-          <div style="display:flex;gap:8px;margin-bottom:12px;">
-            <span class="badge ${item.review_status === 'pending' ? 'badge-warning' : item.review_status === 'approved' ? 'badge-success' : 'badge-danger'}">
-              ${item.review_status}
-            </span>
-            <span class="badge" style="background: var(--accent-light); color: var(--accent);">${item.category_name || item.category_slug || 'N/A'}</span>
-          </div>
-        </div>
-        
-        <div style="margin-bottom: 12px;">
-          <strong>Submitter:</strong> ${item.submitter_name}
-        </div>
-        <div style="margin-bottom: 12px;">
-          <strong>Submit Time:</strong> ${new Date(item.submit_time).toLocaleString()}
-        </div>
-        ${item.submit_reason ? `<div style="margin-bottom: 12px;"><strong>Submit Reason:</strong> ${item.submit_reason}</div>` : ''}
-        ${item.base_title ? `<div style="margin-bottom: 12px;"><strong>Based on:</strong> ${item.base_title}</div>` : ''}
-        
-        <div style="border-top: 1px solid var(--line); padding-top: 12px; margin-bottom: 12px;">
-          <strong>${t("knowledge.content")}</strong>
-          <div style="margin-top: 8px; white-space: pre-wrap; line-height: 1.6;">${item.content || ''}</div>
-        </div>
-        
-        ${item.summary ? `<div style="border-top: 1px solid var(--line); padding-top: 12px; margin-bottom: 12px;">
-          <strong>${t("knowledge.summary")}</strong>
-          <div style="margin-top: 8px;">${item.summary}</div>
-        </div>` : ''}
-        
-        ${item.review_comment ? `<div style="background: var(--accent-light); padding: 12px; border-radius: 6px; margin-bottom: 12px;">
-          <strong>Review Comment:</strong><br>${item.review_comment}
-        </div>` : ''}
-        
-        ${item.review_status === 'pending' ? `<div style="display: flex; gap: 8px;">
-          <button class="btn btn-success" onclick="approveReview('${item.review_id}')">Approve</button>
-          <button class="btn btn-danger" onclick="rejectReview('${item.review_id}')">Reject</button>
-        </div>` : ''}
-      `;
-    }
 
-    async function approveReview(reviewId) {
-      const comment = prompt("Enter review comment (optional):");
-      const result = await api("/api/tool", { tool: "knowledge.review.approve", arguments: { review_id: reviewId, comment } });
-      if (result.ok) {
-        showToast("success", "Approved successfully");
-        await loadReviewList();
-        selectReviewItem(reviewId);
-      }
-    }
 
-    async function rejectReview(reviewId) {
-      const comment = prompt("Enter rejection reason:");
-      if (!comment) return;
-      
-      const result = await api("/api/tool", { tool: "knowledge.review.reject", arguments: { review_id: reviewId, comment } });
-      if (result.ok) {
-        showToast("success", "Rejected successfully");
-        await loadReviewList();
-        selectReviewItem(reviewId);
-      }
-    }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
     function goToPage(pageName) {
       console.log("[DEBUG] goToPage:", pageName);
@@ -7269,19 +6312,6 @@
 
     // ========== State keys ==========
     const stateKeys = ["mcpUrl", "workspace", "project"];
-    function loadState() {
-      for (const key of stateKeys) {
-        const saved = localStorage.getItem("novel_os_" + key);
-        const el = $(key);
-        if (saved && el) el.value = saved;
-      }
-    }
-    function saveState() {
-      for (const key of stateKeys) {
-        const el = $(key);
-        if (el) localStorage.setItem("novel_os_" + key, el.value);
-      }
-    }
 
     // ========== Project selector ==========
     let allProjects = [];
@@ -7359,19 +6389,7 @@
     }
 
     // ========== Canon CRUD ==========
-    function parseCsv(str) {
-      if (!str || !str.trim()) return null;
-      return str.split(",").map(s => s.trim()).filter(s => s.length > 0);
-    }
 
-    function parseJson(str, fallback) {
-      if (!str || !str.trim()) return fallback;
-      try {
-        return JSON.parse(str);
-      } catch (e) {
-        return fallback;
-      }
-    }
 
 
     window.selectCanonDoc = (key) => {
@@ -7400,213 +6418,19 @@
     let skillCurrentId = null;
     let skillCurrentSteps = [];
 
-    async function init_skill_manage_fn() {
-      console.log("[Skill] init_skill_manage called");
-      await loadSkillList();
-      $("skillRefreshBtn").onclick = () => loadSkillList();
-      $("skillCreateBtn").onclick = () => openSkillEdit(null);
-      $("skillEditClose").onclick = () => $("skillEditModal").classList.add("hidden");
-      $("skillEditCancel").onclick = () => $("skillEditModal").classList.add("hidden");
-      $("skillEditSave").onclick = saveSkill;
-      $("skillEditBtn").onclick = () => { if (skillCurrentId) openSkillEdit(skillCurrentId); };
-      $("skillDeleteBtn").onclick = () => { if (skillCurrentId) deleteSkillConfirm(skillCurrentId); };
-      $("skillDeleteClose").onclick = () => $("skillDeleteModal").classList.add("hidden");
-      $("skillDeleteCancel").onclick = () => $("skillDeleteModal").classList.add("hidden");
-      $("skillDeleteConfirm").onclick = deleteSkillExecute;
-      $("skillStepAddBtn").onclick = () => openStepEdit(null);
-      $("skillStepClose").onclick = () => $("skillStepModal").classList.add("hidden");
-      $("skillStepCancel").onclick = () => $("skillStepModal").classList.add("hidden");
-      $("skillStepSave").onclick = saveStep;
-      $("skillContentEditBtn").onclick = () => { $("skillEditContent").style.display = ""; $("skillContentPreview").style.display = "none"; };
-      $("skillContentPreviewBtn").onclick = () => {
-        $("skillEditContent").style.display = "none";
-        $("skillContentPreview").style.display = "";
-        $("skillContentPreview").innerHTML = renderMarkdown($("skillEditContent").value);
-      };
-    }
     window['init_skill-manage'] = init_skill_manage_fn;
 
-    function renderMarkdown(text) {
-      if (!text) return "";
-      return escapeHtml(text)
-        .replace(/^### (.+)$/gm, '<h3 style="margin:12px 0 6px;">$1</h3>')
-        .replace(/^## (.+)$/gm, '<h2 style="margin:14px 0 8px;">$1</h2>')
-        .replace(/^# (.+)$/gm, '<h1 style="margin:16px 0 10px;">$1</h1>')
-        .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
-        .replace(/`(.+?)`/g, '<code style="background:var(--bg);padding:1px 4px;border-radius:3px;">$1</code>')
-        .replace(/^- (.+)$/gm, '<li>$1</li>')
-        .replace(/(<li>.*<\/li>\n?)+/g, '<ul style="margin:8px 0;padding-left:20px;">$&</ul>')
-        .replace(/\n\n/g, '<br><br>')
-        .replace(/\n/g, '<br>');
-    }
-
-    async function loadSkillList() {
-      console.log("[Skill] loadSkillList called");
-      const container = $("skillList");
-      container.innerHTML = `<p style="padding:12px;color:var(--muted);">${t("status.loading")}</p>`;
-      const result = await api("/api/tool", { tool: "skill.list", arguments: { active_only: false } });
-      if (!result.ok || !Array.isArray(result.result)) {
-        container.innerHTML = `<p style="padding:12px;color:var(--danger);">Failed to load skills</p>`;
-        return;
-      }
-      if (result.result.length === 0) {
-        container.innerHTML = `<p style="padding:12px;color:var(--muted);">No skills yet. Click "+ New" to create one.</p>`;
-        return;
-      }
-      container.innerHTML = result.result.map(s => `
-        <div class="uk-tree-item" style="cursor:pointer;padding:10px 12px;border-bottom:1px solid var(--line);${skillCurrentId === s.id ? 'background:var(--accent-light);' : ''}"
-             onclick="selectSkill('${s.id}')">
-          <div style="font-weight:500;font-size:13px;">${escapeHtml(s.name)}</div>
-          <div style="font-size:11px;color:var(--muted);margin-top:2px;">${escapeHtml((s.description || '').substring(0, 60))}</div>
-          ${!s.is_active ? '<span class="badge" style="background:var(--warning);font-size:9px;margin-top:4px;">Inactive</span>' : ''}
-        </div>
-      `).join("");
-    }
-
-    async function selectSkill(id) {
-      skillCurrentId = id;
-      $("skillDetailActions").style.display = "";
-      $("skillDetailTitle").textContent = t("status.loading");
-      $("skillDetailContent").innerHTML = "";
-      const result = await api("/api/tool", { tool: "skill.get", arguments: { skill_id: id } });
-      if (!result.ok || !result.result) {
-        $("skillDetailTitle").textContent = "Skill not found";
-        return;
-      }
-      const skill = result.result;
-      skillCurrentSteps = skill.steps || [];
-      $("skillDetailTitle").textContent = skill.name;
-      let html = `
-        <div style="margin-bottom:12px;">
-          <div style="font-size:12px;color:var(--muted);margin-bottom:4px;">Description</div>
-          <div>${escapeHtml(skill.description || '-')}</div>
-        </div>
-        <div style="margin-bottom:12px;">
-          <div style="font-size:12px;color:var(--muted);margin-bottom:4px;">Trigger Words</div>
-          <div>${(skill.trigger_words || []).map(w => `<span class="badge">${escapeHtml(w)}</span>`).join(' ') || '-'}</div>
-        </div>
-        <div style="margin-bottom:12px;">
-          <div style="font-size:12px;color:var(--muted);margin-bottom:4px;">Related Tools</div>
-          <div>${(skill.tool_hints || []).map(t => `<span class="badge" style="background:var(--accent);">${escapeHtml(t)}</span>`).join(' ') || '-'}</div>
-        </div>
-        <div style="margin-bottom:12px;">
-          <div style="font-size:12px;color:var(--muted);margin-bottom:4px;">Status</div>
-          <div>${skill.is_active ? '<span class="badge" style="background:var(--success);">Active</span>' : '<span class="badge" style="background:var(--warning);">Inactive</span>'}</div>
-        </div>
-        <div style="margin-top:16px;border-top:1px solid var(--line);padding-top:16px;">
-          <div style="font-weight:600;margin-bottom:8px;">Steps (${skillCurrentSteps.length})</div>
-          ${skillCurrentSteps.length === 0 ? '<p style="color:var(--muted);font-size:13px;">No steps configured</p>' :
-            skillCurrentSteps.map((step, i) => `
-              <div style="padding:8px;background:var(--bg);border-radius:4px;margin-bottom:4px;font-size:13px;">
-                <strong>${step.step_order}. ${escapeHtml(step.step_name)}</strong>
-                ${step.tool_name ? `<span class="badge" style="background:var(--accent);margin-left:8px;">${escapeHtml(step.tool_name)}</span>` : ''}
-                ${step.optional ? '<span class="badge" style="background:var(--warning);margin-left:4px;">Optional</span>' : ''}
-                ${step.description ? `<div style="color:var(--muted);margin-top:4px;">${escapeHtml(step.description)}</div>` : ''}
-              </div>
-            `).join('')}
-        </div>
-      `;
-      $("skillDetailContent").innerHTML = html;
-      loadSkillList();
-    }
-
-    async function openSkillEdit(id) {
-      const modal = $("skillEditModal");
-      $("skillEditId").value = "";
-      $("skillEditName").value = "";
-      $("skillEditDesc").value = "";
-      $("skillEditTriggers").value = "";
-      $("skillEditTools").value = "";
-      $("skillEditSort").value = "0";
-      $("skillEditActive").checked = true;
-      $("skillEditContent").value = "";
-      $("skillStepList").innerHTML = "";
-
-      if (id) {
-        $("skillEditTitle").textContent = t("skill.editSkill");
-        const result = await api("/api/tool", { tool: "skill.get", arguments: { skill_id: id } });
-        if (result.ok && result.result) {
-          const skill = result.result;
-          $("skillEditId").value = skill.id;
-          $("skillEditName").value = skill.name || "";
-          $("skillEditDesc").value = skill.description || "";
-          $("skillEditTriggers").value = (skill.trigger_words || []).join(", ");
-          $("skillEditTools").value = (skill.tool_hints || []).join(", ");
-          $("skillEditSort").value = skill.sort_order || 0;
-          $("skillEditActive").checked = skill.is_active;
-          $("skillEditContent").value = skill.content || "";
-          skillCurrentSteps = skill.steps || [];
-          renderStepList();
-        }
-      } else {
-        $("skillEditTitle").textContent = t("skill.newSkill");
-        skillCurrentSteps = [];
-      }
-      modal.classList.remove("hidden");
-    }
 
 
 
 
 
-    async function saveSkill() {
-      const id = $("skillEditId").value;
-      const name = $("skillEditName").value.trim();
-      if (!name) { setStatus("Name required"); return; }
-      const desc = $("skillEditDesc").value.trim() || null;
-      const triggers = $("skillEditTriggers").value.split(",").map(s => s.trim()).filter(Boolean);
-      const tools = $("skillEditTools").value.split(",").map(s => s.trim()).filter(Boolean);
-      const sort = parseInt($("skillEditSort").value) || 0;
-      const active = $("skillEditActive").checked;
-      const content = $("skillEditContent").value;
 
-      let skillResult;
-      if (id) {
-        skillResult = await api("/api/tool", { tool: "skill.update", arguments: {
-          skill_id: id, name, description: desc, content, trigger_words: triggers,
-          tool_hints: tools, is_active: active, sort_order: sort,
-        }});
-      } else {
-        skillResult = await api("/api/tool", { tool: "skill.create", arguments: {
-          name, description: desc, content, trigger_words: triggers,
-          tool_hints: tools, sort_order: sort,
-        }});
-      }
 
-      if (!skillResult.ok) { setStatus(t("status.error")); return; }
 
-      const skillId = skillResult.result?.id || id;
-      if (skillId && skillCurrentSteps.length > 0) {
-        await api("/api/tool", { tool: "skill.step.list", arguments: { skill_id: skillId } });
-        for (const step of skillCurrentSteps) {
-          await api("/api/tool", { tool: "skill.step.add", arguments: {
-            skill_id: skillId, step_order: step.step_order, step_name: step.step_name,
-            tool_name: step.tool_name, description: step.description,
-            parameters: step.parameters, optional: step.optional, conditional: step.conditional,
-          }});
-        }
-      }
-
-      $("skillEditModal").classList.add("hidden");
-      await loadSkillList();
-      if (skillId) await selectSkill(skillId);
-      setStatus(t("msg.saved"));
-    }
 
     let skillDeleteTargetId = null;
 
-    async function deleteSkillExecute() {
-      if (!skillDeleteTargetId) return;
-      const result = await api("/api/tool", { tool: "skill.delete", arguments: { skill_id: skillDeleteTargetId } });
-      $("skillDeleteModal").classList.add("hidden");
-      skillDeleteTargetId = null;
-      skillCurrentId = null;
-      $("skillDetailActions").style.display = "none";
-      $("skillDetailTitle").textContent = t("skill.selectSkill");
-      $("skillDetailContent").innerHTML = "";
-      if (result.ok) { await loadSkillList(); setStatus(t("msg.deleted")); }
-      else setStatus(t("status.error"));
-    }
 
     // ========== Initialize ==========
     function init() {
@@ -10075,33 +8899,8 @@
 
     // ========== System Monitoring ==========
 
-    async function loadCacheStats() {
-      var result = await api("/api/tool", { tool: "system.cache.get_stats", arguments: {} });
-      var el = $("cacheStats");
-      if (result && !result.error) {
-        el.innerHTML = '<pre style="font-size:12px;background:var(--bg);padding:12px;border-radius:6px;overflow-x:auto;">' + escapeHtml(JSON.stringify(result, null, 2)) + '</pre>';
-      } else {
-        el.innerHTML = '<p style="color:var(--muted);">暂无缓存数据</p>';
-      }
-    }
 
-    async function clearCache() {
-      if (!confirm("确定要清空所有缓存吗？")) return;
-      var result = await api("/api/tool", { tool: "system.cache.invalidate", arguments: {} });
-      if (result && !result.error) {
-        showToast("success", "缓存已清空");
-        loadCacheStats();
-      }
-    }
 
-    async function warmCache() {
-      var key = $("cacheWarmKey").value.trim();
-      if (!key) { showToast("warning", "请输入缓存键"); return; }
-      var result = await api("/api/tool", { tool: "system.cache.warm", arguments: { key: key } });
-      if (result && !result.error) {
-        showToast("success", "缓存已预热");
-      }
-    }
 
 
 
@@ -10160,40 +8959,8 @@
       }
     }
 
-    async function scanLocalProject() {
-      var projectId = $("localProjectId").value.trim();
-      var localPath = $("localProjectPath").value.trim();
-      if (!projectId || !localPath) { showToast("warning", "请填写项目 ID 和目录路径"); return; }
-      setStatus("扫描项目目录...");
-      var result = await api("/api/tool", {
-        tool: "local.project.scan",
-        arguments: { project_id: projectId, local_root: localPath }
-      });
-      if (result && !result.error) {
-        showToast("success", "扫描完成", result.chapters.length + " 章节, " + result.total_words + " 字");
-        loadLocalProjects();
-      }
-    }
 
-    async function scanProject(projectId, localPath) {
-      setStatus("扫描 " + projectId + "...");
-      var result = await api("/api/tool", {
-        tool: "local.project.scan",
-        arguments: { project_id: projectId, local_root: localPath }
-      });
-      if (result && !result.error) {
-        showToast("success", "扫描完成", result.chapters.length + " 章节");
-        loadLocalProjects();
-      }
-    }
 
-    async function viewProjectStats(projectId) {
-      setStatus("加载统计...");
-      var result = await api("/api/tool", { tool: "local.stats", arguments: { project_id: projectId } });
-      if (result && !result.error) {
-        showToast("info", projectId + " 统计", result.chapter_count + " 章, " + result.total_words + " 字");
-      }
-    }
 
     // ========== Local Chapter Management ==========
     async function loadLocalChapters() {
@@ -10223,31 +8990,6 @@
       }
     }
 
-    async function viewChapterDetail(chapterNo) {
-      if (!currentLocalProjectId) return;
-      setStatus("加载章节详情...");
-      var result = await api("/api/tool", {
-        tool: "local.chapter.get",
-        arguments: { project_id: currentLocalProjectId, chapter_no: chapterNo }
-      });
-      var el = $("localChapterDetail");
-      if (result && !result.error) {
-        el.style.display = "block";
-        el.innerHTML = '<h3 style="font-size:14px;font-weight:600;margin-bottom:12px;">第 ' + chapterNo + ' 章</h3>' +
-          '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px;">' +
-            '<div><strong>状态:</strong> ' + (result.status || "planned") + '</div>' +
-            '<div><strong>字数:</strong> ' + (result.word_count || 0) + '</div>' +
-            '<div><strong>路径:</strong> ' + escapeHtml(result.local_path || "") + '</div>' +
-            '<div><strong>章纲:</strong> ' + escapeHtml(result.outline_path || "无") + '</div>' +
-          '</div>' +
-          (result.summary ? '<div style="margin-bottom:12px;"><strong>摘要:</strong><div style="background:var(--bg);padding:12px;border-radius:6px;margin-top:4px;font-size:13px;">' + escapeHtml(result.summary) + '</div></div>' : '') +
-          '<div style="display:flex;gap:8px;">' +
-            '<button class="btn btn-sm" onclick="readChapterContent(' + chapterNo + ',\'final\')">查看正文</button>' +
-            '<button class="btn btn-sm" onclick="readChapterContent(' + chapterNo + ',\'draft\')">查看初稿</button>' +
-          '</div>' +
-          '<div id="chapterContentPreview" style="display:none;margin-top:12px;"></div>';
-      }
-    }
 
     async function readChapterContent(chapterNo, version) {
       if (!currentLocalProjectId) return;
@@ -10327,62 +9069,7 @@
     var currentPackCustom = {};
     var allCategories = ["角色", "物品装备", "生物生态", "世界设定", "力量体系", "历史文化", "情节参考", "写作参考", "通用素材"];
 
-    async function loadKnowledgePack() {
-      var projectId = $("packProjectSelect").value;
-      if (!projectId) { $("packActiveCategories").innerHTML = '<p style="color:var(--muted);">请先选择项目</p>'; return; }
-      currentPackProjectId = projectId;
 
-      // Load project pack
-      var result = await api("/api/tool", { tool: "kb.pack.get", arguments: { project_id: projectId } });
-      if (result && result.error) {
-        $("packActiveCategories").innerHTML = '<p style="color:var(--muted);">该项目暂无知识包，请先创建</p>';
-        $("packInactiveCategories").innerHTML = '';
-        $("packCustomCategories").innerHTML = '';
-        return;
-      }
-      if (result) {
-        currentPackActive = result.active_categories || [];
-        currentPackCustom = result.custom_categories || {};
-        $("packGenreSelect").value = result.genre || "";
-      }
-
-      // Render active categories
-      var activeHtml = currentPackActive.map(function(cat) {
-        return '<span class="badge badge-success" style="cursor:pointer;padding:8px 12px;" onclick="toggleCategory(\'' + cat + '\')">' + escapeHtml(cat) + ' ✕</span>';
-      }).join("");
-      $("packActiveCategories").innerHTML = activeHtml || '<p style="color:var(--muted);">无启用分类</p>';
-
-      // Render inactive categories
-      var inactive = allCategories.filter(function(c) { return currentPackActive.indexOf(c) === -1; });
-      var inactiveHtml = inactive.map(function(cat) {
-        return '<span class="badge" style="cursor:pointer;padding:8px 12px;" onclick="toggleCategory(\'' + cat + '\')">' + escapeHtml(cat) + ' +</span>';
-      }).join("");
-      $("packInactiveCategories").innerHTML = inactiveHtml || '<p style="color:var(--muted);">所有分类已启用</p>';
-
-      // Render custom categories
-      var customKeys = Object.keys(currentPackCustom);
-      var customHtml = customKeys.map(function(name) {
-        var cat = currentPackCustom[name];
-        return '<div class="list-item">' +
-          '<div class="list-item-header"><span style="font-weight:500;">' + escapeHtml(name) + '</span>' +
-          '<button class="btn btn-sm" style="background:var(--danger);color:#fff;" onclick="removeCustomCategory(\'' + name + '\')">删除</button></div>' +
-          '<div class="list-item-meta">' + (cat.parent ? "父分类: " + escapeHtml(cat.parent) : "无父分类") + (cat.description ? " — " + escapeHtml(cat.description) : "") + '</div>' +
-          '</div>';
-      }).join("");
-      $("packCustomCategories").innerHTML = customHtml || '<p style="color:var(--muted);">暂无自定义分类</p>';
-    }
-
-    async function createKnowledgePack() {
-      var projectId = $("packProjectSelect").value;
-      var genre = $("packGenreSelect").value;
-      if (!projectId || !genre) { showToast("warning", "请选择项目和小说类型"); return; }
-      setStatus("创建知识包...");
-      var result = await api("/api/tool", { tool: "kb.pack.create", arguments: { project_id: projectId, genre: genre } });
-      if (result && !result.error) {
-        showToast("success", "知识包已创建", genre + " 类型配置已应用");
-        loadKnowledgePack();
-      }
-    }
 
     function toggleCategory(cat) {
       var idx = currentPackActive.indexOf(cat);
@@ -10404,38 +9091,8 @@
       $("packInactiveCategories").innerHTML = inactiveHtml;
     }
 
-    async function addCustomCategory() {
-      var name = $("customCatName").value.trim();
-      var parent = $("customCatParent").value.trim();
-      if (!name) { showToast("warning", "请输入分类名称"); return; }
-      if (!currentPackProjectId) { showToast("warning", "请先选择项目"); return; }
-      setStatus("添加自定义分类...");
-      var result = await api("/api/tool", { tool: "kb.pack.custom.add", arguments: { project_id: currentPackProjectId, name: name, parent: parent || null } });
-      if (result && !result.error) {
-        showToast("success", "自定义分类已添加");
-        $("customCatName").value = "";
-        $("customCatParent").value = "";
-        loadKnowledgePack();
-      }
-    }
 
-    async function removeCustomCategory(name) {
-      if (!confirm("确定要删除自定义分类 \"" + name + "\" 吗？")) return;
-      var result = await api("/api/tool", { tool: "kb.pack.custom.remove", arguments: { project_id: currentPackProjectId, name: name } });
-      if (result && !result.error) {
-        showToast("success", "自定义分类已删除");
-        loadKnowledgePack();
-      }
-    }
 
-    async function saveKnowledgePack() {
-      if (!currentPackProjectId) { showToast("warning", "请先选择项目"); return; }
-      setStatus("保存知识包配置...");
-      var result = await api("/api/tool", { tool: "kb.pack.update", arguments: { project_id: currentPackProjectId, active_categories: currentPackActive } });
-      if (result && !result.error) {
-        showToast("success", "知识包配置已保存");
-      }
-    }
 
     // Update project dropdowns to include knowledge pack page
     var origUpdateProjectDropdowns = window.updateProjectDropdowns;
