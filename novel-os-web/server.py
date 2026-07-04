@@ -39,6 +39,7 @@ PORT = int(os.environ.get("NOVEL_OS_WEB_PORT", "8790"))
 DATA_DIR = Path(os.environ.get("NOVEL_OS_WEB_DATA_DIR", "/app/data"))
 SECRET_FILE = DATA_DIR / "session.secret"
 INDEX = Path(__file__).with_name("index.html")
+SPA_INDEX = Path(__file__).with_name("spa.html")
 SESSION_COOKIE = "novel_os_web_session"
 SESSION_TTL_SECONDS = int(os.environ.get("NOVEL_OS_WEB_SESSION_TTL_SECONDS", str(7 * 24 * 3600)))
 
@@ -377,6 +378,15 @@ class Handler(BaseHTTPRequestHandler):
         # Static file serving
         if self.path.startswith(("/js/", "/css/")):
             self.serve_static()
+            return
+        if self.path == "/spa":
+            body = SPA_INDEX.read_bytes()
+            self.send_response(200)
+            self.send_header("Content-Type", "text/html; charset=utf-8")
+            self.send_header("Content-Length", str(len(body)))
+            self.send_header("Cache-Control", "no-cache, no-store, must-revalidate")
+            self.end_headers()
+            self.wfile.write(body)
             return
         if self.path == "/health":
             self.send_json(200, {"status": "ok", "default_mcp_url": DEFAULT_MCP_URL})
