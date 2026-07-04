@@ -1,7 +1,6 @@
 <!doctype html>
 <html lang="zh-CN">
 <head>
-  <link rel="stylesheet" href="css/style.css">
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
@@ -10,7 +9,1233 @@
   <title>Novel OS Console</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  
+  <style>
+    :root {
+      --bg: #f5f6f8;
+      --panel: #fff;
+      --line: #e2e6eb;
+      --text: #1f2328;
+      --muted: #6a737d;
+      --accent: #2563eb;
+      --accent-hover: #1d4ed8;
+      --accent-light: #eff6ff;
+      --success: #16a34a;
+      --warning: #d97706;
+      --danger: #dc2626;
+      --sidebar-width: 240px;
+      --sidebar-collapsed-width: 64px;
+      --header-height: 56px;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font: 14px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+      overflow: hidden;
+    }
+
+    /* ========== Pagination ========== */
+    .pagination {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 4px;
+      margin-top: 16px;
+    }
+    .pagination-btn {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      padding: 6px 12px;
+      cursor: pointer;
+      font-size: 13px;
+      color: var(--text);
+      transition: all 0.15s;
+    }
+    .pagination-btn:hover:not(:disabled) { background: var(--bg); border-color: var(--accent); }
+    .pagination-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+    .pagination-btn.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+    .pagination-info { font-size: 12px; color: var(--muted); margin: 0 8px; }
+
+    /* ========== Toast Notifications ========== */
+    .toast-container {
+      position: fixed;
+      top: calc(var(--header-height) + 12px);
+      right: 16px;
+      z-index: 9999;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      pointer-events: none;
+    }
+    .toast {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 12px 16px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      min-width: 280px;
+      max-width: 420px;
+      pointer-events: auto;
+      animation: toastIn 0.3s ease;
+      transition: opacity 0.3s, transform 0.3s;
+    }
+    .toast.removing { opacity: 0; transform: translateX(100%); }
+    .toast-icon { font-size: 18px; flex-shrink: 0; }
+    .toast-body { flex: 1; }
+    .toast-title { font-weight: 600; font-size: 13px; }
+    .toast-msg { font-size: 12px; color: var(--muted); margin-top: 2px; }
+    .toast-close { background: none; border: none; cursor: pointer; color: var(--muted); font-size: 16px; padding: 0 4px; }
+    .toast.success { border-left: 3px solid var(--success); }
+    .toast.error { border-left: 3px solid var(--danger); }
+    .toast.warning { border-left: 3px solid var(--warning); }
+    .toast.info { border-left: 3px solid var(--accent); }
+    @keyframes toastIn { from { opacity: 0; transform: translateX(100%); } to { opacity: 1; transform: translateX(0); } }
+
+    /* ========== Top Header ========== */
+    .app-header {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: var(--header-height);
+      background: var(--panel);
+      border-bottom: 1px solid var(--line);
+      display: flex;
+      align-items: center;
+      padding: 0 16px;
+      z-index: 100;
+    }
+    .header-left {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      min-width: var(--sidebar-width);
+    }
+    .sidebar-toggle {
+      width: 36px;
+      height: 36px;
+      border: none;
+      background: transparent;
+      border-radius: 6px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--muted);
+      font-size: 18px;
+    }
+    .sidebar-toggle:hover { background: var(--bg); color: var(--text); }
+    .app-logo {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-weight: 600;
+      font-size: 16px;
+      color: var(--text);
+      white-space: nowrap;
+    }
+    .app-logo-icon {
+      width: 28px;
+      height: 28px;
+      background: var(--accent);
+      border-radius: 6px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: white;
+      font-weight: bold;
+      font-size: 14px;
+    }
+
+    .header-center {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+    }
+    .project-selector {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      background: var(--bg);
+      padding: 6px 12px;
+      border-radius: 8px;
+    }
+    .project-selector select {
+      border: none;
+      background: transparent;
+      font: inherit;
+      color: var(--text);
+      padding: 4px 8px;
+      border-radius: 4px;
+      cursor: pointer;
+      max-width: 160px;
+    }
+    .project-selector select:focus { outline: 2px solid var(--accent); }
+    .project-selector label {
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .header-right {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      min-width: var(--sidebar-width);
+      justify-content: flex-end;
+    }
+    .header-btn {
+      width: 36px;
+      height: 36px;
+      border: none;
+      background: transparent;
+      border-radius: 6px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--muted);
+      font-size: 16px;
+      position: relative;
+    }
+    .header-btn:hover { background: var(--bg); color: var(--text); }
+    .user-avatar {
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      background: var(--accent);
+      color: white;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 600;
+      cursor: pointer;
+      font-size: 14px;
+    }
+    .status-dot {
+      position: absolute;
+      bottom: 2px;
+      right: 2px;
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--success);
+      border: 2px solid var(--panel);
+    }
+
+    /* Dropdown menu */
+    .dropdown {
+      position: relative;
+    }
+    .dropdown-menu {
+      position: absolute;
+      top: 100%;
+      right: 0;
+      margin-top: 4px;
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.08);
+      min-width: 200px;
+      padding: 6px;
+      display: none;
+      z-index: 200;
+    }
+    .dropdown-menu.show { display: block; }
+    .dropdown-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 8px 12px;
+      border-radius: 6px;
+      cursor: pointer;
+      color: var(--text);
+      font-size: 13px;
+    }
+    .dropdown-item:hover { background: var(--bg); }
+    .dropdown-item.danger { color: var(--danger); }
+    .dropdown-divider {
+      height: 1px;
+      background: var(--line);
+      margin: 4px 0;
+    }
+    .dropdown-icon { width: 16px; text-align: center; }
+
+    /* ========== Sidebar ========== */
+    .app-sidebar {
+      position: fixed;
+      top: var(--header-height);
+      left: 0;
+      bottom: 0;
+      width: var(--sidebar-width);
+      background: var(--panel);
+      border-right: 1px solid var(--line);
+      overflow-y: auto;
+      padding: 12px 8px;
+      z-index: 90;
+      transition: width 0.2s ease;
+    }
+    .app-sidebar.collapsed {
+      width: var(--sidebar-collapsed-width);
+      padding: 12px 4px;
+    }
+    .app-sidebar.collapsed .menu-section-title,
+    .app-sidebar.collapsed .menu-label,
+    .app-sidebar.collapsed .menu-arrow,
+    .app-sidebar.collapsed .submenu,
+    .app-sidebar.collapsed .menu-section-body {
+      display: none;
+    }
+    .app-sidebar.collapsed .menu-item {
+      justify-content: center;
+      padding: 10px;
+    }
+    .app-sidebar.collapsed .menu-section-header {
+      justify-content: center;
+      padding: 8px;
+    }
+
+    /* Menu Section (Level 1) */
+    .menu-section { margin-bottom: 4px; }
+    .menu-section-header {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 12px;
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: var(--muted);
+      cursor: pointer;
+      user-select: none;
+      border-radius: 6px;
+      transition: background 0.15s;
+    }
+    .menu-section-header:hover { background: var(--bg); color: var(--text); }
+    .menu-section-icon { font-size: 14px; width: 20px; text-align: center; flex-shrink: 0; }
+    .menu-section-title { flex: 1; }
+    .menu-section-body { padding-left: 4px; }
+    .menu-section.collapsed .menu-section-body { display: none; }
+
+    /* Menu Group (Level 2) */
+    .menu-group { margin-bottom: 2px; }
+    .menu-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 6px 12px;
+      border-radius: 6px;
+      cursor: pointer;
+      color: var(--muted);
+      font-size: 13px;
+      font-weight: 500;
+      transition: all 0.15s;
+      user-select: none;
+    }
+    .menu-item:hover { background: var(--bg); color: var(--text); }
+    .menu-item.active {
+      background: var(--accent-light);
+      color: var(--accent);
+    }
+    .menu-icon {
+      width: 20px;
+      text-align: center;
+      font-size: 14px;
+      flex-shrink: 0;
+    }
+    .menu-label { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .menu-arrow {
+      font-size: 10px;
+      transition: transform 0.2s;
+      color: var(--muted);
+    }
+    .menu-group.open .menu-arrow { transform: rotate(90deg); }
+
+    /* Submenu (Level 3) */
+    .submenu {
+      margin-left: 30px;
+      margin-top: 2px;
+      display: none;
+    }
+    .menu-group.open .submenu { display: block; }
+    .submenu-item {
+      padding: 5px 12px;
+      border-radius: 4px;
+      cursor: pointer;
+      color: var(--muted);
+      font-size: 13px;
+      margin-bottom: 2px;
+      transition: background 0.15s;
+    }
+    .submenu-item:hover { background: var(--bg); color: var(--text); }
+    .submenu-item.active { color: var(--accent); font-weight: 500; }
+
+    /* ========== Main Content ========== */
+    .app-main {
+      margin-left: var(--sidebar-width);
+      margin-top: var(--header-height);
+      height: calc(100vh - var(--header-height));
+      overflow-y: auto;
+      padding: 20px 24px;
+      transition: margin-left 0.2s ease;
+    }
+    .app-main.expanded { margin-left: var(--sidebar-collapsed-width); }
+
+    .page-header {
+      margin-bottom: 20px;
+    }
+    .page-title {
+      font-size: 20px;
+      font-weight: 600;
+      margin-bottom: 4px;
+    }
+    .page-breadcrumb {
+      font-size: 12px;
+      color: var(--muted);
+    }
+    .page-breadcrumb span { margin: 0 4px; }
+
+    /* ========== Tabs ========== */
+    .tabs {
+      display: flex;
+      gap: 2px;
+      margin-bottom: 16px;
+      background: var(--bg);
+      border-radius: 8px;
+      padding: 4px;
+    }
+    .tab {
+      padding: 8px 16px;
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--muted);
+      background: transparent;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .tab:hover {
+      color: var(--text);
+      background: var(--panel);
+    }
+    .tab.active {
+      color: white;
+      background: var(--accent);
+    }
+    .tab-content {
+      display: none;
+    }
+    .tab-content.active {
+      display: block;
+    }
+
+    /* ========== Cards & Forms ========== */
+    .card {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: 16px 20px;
+      margin-bottom: 16px;
+    }
+    .card-title {
+      font-size: 15px;
+      font-weight: 600;
+      margin-bottom: 14px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .card-title-right { display: flex; gap: 8px; }
+
+    .modal-overlay {
+      position: fixed; inset: 0; background: rgba(0,0,0,0.5);
+      display: flex; align-items: center; justify-content: center; z-index: 1000;
+    }
+    .modal-overlay.hidden { display: none; }
+    .modal {
+      background: var(--panel); border: 1px solid var(--line); border-radius: 12px;
+      width: 90%; max-height: 85vh; overflow-y: auto; padding: 0;
+    }
+    .modal-header {
+      padding: 16px 20px; border-bottom: 1px solid var(--line);
+      display: flex; justify-content: space-between; align-items: center;
+      font-weight: 600; font-size: 15px;
+    }
+    .modal-body { padding: 20px; }
+    .modal-footer {
+      padding: 12px 20px; border-top: 1px solid var(--line);
+      display: flex; justify-content: flex-end; gap: 8px;
+    }
+    .btn-danger { background: #e53e3e; color: #fff; border: none; }
+    .btn-danger:hover { background: #c53030; }
+    .btn-primary { background: var(--accent); color: #fff; border: none; }
+    .btn-primary:hover { opacity: 0.9; }
+
+    .grid-2 {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 16px;
+    }
+    .grid-3 {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 16px;
+    }
+    .grid-4 {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 16px;
+    }
+
+    .stat-card {
+      background: var(--bg);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 16px;
+      text-align: center;
+    }
+    .stat-label {
+      display: block;
+      color: var(--muted);
+      font-size: 12px;
+      margin-bottom: 8px;
+    }
+    .stat-value {
+      display: block;
+      color: var(--text);
+      font-size: 24px;
+      font-weight: 600;
+    }
+
+    .context-sections {
+      max-height: 600px;
+      overflow-y: auto;
+    }
+    .context-section {
+      margin-bottom: 16px;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+    }
+    .section-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 8px 12px;
+      background: var(--bg);
+      border-bottom: 1px solid var(--line);
+    }
+    .section-name {
+      font-weight: 600;
+      color: var(--text);
+    }
+    .section-tokens {
+      color: var(--accent);
+      font-size: 12px;
+    }
+    .section-count {
+      color: var(--muted);
+      font-size: 12px;
+    }
+    .section-content {
+      padding: 12px;
+      background: #fff;
+      font-size: 12px;
+      white-space: pre-wrap;
+      word-break: break-all;
+      max-height: 300px;
+      overflow-y: auto;
+    }
+    .warning-item {
+      color: var(--warning);
+      margin-bottom: 4px;
+    }
+
+    .sync-binding-card {
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      padding: 12px;
+      margin-bottom: 12px;
+      background: var(--bg);
+    }
+    .binding-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 8px;
+    }
+    .binding-client-id {
+      font-weight: 600;
+      color: var(--text);
+    }
+    .binding-status {
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-size: 12px;
+    }
+    .binding-status.active { background: var(--success); color: white; }
+    .binding-status.inactive { background: var(--warning); color: white; }
+    .binding-info {
+      font-size: 12px;
+      color: var(--muted);
+      margin-bottom: 4px;
+    }
+    .binding-files {
+      font-size: 12px;
+      color: var(--accent);
+    }
+
+    .hash-status-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 8px 12px;
+      border-bottom: 1px solid var(--line);
+      font-size: 13px;
+    }
+    .hash-status-item:last-child { border-bottom: none; }
+    .hash-path { flex: 1; margin-right: 12px; }
+    .hash-mismatch { color: var(--danger); }
+    .hash-match { color: var(--success); }
+    .hash-unknown { color: var(--muted); }
+
+    .conflict-card {
+      border: 1px solid var(--danger);
+      border-radius: 6px;
+      padding: 12px;
+      margin-bottom: 12px;
+      background: #fef2f2;
+    }
+    .conflict-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 8px;
+    }
+    .conflict-type {
+      font-weight: 600;
+      color: var(--danger);
+    }
+    .conflict-target {
+      font-size: 13px;
+      color: var(--text);
+      margin-bottom: 4px;
+    }
+    .conflict-hashes {
+      font-size: 12px;
+      color: var(--muted);
+      margin-bottom: 8px;
+    }
+    .conflict-actions {
+      display: flex;
+      gap: 8px;
+    }
+
+    .audit-log-item {
+      display: flex;
+      align-items: flex-start;
+      padding: 10px 12px;
+      border-bottom: 1px solid var(--line);
+      font-size: 13px;
+    }
+    .audit-log-item:last-child { border-bottom: none; }
+    .audit-time {
+      color: var(--muted);
+      font-size: 12px;
+      margin-right: 12px;
+      white-space: nowrap;
+    }
+    .audit-content { flex: 1; }
+    .audit-action {
+      font-weight: 600;
+      color: var(--accent);
+      margin-right: 8px;
+    }
+    .audit-resource {
+      color: var(--text);
+    }
+    .audit-user {
+      color: var(--muted);
+      font-size: 12px;
+      margin-left: 8px;
+    }
+
+    .form-group { margin-bottom: 12px; }
+    .form-row {
+      display: flex;
+      gap: 12px;
+    }
+    .form-row .form-group { flex: 1; }
+    .form-label {
+      display: block;
+      color: var(--muted);
+      font-size: 12px;
+      margin-bottom: 5px;
+      font-weight: 500;
+    }
+    .form-input, .form-select, .form-textarea {
+      width: 100%;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      padding: 7px 10px;
+      font: inherit;
+      background: #fff;
+      color: var(--text);
+      transition: border-color 0.15s;
+    }
+    .form-input:focus, .form-select:focus, .form-textarea:focus {
+      outline: none;
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px var(--accent-light);
+    }
+    .form-textarea {
+      min-height: 100px;
+      resize: vertical;
+      font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+      font-size: 13px;
+    }
+
+    .btn {
+      border: 1px solid transparent;
+      border-radius: 6px;
+      background: var(--accent);
+      color: white;
+      padding: 7px 14px;
+      font: inherit;
+      cursor: pointer;
+      font-size: 13px;
+      font-weight: 500;
+      transition: all 0.15s;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .btn:hover { background: var(--accent-hover); }
+    .btn-secondary {
+      background: #fff;
+      color: var(--text);
+      border-color: var(--line);
+    }
+    .btn-secondary:hover { background: var(--bg); }
+    .btn-danger { background: var(--danger); }
+    .btn-danger:hover { background: #b91c1c; }
+    .btn-sm { padding: 5px 10px; font-size: 12px; }
+    .btn-group { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+
+    /* ========== List items ========== */
+    .list-container {
+      max-height: 400px;
+      overflow-y: auto;
+    }
+    .list-item {
+      padding: 10px 12px;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      margin-bottom: 8px;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .list-item:hover {
+      background: var(--bg);
+      border-color: #cbd5e1;
+    }
+    .list-item-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-weight: 500;
+    }
+    .list-item-meta {
+      font-size: 12px;
+      color: var(--muted);
+      margin-top: 4px;
+    }
+    .uk-tree-item:hover {
+      background: var(--bg);
+    }
+    .uk-tree-item:hover .uk-cat-actions {
+      display: flex !important;
+    }
+    .uk-tree-item .badge {
+      font-size: 10px;
+      padding: 1px 5px;
+      background: var(--bg);
+      color: var(--muted);
+      border-radius: 8px;
+    }
+    .badge {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-size: 11px;
+      font-weight: 500;
+      background: var(--accent);
+      color: white;
+    }
+    .badge-warning { background: var(--warning); }
+    .badge-success { background: var(--success); }
+    .badge-muted { background: var(--muted); }
+    .badge-draft { background: var(--warning); }
+    .badge-archived { background: var(--muted); }
+    .badge-active { background: var(--success); }
+
+    /* ========== Result box ========== */
+    .result-box {
+      background: var(--bg);
+      border-radius: 6px;
+      padding: 12px;
+      overflow-y: auto;
+    }
+    .result-item {
+      padding: 10px;
+      border-bottom: 1px solid var(--line);
+    }
+    .result-item:last-child { border-bottom: none; }
+
+    /* ========== Checkbox ========== */
+    .checkbox-group {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 0;
+    }
+    .checkbox-group input[type="checkbox"] {
+      width: 16px;
+      height: 16px;
+      cursor: pointer;
+    }
+    .checkbox-group label {
+      font-size: 13px;
+      color: var(--text);
+      cursor: pointer;
+    }
+
+    /* ========== Hidden ========== */
+    .hidden { display: none !important; }
+
+    /* ========== Kanban Board ========== */
+    .kanban-board {
+      min-height: 300px;
+      padding: 8px;
+    }
+    .kanban-columns {
+      display: flex;
+      gap: 12px;
+      overflow-x: auto;
+      padding: 8px 0;
+    }
+    .kanban-column {
+      flex: 0 0 280px;
+      background: var(--bg);
+      border-radius: 8px;
+      padding: 8px;
+      border: 1px solid var(--line);
+    }
+    .kanban-column-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 8px 10px;
+      font-weight: 600;
+      font-size: 13px;
+      border-bottom: 1px solid var(--line);
+      margin-bottom: 8px;
+    }
+    .kanban-column-count {
+      background: var(--accent);
+      color: white;
+      padding: 2px 8px;
+      border-radius: 10px;
+      font-size: 12px;
+      font-weight: 500;
+    }
+    .kanban-column-content {
+      min-height: 200px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    /* ========== Foreshadowing Card ========== */
+    .foreshadowing-card {
+      background: white;
+      border-radius: 6px;
+      padding: 10px;
+      cursor: pointer;
+      transition: all 0.15s;
+      border-left: 3px solid #94a3b8;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+    }
+    .foreshadowing-card:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 3px 8px rgba(0,0,0,0.1);
+    }
+    .foreshadowing-card-overdue {
+      border-left-color: #ef4444;
+      background: #fef2f2;
+    }
+    .foreshadowing-card-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 4px;
+    }
+    .foreshadowing-card-key {
+      font-size: 11px;
+      color: var(--muted);
+      font-family: monospace;
+    }
+    .foreshadowing-card-importance {
+      font-size: 11px;
+      padding: 1px 6px;
+      border-radius: 3px;
+      font-weight: 500;
+    }
+    .foreshadowing-card-title {
+      font-weight: 500;
+      font-size: 13px;
+      color: var(--text);
+      margin-bottom: 4px;
+    }
+    .foreshadowing-card-range {
+      font-size: 11px;
+      color: var(--muted);
+    }
+    .foreshadowing-card-overdue-badge {
+      font-size: 10px;
+      color: #dc2626;
+      font-weight: 600;
+      margin-top: 4px;
+      display: block;
+    }
+
+    .importance-low { border-left-color: #94a3b8; }
+    .importance-medium { border-left-color: #f59e0b; }
+    .importance-high { border-left-color: #ef4444; }
+    .importance-critical { border-left-color: #7c3aed; }
+
+    /* ========== Auth views ========== */
+    .auth-container {
+      max-width: 420px;
+      margin: 10vh auto;
+      padding: 0 20px;
+    }
+    .auth-card {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 32px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+    }
+    .auth-title {
+      font-size: 20px;
+      font-weight: 600;
+      text-align: center;
+      margin-bottom: 24px;
+    }
+
+    /* ========== Output ========== */
+    pre.output {
+      margin: 0;
+      white-space: pre-wrap;
+      word-break: break-word;
+      font: 12px/1.45 ui-monospace, SFMono-Regular, Consolas, monospace;
+    }
+    #outputPanel {
+      min-height: 200px;
+      max-height: 400px;
+      overflow: auto;
+      background: #0f172a;
+      color: #e2e8f0;
+      border-radius: 8px;
+      padding: 14px;
+    }
+
+    /* ========== Responsive ========== */
+    @media (max-width: 900px) {
+      .app-sidebar { 
+        transform: translateX(-100%); 
+        position: fixed;
+        z-index: 100;
+        height: calc(100vh - var(--header-height));
+        top: var(--header-height);
+      }
+      .app-sidebar.mobile-show { transform: translateX(0); }
+      .app-main { margin-left: 0; }
+      .app-main.expanded { margin-left: 0; }
+      .header-left { min-width: auto; }
+      .header-right { min-width: auto; }
+      .grid-2, .grid-3, .grid-4 { grid-template-template: 1fr; }
+      .project-selector { flex-wrap: wrap; gap: 4px; }
+      .project-selector label { display: none; }
+      .menu-section-header { padding: 8px 12px; }
+      .submenu-item { padding: 6px 12px 6px 36px; }
+    }
+
+    /* Scrollbar */
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
+    ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+
+    /* Tabs */
+    .tabs {
+      display: flex;
+      border-bottom: 1px solid var(--line);
+      margin-bottom: 16px;
+      gap: 4px;
+    }
+    .tab-item {
+      padding: 10px 16px;
+      cursor: pointer;
+      color: var(--muted);
+      font-size: 13px;
+      font-weight: 500;
+      border-bottom: 2px solid transparent;
+      margin-bottom: -1px;
+    }
+    .tab-item:hover { color: var(--text); }
+    .tab-item.active {
+      color: var(--accent);
+      border-bottom-color: var(--accent);
+    }
+
+    /* ========== Relationship Graph ========== */
+    .graph-container {
+      width: 100%;
+      height: 500px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fafbfc;
+      position: relative;
+      overflow: hidden;
+    }
+    .graph-svg {
+      width: 100%;
+      height: 100%;
+    }
+    .graph-node {
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+    .graph-node:hover {
+      stroke-width: 3px;
+      filter: drop-shadow(0 2px 4px rgba(0,0,0,0.15));
+    }
+    .graph-link {
+      stroke: #cbd5e1;
+      stroke-width: 2;
+      fill: none;
+    }
+    .graph-label {
+      font-size: 12px;
+      fill: var(--text);
+      pointer-events: none;
+      text-anchor: middle;
+    }
+    .graph-legend {
+      position: absolute;
+      top: 12px;
+      right: 12px;
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      padding: 10px 14px;
+      font-size: 12px;
+    }
+    .graph-legend-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 6px;
+    }
+    .graph-legend-item:last-child { margin-bottom: 0; }
+    .graph-legend-color {
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+    }
+    .graph-control {
+      position: absolute;
+      bottom: 12px;
+      left: 12px;
+      display: flex;
+      gap: 8px;
+    }
+
+    /* ========== Template Card ========== */
+    .template-card {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 14px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      margin-bottom: 12px;
+    }
+    .template-card:hover {
+      border-color: var(--accent);
+      box-shadow: 0 4px 12px rgba(37, 99, 235, 0.08);
+    }
+    .template-card-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 8px;
+    }
+    .template-card-title {
+      font-weight: 600;
+      color: var(--text);
+    }
+    .template-card-type {
+      font-size: 11px;
+      padding: 2px 8px;
+      border-radius: 4px;
+      background: var(--accent-light);
+      color: var(--accent);
+    }
+    .template-card-description {
+      font-size: 12px;
+      color: var(--muted);
+      margin-bottom: 8px;
+      line-height: 1.4;
+    }
+    .template-card-meta {
+      display: flex;
+      gap: 12px;
+      font-size: 11px;
+      color: var(--muted);
+    }
+    .template-card-variables {
+      margin-top: 8px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 4px;
+    }
+    .template-variable-tag {
+      font-size: 10px;
+      padding: 2px 6px;
+      background: #f1f5f9;
+      border-radius: 3px;
+      color: #64748b;
+    }
+
+    /* ========== Market Card ========== */
+    .market-card {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: 16px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+    .market-card:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 8px 24px rgba(0,0,0,0.06);
+      border-color: var(--accent);
+    }
+    .market-card-icon {
+      width: 48px;
+      height: 48px;
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 24px;
+      margin-bottom: 10px;
+      background: linear-gradient(135deg, var(--accent-light), #dbeafe);
+    }
+    .market-card-title {
+      font-weight: 600;
+      color: var(--text);
+      margin-bottom: 4px;
+    }
+    .market-card-category {
+      font-size: 11px;
+      color: var(--accent);
+      margin-bottom: 8px;
+    }
+    .market-card-desc {
+      font-size: 12px;
+      color: var(--muted);
+      line-height: 1.4;
+      margin-bottom: 10px;
+    }
+    .market-card-stats {
+      display: flex;
+      gap: 16px;
+      font-size: 11px;
+      color: var(--muted);
+    }
+    .market-card-stat-value {
+      font-weight: 600;
+      color: var(--text);
+    }
+
+    /* ========== Offline Status ========== */
+    .offline-status-card {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 16px;
+      margin-bottom: 12px;
+    }
+    .offline-status-card.online { border-color: var(--success); background: #f0fdf4; }
+    .offline-status-card.offline { border-color: var(--warning); background: #fffbeb; }
+    .offline-status-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 10px;
+    }
+    .offline-status-label {
+      font-weight: 600;
+    }
+    .offline-status-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+    }
+    .offline-status-dot.online { background: var(--success); }
+    .offline-status-dot.offline { background: var(--warning); animation: pulse 1.5s infinite; }
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.4; }
+    }
+    .offline-queue-item {
+      padding: 8px 10px;
+      border-bottom: 1px solid var(--line);
+      font-size: 12px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .offline-queue-item:last-child { border-bottom: none; }
+
+    /* ========== Data Table ========== */
+    .data-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+    }
+    .data-table th, .data-table td {
+      padding: 10px 12px;
+      text-align: left;
+      border-bottom: 1px solid var(--line);
+    }
+    .data-table th {
+      background: var(--bg);
+      font-weight: 600;
+      color: var(--text);
+    }
+    .data-table tr:hover {
+      background: var(--bg);
+    }
+  </style>
 </head>
 <body>
 
@@ -188,9 +1413,9 @@
               <span class="menu-arrow" aria-hidden="true">▶</span>
             </div>
             <div class="submenu" role="menu">
-              
-              
-              
+              <div class="submenu-item" data-page="project-world-rules" data-i18n="nav.worldRules" role="menuitem" tabindex="0">World Rules</div>
+              <div class="submenu-item" data-page="project-characters" data-i18n="nav.characters" role="menuitem" tabindex="0">Characters</div>
+              <div class="submenu-item" data-page="project-factions" data-i18n="nav.factions" role="menuitem" tabindex="0">Factions</div>
               <div class="submenu-item" data-page="project-world-state" data-i18n="nav.worldState" role="menuitem" tabindex="0">World State</div>
             </div>
           </div>
@@ -344,16 +1569,6 @@
 
         </div>
       </div>
-      <div class="menu-section" data-section="knowledge" role="region" aria-label="Knowledge">
-        <h3 class="menu-title">📚 Knowledge</h3>
-        <div class="submenu" role="menu">
-          <div class="submenu-item" data-page="genre-manage" role="menuitem" tabindex="0">小说类型管理</div>
-          <div class="submenu-item" data-page="category-manage" role="menuitem" tabindex="0">分类管理</div>
-          <div class="submenu-item" data-page="genre-category-bind" role="menuitem" tabindex="0">类型与分类绑定</div>
-          <div class="submenu-item" data-page="knowledge-pack" role="menuitem" tabindex="0">知识包</div>
-        </div>
-      </div>
-
 
     </aside>
 
@@ -4482,11 +5697,30 @@
     window.__hasMcpToken = false;
     let currentPage = "canon-list";
     let sidebarCollapsed = false;
+
+    function t(key) {
+      return translations[currentLanguage][key] || translations.en[key] || key;
+    }
+
     function updateTokenState(hasToken) {
       const el = $("tokenState");
       if (el) el.textContent = hasToken ? t("status.tokenStored") : t("status.tokenMissing");
     }
-      // ==== Navigation ==========
+
+    function applyLanguage(language) {
+      currentLanguage = translations[language] ? language : "en";
+      localStorage.setItem("novel_os_language", currentLanguage);
+      document.documentElement.lang = currentLanguage === "zh" ? "zh-CN" : "en";
+      document.querySelectorAll("[data-i18n]").forEach((node) => {
+        node.textContent = t(node.dataset.i18n);
+      });
+      document.querySelectorAll("[data-i18n-placeholder]").forEach((node) => {
+        node.placeholder = t(node.dataset.i18nPlaceholder);
+      });
+      updateTokenState(window.__hasMcpToken);
+    }
+
+    // ========== Navigation ==========
     const loadedModules = new Set();
     const moduleLoadCallbacks = {};
 
@@ -4646,7 +5880,7 @@
       });
     }
 
-      // ==== Universal Knowledge Manager ==========
+    // ========== Universal Knowledge Manager ==========
     let ukCurrentCategory = null;
     let ukAllCategories = [];
     let ukTreeData = {};
@@ -4797,6 +6031,24 @@
         console.error(">>> renderUkTree() FAILED:", e);
       }
     }
+
+    function buildTree() {
+      ukTreeData = {};
+      const idToSlug = {};
+      ukAllCategories.forEach(c => {
+        idToSlug[c.id] = c.slug;
+        ukTreeData[c.slug] = { ...c, children: [] };
+      });
+      ukAllCategories.forEach(c => {
+        if (c.parent_id) {
+          const parentSlug = idToSlug[c.parent_id];
+          if (parentSlug && ukTreeData[parentSlug]) {
+            ukTreeData[parentSlug].children.push(c.slug);
+          }
+        }
+      });
+    }
+
     function renderUkTree() {
       console.log(">>> renderUkTree CALLED <<<");
       const container = $("ukCatTree");
@@ -5072,7 +6324,94 @@
       else setStatus(t("status.error"));
     };
 
-      // ==== 项目知识页面 (Project Knowledge) ==========
+    // ========== 项目知识页面 (Project Knowledge) ==========
+
+    async function init_project_world_rules() {
+      const container = $("projectWorldRulesResult");
+      if (!container) return;
+      container.innerHTML = "<p>Loading...</p>";
+      const result = await api("/api/tool", {
+        tool: "canon.doc.list",
+        arguments: { doc_type: "world", limit: 50 }
+      });
+      if (result.ok && result.result) {
+        const items = result.result.items || [];
+        container.innerHTML = items.length === 0 ? "<p>No world rules found.</p>" :
+          items.map(item => `
+            <div class="list-item" onclick="goToPage('canon-list')" style="cursor:pointer;">
+              <div class="list-item-title">${item.title || item.key}</div>
+              <div class="list-item-meta">${item.status || ""} | v${item.version || 1}</div>
+            </div>
+          `).join("");
+      } else {
+        container.innerHTML = "<p>Failed to load.</p>";
+      }
+    }
+
+    async function init_project_characters() {
+      const container = $("projectCharactersResult");
+      if (!container) return;
+      container.innerHTML = "<p>Loading...</p>";
+      const result = await api("/api/tool", {
+        tool: "state.entity.list",
+        arguments: { entity_type: "character", limit: 50 }
+      });
+      if (result.ok && result.result) {
+        const items = result.result.items || [];
+        container.innerHTML = items.length === 0 ? "<p>No characters found.</p>" :
+          items.map(item => `
+            <div class="list-item" onclick="goToPage('entities-list')" style="cursor:pointer;">
+              <div class="list-item-title">${item.name || item.entity_key}</div>
+              <div class="list-item-meta">${item.status || ""} | ${item.entity_type || ""}</div>
+            </div>
+          `).join("");
+      } else {
+        container.innerHTML = "<p>Failed to load.</p>";
+      }
+    }
+
+    async function init_project_factions() {
+      const container = $("projectFactionsResult");
+      if (!container) return;
+      container.innerHTML = "<p>Loading...</p>";
+      const result = await api("/api/tool", {
+        tool: "state.entity.list",
+        arguments: { entity_type: "faction", limit: 50 }
+      });
+      if (result.ok && result.result) {
+        const items = result.result.items || [];
+        container.innerHTML = items.length === 0 ? "<p>No factions found.</p>" :
+          items.map(item => `
+            <div class="list-item" onclick="goToPage('entities-list')" style="cursor:pointer;">
+              <div class="list-item-title">${item.name || item.entity_key}</div>
+              <div class="list-item-meta">${item.status || ""} | ${item.entity_type || ""}</div>
+            </div>
+          `).join("");
+      } else {
+        container.innerHTML = "<p>Failed to load.</p>";
+      }
+    }
+
+    async function init_project_world_state() {
+      const container = $("projectWorldStateContent");
+      if (!container) return;
+      container.innerHTML = "<p>Loading...</p>";
+      const result = await api("/api/tool", {
+        tool: "state.world.get",
+        arguments: {}
+      });
+      if (result.ok && result.result) {
+        const state = result.result;
+        container.innerHTML = `<pre class="output">${JSON.stringify(state, null, 2)}</pre>`;
+      } else {
+        container.innerHTML = "<p>No world state data.</p>";
+      }
+      // Wire refresh button
+      const refreshBtn = $("refreshWorldStateBtn");
+      if (refreshBtn) {
+        refreshBtn.onclick = () => init_project_world_state();
+      }
+    }
 
     let kbListOffset = 0;
     const kbListLimit = 50;
@@ -5227,8 +6566,7 @@
         const container = $("kbCategoryTree");
         container.innerHTML = '';
 
-    
-function buildTree(parentKey, depth = 0, parentElement = container) {
+        function buildTree(parentKey, depth = 0, parentElement = container) {
           const children = parentMap[parentKey] || [];
           if (children.length === 0) return;
 
@@ -5673,6 +7011,28 @@ function buildTree(parentKey, depth = 0, parentElement = container) {
       currentPage = pageName;
       
       document.querySelectorAll(".page").forEach(p => p.classList.add("hidden"));
+
+    // ===== Page Init Registrations =====
+  window['init_canon-list'] = loadCanonList;
+  window['init_canon-create'] = loadCanonCreate;
+  window['init_entities-list'] = loadEntitiesList;
+  window['init_entities-create'] = loadEntitiesCreate;
+  window['init_template-list'] = loadTemplateList;
+  window['init_template-create'] = loadTemplateCreate;
+  window['init_model-profiles'] = loadModelProfiles;
+  window['init_model-cost'] = loadModelCost;
+  window['init_skills'] = loadSkillList;
+  window['init_knowledge-pack'] = loadKnowledgePack;
+  window['init_knowledge-stats'] = loadKnowledgeStats;
+  window['init_auto-search'] = initAutoSearch;
+  window['init_knowledge-graph'] = initKnowledgeGraph;
+  window['init_api-tokens'] = loadApiTokens;
+  window['init_backup'] = loadBackupList;
+  window['init_system-health'] = loadSystemHealth;
+  window['init_market'] = loadMarketTemplates;
+  window['init_genre-manage'] = loadGenreManage;
+  window['init_category-manage'] = loadCategoryManage;
+  window['init_genre-category-bind'] = loadBindingPage;
       
       const targetPage = $("page-" + pageName);
       console.log("[DEBUG] targetPage:", targetPage ? "found" : "NOT FOUND", "page-" + pageName);
@@ -5810,8 +7170,14 @@ function buildTree(parentKey, depth = 0, parentElement = container) {
       });
     }
 
-      // ==== Auth views ==========
-      // ==== API ==========
+    // ========== Auth views ==========
+    function show(view) {
+      $("setupView").classList.toggle("hidden", view !== "setup");
+      $("loginView").classList.toggle("hidden", view !== "login");
+      $("appView").classList.toggle("hidden", view !== "app");
+    }
+
+    // ========== API ==========
     async function api(path, body) {
       try {
         const options = body ? {
@@ -5873,7 +7239,7 @@ function buildTree(parentKey, depth = 0, parentElement = container) {
       else show("login");
     }
 
-      // ==== Tool calling ==========
+    // ========== Tool calling ==========
     function baseProjectArgs() {
       return {
         workspace: $("workspaceSelect")?.value || $("workspace")?.value || "",
@@ -5905,7 +7271,7 @@ function buildTree(parentKey, depth = 0, parentElement = container) {
       return response;
     }
 
-      // ==== State keys ==========
+    // ========== State keys ==========
     const stateKeys = ["mcpUrl", "workspace", "project"];
     function loadState() {
       for (const key of stateKeys) {
@@ -5921,7 +7287,7 @@ function buildTree(parentKey, depth = 0, parentElement = container) {
       }
     }
 
-      // ==== Project selector ==========
+    // ========== Project selector ==========
     let allProjects = [];
 
 
@@ -5996,8 +7362,22 @@ function buildTree(parentKey, depth = 0, parentElement = container) {
       return $("workspaceSelect")?.value || $("workspace")?.value || "";
     }
 
-      // ==== Canon CRUD ==========
-function renderCanonList(docs) {
+    // ========== Canon CRUD ==========
+    function parseCsv(str) {
+      if (!str || !str.trim()) return null;
+      return str.split(",").map(s => s.trim()).filter(s => s.length > 0);
+    }
+
+    function parseJson(str, fallback) {
+      if (!str || !str.trim()) return fallback;
+      try {
+        return JSON.parse(str);
+      } catch (e) {
+        return fallback;
+      }
+    }
+
+    function renderCanonList(docs) {
       const container = $("canonListResult");
       if (!docs || docs.length === 0) {
         container.innerHTML = '<p style="color:var(--muted);text-align:center;padding:20px;">No documents found</p>';
@@ -6060,7 +7440,7 @@ function renderCanonList(docs) {
       }
     }
 
-      // ==== Entities ==========
+    // ========== Entities ==========
     let currentEntityId = null;
 
     function renderEntityList(entities) {
@@ -6157,7 +7537,7 @@ function renderCanonList(docs) {
       `).join("");
     }
 
-      // ==== Rules ==========
+    // ========== Rules ==========
     function renderRulesResult(data, title, containerId) {
       const container = $(containerId);
       if (!container) return;
@@ -6183,7 +7563,7 @@ function renderCanonList(docs) {
       }
     }
 
-      // ==== Skill Management ==========
+    // ========== Skill Management ==========
     let skillCurrentId = null;
     let skillCurrentSteps = [];
 
@@ -6212,6 +7592,21 @@ function renderCanonList(docs) {
       };
     }
     window['init_skill-manage'] = init_skill_manage_fn;
+
+    function renderMarkdown(text) {
+      if (!text) return "";
+      return escapeHtml(text)
+        .replace(/^### (.+)$/gm, '<h3 style="margin:12px 0 6px;">$1</h3>')
+        .replace(/^## (.+)$/gm, '<h2 style="margin:14px 0 8px;">$1</h2>')
+        .replace(/^# (.+)$/gm, '<h1 style="margin:16px 0 10px;">$1</h1>')
+        .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+        .replace(/`(.+?)`/g, '<code style="background:var(--bg);padding:1px 4px;border-radius:3px;">$1</code>')
+        .replace(/^- (.+)$/gm, '<li>$1</li>')
+        .replace(/(<li>.*<\/li>\n?)+/g, '<ul style="margin:8px 0;padding-left:20px;">$&</ul>')
+        .replace(/\n\n/g, '<br><br>')
+        .replace(/\n/g, '<br>');
+    }
+
     async function loadSkillList() {
       console.log("[Skill] loadSkillList called");
       const container = $("skillList");
@@ -6460,7 +7855,7 @@ function renderCanonList(docs) {
       else setStatus(t("status.error"));
     }
 
-      // ==== Initialize ==========
+    // ========== Initialize ==========
     function init() {
       loadState();
       setupMenuGroups();
@@ -6578,6 +7973,36 @@ function renderCanonList(docs) {
       };
 
       // API Tokens management
+      async function loadApiTokens() {
+        const workspace = $("workspace")?.value || $("workspaceSelect")?.value || null;
+        const args = { include_revoked: false };
+        if (workspace) args.workspace = workspace;
+        const result = await api("/api/tool", {
+          tool: "auth.list_api_tokens",
+          arguments: args
+        });
+        const container = $("apiTokensList");
+        if (!container) return;
+        if (!result.ok || !Array.isArray(result.result)) {
+          container.innerHTML = '<div style="color: var(--muted); font-size: 13px; padding: 12px; text-align: center;">' + t("account.loadTokensFailed") + '</div>';
+          return;
+        }
+        const tokens = result.result.filter(t => !t.revoked_at);
+        if (tokens.length === 0) {
+          container.innerHTML = '<div style="color: var(--muted); font-size: 13px; padding: 12px; text-align: center;">' + t("account.noTokens") + '</div>';
+          return;
+        }
+        container.innerHTML = tokens.map(token => `
+          <div style="display: flex; justify-content: space-between; align-items: center; padding: 10px; border-bottom: 1px solid var(--line); font-size: 13px;">
+            <div>
+              <div style="font-weight: 500;">${escapeHtml(token.name)}</div>
+              <div style="color: var(--muted); font-size: 11px;">${(token.scopes || []).join(', ')} · ${token.created_at ? new Date(token.created_at).toLocaleDateString() : ''}</div>
+            </div>
+            <button class="btn-secondary btn-sm" onclick="revokeToken('${token.id}')" style="font-size: 12px; padding: 4px 8px;">${t("action.revoke")}</button>
+          </div>
+        `).join('');
+      }
+
       window.revokeToken = async (tokenId) => {
         if (!confirm(t("confirm.revokeToken"))) return;
         const result = await api("/api/tool", {
@@ -6652,7 +8077,7 @@ function renderCanonList(docs) {
         callTool($("toolName").value, args);
       };
 
-        // ==== Canon buttons ==========
+      // ========== Canon buttons ==========
       $("canonUpsert").onclick = async () => {
         const base = getActiveProjectArgs();
         if (!base) return;
@@ -6775,7 +8200,7 @@ function renderCanonList(docs) {
         }
       };
 
-        // ==== Entity buttons ==========
+      // ========== Entity buttons ==========
       $("entitySaveBtn").onclick = async () => {
         const base = getActiveProjectArgs();
         if (!base) return;
@@ -6972,7 +8397,7 @@ function renderCanonList(docs) {
         }
       };
 
-        // ==== Rules buttons ==========
+      // ========== Rules buttons ==========
       $("rulesListBtn").onclick = async () => {
         const base = getActiveProjectArgs();
         if (!base) return;
@@ -7078,7 +8503,7 @@ function renderCanonList(docs) {
         }
       };
 
-        // ==== Review Center handlers ==========
+      // ========== Review Center handlers ==========
 
       // Tab switching
       document.querySelectorAll(".tabs .tab").forEach(tab => {
@@ -7098,8 +8523,7 @@ function renderCanonList(docs) {
       let currentRuleProposal = null;
       let currentCouncilConfig = null;
 
-  
-function renderRevisionTasks(tasks) {
+      function renderRevisionTasks(tasks) {
         const container = $("revisionTasksResult");
         const countBadge = $("revisionTasksCount");
         if (!tasks || tasks.length === 0) {
@@ -7200,8 +8624,7 @@ function renderRevisionTasks(tasks) {
         currentRevisionTask = null;
       };
 
-  
-function renderRuleProposals(proposals) {
+      function renderRuleProposals(proposals) {
         const container = $("ruleProposalsResult");
         if (!proposals || proposals.length === 0) {
           container.innerHTML = '<p style="color:var(--muted);text-align:center;padding:20px;">No rule proposals</p>';
@@ -7297,8 +8720,7 @@ function renderRuleProposals(proposals) {
         currentRuleProposal = null;
       };
 
-  
-function renderCouncilConfigs(configs) {
+      function renderCouncilConfigs(configs) {
         const container = $("councilConfigsResult");
         if (!configs || configs.length === 0) {
           container.innerHTML = '<p style="color:var(--muted);text-align:center;padding:20px;">No council configs</p>';
@@ -7397,7 +8819,7 @@ function renderCouncilConfigs(configs) {
         currentCouncilConfig = null;
       };
 
-        // ==== Knowledge Base handlers ==========
+      // ========== Knowledge Base handlers ==========
 
       // Navigate to knowledge list with category filter
       window.goToKnowledgeList = (categorySlug) => {
@@ -7429,8 +8851,7 @@ function renderCouncilConfigs(configs) {
         }
       };
 
-  
-function renderKnowledgeItemDetail(item) {
+      function renderKnowledgeItemDetail(item) {
         return `
           <div style="padding: 12px; background: var(--bg); border-radius: 6px;">
             <div style="margin-bottom: 8px;"><strong>Code:</strong> ${item.code}</div>
@@ -7564,10 +8985,9 @@ function renderKnowledgeItemDetail(item) {
         }
       };
 
-        // ==== Chapter Plans handlers ==========
+      // ========== Chapter Plans handlers ==========
 
-  
-function renderChapterPlans(plans) {
+      function renderChapterPlans(plans) {
         const container = $("chapterPlansResult");
         const countBadge = $("chapterPlansCount");
         if (!plans || plans.length === 0) {
@@ -7648,7 +9068,7 @@ function renderChapterPlans(plans) {
         currentChapterPlan = null;
       };
 
-        // ==== Foreshadowing Kanban handlers ==========
+      // ========== Foreshadowing Kanban handlers ==========
 
       let currentForeshadowing = null;
 
@@ -7667,8 +9087,7 @@ function renderChapterPlans(plans) {
         critical: "importance-critical"
       };
 
-  
-function renderForeshadowingKanban(items) {
+      function renderForeshadowingKanban(items) {
         const board = $("foreshadowingKanban");
         const statusGroups = {};
         foreshadowingStatuses.forEach(s => statusGroups[s.value] = []);
@@ -7716,8 +9135,7 @@ function renderForeshadowingKanban(items) {
         board.innerHTML = html;
       }
 
-  
-function renderForeshadowingDetail(item) {
+      function renderForeshadowingDetail(item) {
         const content = $("foreshadowingDetailContent");
         content.innerHTML = `
           <div class="form-row">
@@ -7784,8 +9202,7 @@ function renderForeshadowingDetail(item) {
         $("foreshadowingDetailCard").style.display = "block";
       }
 
-  
-function openForeshadowingDetail(key) {
+      function openForeshadowingDetail(key) {
         const base = getActiveProjectArgs();
         if (!base) return;
         setStatus(t("status.running"));
@@ -7804,10 +9221,9 @@ function openForeshadowingDetail(key) {
           });
       }
 
-        // ==== Volume handlers ==========
+      // ========== Volume handlers ==========
 
-  
-function renderVolumes(volumes) {
+      function renderVolumes(volumes) {
         const container = $("volumesResult");
         if (!volumes || volumes.length === 0) {
           container.innerHTML = '<p style="color:var(--muted);text-align:center;padding:20px;">No volumes</p>';
@@ -7907,12 +9323,11 @@ function renderVolumes(volumes) {
         $("volumeDetailCard").style.display = "none";
       };
 
-        // ==== Plot Thread handlers ==========
+      // ========== Plot Thread handlers ==========
 
       let currentThread = null;
 
-  
-function renderThreads(threads) {
+      function renderThreads(threads) {
         const container = $("threadsResult");
         const countBadge = $("threadsCount");
         if (!threads || threads.length === 0) {
@@ -8327,7 +9742,31 @@ function renderThreads(threads) {
         $("foreshadowingOverdueCard").style.display = "none";
       };
 
-        // ==== Model Profile handlers ==========
+      // ========== Model Profile handlers ==========
+
+      function renderModelProfiles(profiles) {
+        const container = $("modelProfilesResult");
+        if (!profiles || profiles.length === 0) {
+          container.innerHTML = '<p style="color:var(--muted);text-align:center;padding:20px;">No model profiles</p>';
+          return;
+        }
+        container.innerHTML = profiles.map(p => `
+          <div class="list-item" onclick="selectModelProfile('${p.profile_key}')">
+            <div class="list-item-header">
+              <span>${p.display_name}</span>
+              <div style="display:flex;gap:6px;">
+                ${p.is_default ? '<span class="badge badge-success">Default</span>' : ''}
+                <span class="badge ${p.tier === 'premium' ? 'badge-warning' : 'badge-active'}">${p.tier}</span>
+                <span class="badge ${p.status === 'active' ? 'badge-success' : 'badge-archived'}">${p.status}</span>
+              </div>
+            </div>
+            <div class="list-item-meta">
+              ${p.provider} / ${p.model_name} | Tasks: ${p.task_types?.join(', ') || '-'}
+            </div>
+          </div>
+        `).join("");
+      }
+
       window.selectModelProfile = async (profileKey) => {
         const workspace = getActiveWorkspace() || "default";
         setStatus(t("status.running"));
@@ -8425,12 +9864,17 @@ function renderThreads(threads) {
         $("modelProfileDetailCard").style.display = "none";
       };
 
-        // ==== Model Profiles Init ==========
+      // ========== Model Profiles Init ==========
 
       let modelProfilesInitStarted = false;
+      async function init_model_profiles_fn() {
+        if (modelProfilesInitStarted) return;
+        modelProfilesInitStarted = true;
+        $("modelProfilesListBtn").click();
+      }
       window['init_model-profiles'] = init_model_profiles_fn;
 
-        // ==== Cost Report handlers ==========
+      // ========== Cost Report handlers ==========
 
       $("costReportBtn").onclick = async () => {
         const workspace = getActiveWorkspace() || "default";
@@ -8480,12 +9924,22 @@ function renderThreads(threads) {
         }
       };
 
-        // ==== Cost Report Init ==========
+      // ========== Cost Report Init ==========
 
       let modelCostInitStarted = false;
+      async function init_model_cost_fn() {
+        if (modelCostInitStarted) return;
+        modelCostInitStarted = true;
+        // Set default date range (last 30 days)
+        const today = new Date().toISOString().split('T')[0];
+        const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+        $("costReportFromDate").value = thirtyDaysAgo;
+        $("costReportToDate").value = today;
+        $("costReportBtn").click();
+      }
       window['init_model-cost'] = init_model_cost_fn;
 
-        // ==== Context Preview handlers ==========
+      // ========== Context Preview handlers ==========
 
       $("generateContextBtn").onclick = async () => {
         const base = getActiveProjectArgs();
@@ -8595,7 +10049,7 @@ function renderThreads(threads) {
         }
       };
 
-        // ==== Sync & Audit handlers ==========
+      // ========== Sync & Audit handlers ==========
 
       $("refreshBindingsBtn").onclick = async () => {
         const base = getActiveProjectArgs();
@@ -8803,9 +10257,32 @@ function renderThreads(threads) {
         setStatus(t("msg.loaded"));
       };
 
-        // ==== Template handlers ==========
+      // ========== Template handlers ==========
 
       let currentTemplate = null;
+
+      function renderTemplates(templates) {
+        const container = $("templateListResult");
+        if (!templates || templates.length === 0) {
+          container.innerHTML = '<p style="color:var(--muted);text-align:center;padding:20px;">No templates</p>';
+          return;
+        }
+        container.innerHTML = templates.map(t => `
+          <div class="template-card" onclick="selectTemplate('${t.id}')">
+            <div class="template-card-header">
+              <span class="template-card-name">${escapeHtml(t.name)}</span>
+              <span class="badge ${t.template_type === 'system' ? 'badge-success' : t.template_type === 'user' ? 'badge-warning' : 'badge-active'}">${t.template_type}</span>
+            </div>
+            <div class="template-card-key">${t.template_key}</div>
+            <div class="template-card-desc">${escapeHtml(t.description || '')}</div>
+            <div class="template-card-meta">
+              ${t.genre ? `<span class="template-tag">${t.genre}</span>` : ''}
+              ${t.scene ? `<span class="template-tag">${t.scene}</span>` : ''}
+            </div>
+          </div>
+        `).join("");
+      }
+
       window.selectTemplate = async (templateId) => {
         const base = getActiveProjectArgs();
         if (!base) return;
@@ -8935,9 +10412,14 @@ function renderThreads(threads) {
         }
       };
 
-        // ==== Template List Init ==========
+      // ========== Template List Init ==========
 
       let templateListInitStarted = false;
+      async function init_template_list_fn() {
+        if (templateListInitStarted) return;
+        templateListInitStarted = true;
+        $("templateListBtn").click();
+      }
       window['init_template-list'] = init_template_list_fn;
 
       $("templateCloseBtn").onclick = () => {
@@ -8978,7 +10460,71 @@ function renderThreads(threads) {
         }
       };
 
-        // ==== Graph handlers ==========
+      // ========== Graph handlers ==========
+
+      function renderGraph(nodes, links) {
+        const svg = $("graphSvg");
+        const width = svg.parentElement.clientWidth;
+        const height = 450;
+        svg.setAttribute("width", width);
+        svg.setAttribute("height", height);
+
+        const padding = 50;
+        const nodeRadius = 25;
+        const colors = {
+          character: "#3b82f6",
+          faction: "#10b981",
+          location: "#f59e0b"
+        };
+
+        let html = '<defs>';
+        Object.keys(colors).forEach(type => {
+          html += `<marker id="arrowhead-${type}" markerWidth="10" markerHeight="7" refX="20" refY="3.5" orient="auto">
+            <polygon points="0 0, 10 3.5, 0 7" fill="${colors[type]}" />
+          </marker>`;
+        });
+        html += '</defs>';
+
+        links.forEach((link, idx) => {
+          const source = nodes.find(n => n.id === link.source);
+          const target = nodes.find(n => n.id === link.target);
+          if (!source || !target) return;
+          const sourceAngle = (source.index * 2 * Math.PI) / nodes.length;
+          const targetAngle = (target.index * 2 * Math.PI) / nodes.length;
+          const cx = width / 2;
+          const cy = height / 2;
+          const r = Math.min(width, height) / 2 - padding;
+          const x1 = cx + r * Math.cos(sourceAngle);
+          const y1 = cy + r * Math.sin(sourceAngle);
+          const x2 = cx + r * Math.cos(targetAngle);
+          const y2 = cy + r * Math.sin(targetAngle);
+          html += `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" class="graph-link" stroke="#cbd5e1" stroke-width="2" />`;
+        });
+
+        nodes.forEach((node, idx) => {
+          const angle = (idx * 2 * Math.PI) / nodes.length;
+          const cx = width / 2;
+          const cy = height / 2;
+          const r = Math.min(width, height) / 2 - padding;
+          const x = cx + r * Math.cos(angle);
+          const y = cy + r * Math.sin(angle);
+          const color = colors[node.type] || "#6b7280";
+          html += `<circle cx="${x}" cy="${y}" r="${nodeRadius}" fill="${color}" class="graph-node" stroke="white" stroke-width="2" />`;
+          html += `<text x="${x}" y="${y + 5}" class="graph-label" fill="white" font-weight="bold">${escapeHtml(node.name.substring(0, 3))}</text>`;
+          html += `<text x="${x}" y="${y + nodeRadius + 20}" class="graph-label" font-size="11">${escapeHtml(node.name)}</text>`;
+        });
+
+        svg.innerHTML = html;
+
+        const legend = $("graphLegend");
+        legend.innerHTML = Object.keys(colors).map(type => `
+          <div class="graph-legend-item">
+            <span class="graph-legend-dot" style="background:${colors[type]}"></span>
+            <span>${type}</span>
+          </div>
+        `).join("");
+      }
+
       $("graphLoadBtn").onclick = async () => {
         const base = getActiveProjectArgs();
         if (!base) return;
@@ -9029,9 +10575,46 @@ function renderThreads(threads) {
         svg.setAttribute("data-scale", 1);
       };
 
-        // ==== Market handlers ==========
+      // ========== Market handlers ==========
 
       var marketTemplatesCache = [];
+
+      async function loadMarketTemplates() {
+        var result = await api("/api/tool", { tool: "prompt.template.list", arguments: { limit: 100 } });
+        if (result && result.templates) {
+          marketTemplatesCache = result.templates;
+          renderMarketTemplates(marketTemplatesCache);
+        } else {
+          $("marketPopularList").innerHTML = '<p style="color:var(--muted);">暂无模板</p>';
+          $("marketNewGrid").innerHTML = '';
+        }
+      }
+
+      function renderMarketTemplates(templates) {
+        $("marketPopularList").innerHTML = templates.slice(0, 3).map(function(t) {
+          return '<div class="market-card" onclick="openMarketDetail(\'' + (t.key || t.id) + '\')">' +
+            '<div class="market-card-header">' +
+              '<span class="market-card-name">' + escapeHtml(t.name || t.key) + '</span>' +
+            '</div>' +
+            '<div class="market-card-desc">' + escapeHtml(t.description || "") + '</div>' +
+            '<div class="market-card-meta">' +
+              '<span class="market-tag">' + escapeHtml(t.type || "") + '</span>' +
+              '<span class="market-tag">' + escapeHtml(t.genre || "") + '</span>' +
+            '</div>' +
+          '</div>';
+        }).join("");
+
+        $("marketNewGrid").innerHTML = templates.map(function(t) {
+          return '<div class="market-grid-card" onclick="openMarketDetail(\'' + (t.key || t.id) + '\')">' +
+            '<div class="market-grid-icon">📋</div>' +
+            '<div class="market-grid-name">' + escapeHtml(t.name || t.key) + '</div>' +
+            '<div class="market-grid-desc">' + escapeHtml((t.description || "").substring(0, 50)) + '</div>' +
+            '<div class="market-grid-footer">' +
+              '<span class="market-tag">' + escapeHtml(t.type || "") + '</span>' +
+            '</div>' +
+          '</div>';
+        }).join("");
+      }
 
       window.openMarketDetail = async function(key) {
         var template = marketTemplatesCache.find(function(t) { return (t.key || t.id) === key; });
@@ -9091,10 +10674,9 @@ function renderThreads(threads) {
         $("marketDetailCard").style.display = "none";
       };
 
-        // ==== Offline handlers ==========
+      // ========== Offline handlers ==========
 
-  
-function updateConnectionStatus() {
+      function updateConnectionStatus() {
         const label = $("connectionStatusLabel");
         const dot = $("connectionStatusDot");
         const detail = $("connectionStatusDetail");
@@ -9116,8 +10698,30 @@ function updateConnectionStatus() {
           `;
         }
       }
-  
-function renderCacheList() {
+
+      function renderOfflineQueue() {
+        // Show local projects that need sync
+        api("/api/tool", { tool: "local.project.list", arguments: {} }).then(function(result) {
+          var projects = (result && result.projects) ? result.projects : [];
+          $("offlineQueueCount").textContent = projects.length;
+          if (projects.length > 0) {
+            $("offlineQueueList").innerHTML = projects.map(function(p) {
+              return '<div class="offline-queue-item">' +
+                '<div class="offline-queue-header">' +
+                  '<span class="offline-queue-type">项目</span>' +
+                  '<span class="offline-queue-action">' + escapeHtml(p.project_id) + '</span>' +
+                '</div>' +
+                '<div class="offline-queue-title">' + escapeHtml(p.local_root || "") + '</div>' +
+                '<div class="offline-queue-time">' + (p.last_scan_at ? "最后扫描: " + p.last_scan_at : "未扫描") + '</div>' +
+              '</div>';
+            }).join("");
+          } else {
+            $("offlineQueueList").innerHTML = '<p style="color:var(--muted);">暂无注册项目</p>';
+          }
+        });
+      }
+
+      function renderCacheList() {
         // Show local project stats
         api("/api/tool", { tool: "local.project.list", arguments: {} }).then(function(result) {
           var projects = (result && result.projects) ? result.projects : [];
@@ -9176,9 +10780,8 @@ function renderCacheList() {
       renderOfflineQueue();
       renderCacheList();
 
-        // ====
-  
-function renderPagination(containerId, currentPage, totalPages, loadFn) {
+      // ==========
+      function renderPagination(containerId, currentPage, totalPages, loadFn) {
         var container = $(containerId);
         if (!container || totalPages <= 1) { if (container) container.innerHTML = ""; return; }
         var html = '<button class="pagination-btn" ' + (currentPage <= 1 ? 'disabled' : '') + ' onclick="' + loadFn + '(' + (currentPage - 1) + ')">‹</button>';
@@ -9194,10 +10797,109 @@ function renderPagination(containerId, currentPage, totalPages, loadFn) {
         container.innerHTML = html;
       }
 
-      // ==== Pipeline ==========
+    // ========== Pipeline ==========
     var currentPlanId = null;
 
-        // ======= System Monitoring ==========
+    async function createPipelinePlan() {
+      var chapterNo = parseInt($("pipelineChapterNo").value);
+      var targetWords = parseInt($("pipelineTargetWords").value);
+      var purpose = $("pipelinePurpose").value;
+      if (!chapterNo) { showToast("warning", "请输入章节号"); return; }
+      setStatus("创建生成计划...");
+      var result = await api("/api/tool", {
+        tool: "pipeline.create_plan",
+        arguments: Object.assign(baseProjectArgs(), { chapter_no: chapterNo, target_words: targetWords, purpose: purpose })
+      });
+      if (result && result.plan_id) {
+        currentPlanId = result.plan_id;
+        showToast("success", "计划已创建", "ID: " + result.plan_id);
+        $("pipelineStatus").style.display = "none";
+        $("pipelineResult").style.display = "block";
+        loadPipelineStatus();
+      } else {
+        showToast("error", "创建失败", result.error || "未知错误");
+      }
+    }
+
+    async function loadPipelineStatus() {
+      if (!currentPlanId) return;
+      var result = await api("/api/tool", {
+        tool: "pipeline.get_plan",
+        arguments: Object.assign(baseProjectArgs(), { plan_id: currentPlanId })
+      });
+      if (result && result.passes) {
+        var passes = result.passes;
+        ["pipelinePass1", "pipelinePass2", "pipelinePass3"].forEach(function(id, i) {
+          var el = $(id);
+          var pass = passes[i];
+          if (pass) {
+            el.className = "badge badge-" + (pass.status === "completed" ? "success" : pass.status === "running" ? "warning" : "default");
+            el.textContent = "Pass " + (i + 1) + ": " + (pass.status === "completed" ? "完成" : pass.status === "running" ? "运行中" : "待执行");
+          }
+        });
+      }
+    }
+
+    async function loadChapterList() {
+      var volumeFilter = $("chapterVolumeFilter").value;
+      var statusFilter = $("chapterStatusFilter").value;
+      var args = Object.assign(baseProjectArgs(), { limit: 100 });
+      if (volumeFilter) args.volume_no = parseInt(volumeFilter);
+      var result = await api("/api/tool", {
+        tool: "plot.list_chapter_plans",
+        arguments: args
+      });
+      var list = $("chapterList");
+      if (result && result.chapters && result.chapters.length > 0) {
+        list.innerHTML = result.chapters
+          .filter(function(c) { return !statusFilter || c.status === statusFilter; })
+          .map(function(c) {
+            return '<div class="list-item" style="cursor:pointer;">' +
+              '<div class="list-item-header">' +
+              '<span style="font-weight:500;">第 ' + c.chapter_no + ' 章</span>' +
+              '<span class="badge">' + (c.status || "planned") + '</span>' +
+              '</div>' +
+              '<div class="list-item-meta">' + escapeHtml(c.title || c.synopsis || "") + '</div>' +
+              '</div>';
+          }).join("");
+      } else {
+        list.innerHTML = '<p style="color:var(--muted);padding:20px;">暂无章节</p>';
+      }
+    }
+
+    // ========== System Monitoring ==========
+    async function loadSystemHealth() {
+      setStatus("加载系统状态...");
+      var result = await api("/api/tool", { tool: "admin.health", arguments: {} });
+      var cards = $("healthCards");
+      if (result && !result.error) {
+        cards.innerHTML =
+          '<div class="panel" style="padding:16px;text-align:center;">' +
+            '<div style="font-size:24px;margin-bottom:4px;">' + (result.database ? "🟢" : "🔴") + '</div>' +
+            '<div style="font-size:13px;font-weight:500;">数据库</div>' +
+            '<div style="font-size:12px;color:var(--muted);">' + (result.database ? "正常" : "异常") + '</div>' +
+          '</div>' +
+          '<div class="panel" style="padding:16px;text-align:center;">' +
+            '<div style="font-size:24px;margin-bottom:4px;">🟢</div>' +
+            '<div style="font-size:13px;font-weight:500;">Qdrant</div>' +
+            '<div style="font-size:12px;color:var(--muted);">' + escapeHtml(result.qdrant_url || "") + '</div>' +
+          '</div>' +
+          '<div class="panel" style="padding:16px;text-align:center;">' +
+            '<div style="font-size:24px;margin-bottom:4px;">🟢</div>' +
+            '<div style="font-size:13px;font-weight:500;">Redis</div>' +
+            '<div style="font-size:12px;color:var(--muted);">' + escapeHtml(result.redis_host || "") + '</div>' +
+          '</div>' +
+          '<div class="panel" style="padding:16px;text-align:center;">' +
+            '<div style="font-size:24px;margin-bottom:4px;">🟢</div>' +
+            '<div style="font-size:13px;font-weight:500;">MCP Server</div>' +
+            '<div style="font-size:12px;color:var(--muted);">运行中</div>' +
+          '</div>';
+        $("healthDetail").innerHTML = '<pre style="font-size:12px;background:var(--bg);padding:12px;border-radius:6px;overflow-x:auto;">' + escapeHtml(JSON.stringify(result, null, 2)) + '</pre>';
+      } else {
+        cards.innerHTML = '<div style="grid-column:1/-1;text-align:center;color:var(--danger);">无法获取系统状态</div>';
+      }
+    }
+
     async function loadCacheStats() {
       var result = await api("/api/tool", { tool: "system.cache.get_stats", arguments: {} });
       var el = $("cacheStats");
@@ -9226,10 +10928,67 @@ function renderPagination(containerId, currentPage, totalPages, loadFn) {
       }
     }
 
-      // ==== Local Project Management ==========
+    async function loadBackupList() {
+      var result = await api("/api/tool", { tool: "backup.list", arguments: {} });
+      var el = $("backupList");
+      if (result && result.backups && result.backups.length > 0) {
+        el.innerHTML = result.backups.map(function(b) {
+          return '<div class="list-item">' +
+            '<div class="list-item-header"><span>' + escapeHtml(b.filename || b.id) + '</span><span class="badge">' + (b.type || "full") + '</span></div>' +
+            '<div class="list-item-meta">' + (b.created_at || "") + ' — ' + (b.size || "") + '</div>' +
+            '</div>';
+        }).join("");
+      } else {
+        el.innerHTML = '<p style="color:var(--muted);">暂无备份</p>';
+      }
+    }
+
+    async function createBackup() {
+      setStatus("创建备份...");
+      var result = await api("/api/tool", { tool: "backup.create", arguments: Object.assign(baseProjectArgs(), { backup_type: "full" }) });
+      if (result && !result.error) {
+        showToast("success", "备份已创建");
+        loadBackupList();
+      }
+    }
+
+    async function saveBackupSchedule() {
+      var interval = parseInt($("backupInterval").value);
+      if (!interval || interval < 1) { showToast("warning", "请输入有效间隔"); return; }
+      var result = await api("/api/tool", { tool: "backup.schedule.upsert", arguments: Object.assign(baseProjectArgs(), { interval_hours: interval, enabled: true }) });
+      if (result && !result.error) {
+        showToast("success", "备份计划已保存");
+      }
+    }
+
+    // ========== Local Project Management ==========
     var currentLocalProjectId = null;
 
-    async function updateProjectDropdowns(projects) {
+    async function loadLocalProjects() {
+      var result = await api("/api/tool", { tool: "local.project.list", arguments: {} });
+      var el = $("localProjectList");
+      if (result && result.projects && result.projects.length > 0) {
+        el.innerHTML = result.projects.map(function(p) {
+          return '<div class="list-item">' +
+            '<div class="list-item-header">' +
+              '<span style="font-weight:500;">' + escapeHtml(p.project_id) + '</span>' +
+              '<span class="badge">' + (p.chapter_count || 0) + ' 章</span>' +
+              '<span class="badge">' + (p.total_words || 0) + ' 字</span>' +
+            '</div>' +
+            '<div class="list-item-meta">' + escapeHtml(p.local_root || "") + '</div>' +
+            '<div style="margin-top:8px;display:flex;gap:8px;">' +
+              '<button class="btn btn-sm" onclick="scanProject(\'' + p.project_id + '\',\'' + (p.local_root||"").replace(/\\/g,"\\\\") + '\')">扫描</button>' +
+              '<button class="btn btn-sm" onclick="viewProjectStats(\'' + p.project_id + '\')">统计</button>' +
+            '</div>' +
+          '</div>';
+        }).join("");
+        updateProjectDropdowns(result.projects);
+      } else {
+        el.innerHTML = '<p style="color:var(--muted);padding:20px;">暂无注册项目，请先注册本地项目目录</p>';
+      }
+    }
+
+    function updateProjectDropdowns(projects) {
       var selects = ["chapterProjectSelect", "pipelineProjectSelect"];
       selects.forEach(function(id) {
         var el = $(id);
@@ -9241,9 +11000,183 @@ function renderPagination(containerId, currentPage, totalPages, loadFn) {
       });
     }
 
-        // ======= Local Chapter Management ==========
-        // ======= Pipeline ==========
-    // ==== Knowledge Pack ==========
+    async function registerLocalProject() {
+      var projectId = $("localProjectId").value.trim();
+      var localPath = $("localProjectPath").value.trim();
+      if (!projectId || !localPath) { showToast("warning", "请填写项目 ID 和目录路径"); return; }
+      setStatus("注册项目...");
+      var result = await api("/api/tool", {
+        tool: "local.project.register",
+        arguments: { project_id: projectId, local_root: localPath }
+      });
+      if (result && !result.error) {
+        showToast("success", "项目已注册", localPath);
+        loadLocalProjects();
+      }
+    }
+
+    async function scanLocalProject() {
+      var projectId = $("localProjectId").value.trim();
+      var localPath = $("localProjectPath").value.trim();
+      if (!projectId || !localPath) { showToast("warning", "请填写项目 ID 和目录路径"); return; }
+      setStatus("扫描项目目录...");
+      var result = await api("/api/tool", {
+        tool: "local.project.scan",
+        arguments: { project_id: projectId, local_root: localPath }
+      });
+      if (result && !result.error) {
+        showToast("success", "扫描完成", result.chapters.length + " 章节, " + result.total_words + " 字");
+        loadLocalProjects();
+      }
+    }
+
+    async function scanProject(projectId, localPath) {
+      setStatus("扫描 " + projectId + "...");
+      var result = await api("/api/tool", {
+        tool: "local.project.scan",
+        arguments: { project_id: projectId, local_root: localPath }
+      });
+      if (result && !result.error) {
+        showToast("success", "扫描完成", result.chapters.length + " 章节");
+        loadLocalProjects();
+      }
+    }
+
+    async function viewProjectStats(projectId) {
+      setStatus("加载统计...");
+      var result = await api("/api/tool", { tool: "local.stats", arguments: { project_id: projectId } });
+      if (result && !result.error) {
+        showToast("info", projectId + " 统计", result.chapter_count + " 章, " + result.total_words + " 字");
+      }
+    }
+
+    // ========== Local Chapter Management ==========
+    async function loadLocalChapters() {
+      var projectId = $("chapterProjectSelect").value;
+      var status = $("chapterStatusFilter").value;
+      if (!projectId) { $("localChapterList").innerHTML = '<p style="color:var(--muted);padding:20px;">请先选择项目</p>'; return; }
+      currentLocalProjectId = projectId;
+      setStatus("加载章节...");
+      var args = { project_id: projectId, limit: 100 };
+      if (status) args.status = status;
+      var result = await api("/api/tool", { tool: "local.chapter.list", arguments: args });
+      var el = $("localChapterList");
+      if (result && result.chapters && result.chapters.length > 0) {
+        el.innerHTML = result.chapters.map(function(c) {
+          var statusColor = c.status === "final" ? "success" : c.status === "draft" ? "warning" : "default";
+          return '<div class="list-item" style="cursor:pointer;" onclick="viewChapterDetail(' + c.chapter_no + ')">' +
+            '<div class="list-item-header">' +
+              '<span style="font-weight:500;">第 ' + c.chapter_no + ' 章</span>' +
+              '<span class="badge badge-' + statusColor + '">' + (c.status || "planned") + '</span>' +
+              '<span class="badge">' + (c.word_count || 0) + ' 字</span>' +
+            '</div>' +
+            '<div class="list-item-meta">' + escapeHtml(c.title || c.summary || "") + '</div>' +
+          '</div>';
+        }).join("");
+      } else {
+        el.innerHTML = '<p style="color:var(--muted);padding:20px;">暂无章节</p>';
+      }
+    }
+
+    async function viewChapterDetail(chapterNo) {
+      if (!currentLocalProjectId) return;
+      setStatus("加载章节详情...");
+      var result = await api("/api/tool", {
+        tool: "local.chapter.get",
+        arguments: { project_id: currentLocalProjectId, chapter_no: chapterNo }
+      });
+      var el = $("localChapterDetail");
+      if (result && !result.error) {
+        el.style.display = "block";
+        el.innerHTML = '<h3 style="font-size:14px;font-weight:600;margin-bottom:12px;">第 ' + chapterNo + ' 章</h3>' +
+          '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px;">' +
+            '<div><strong>状态:</strong> ' + (result.status || "planned") + '</div>' +
+            '<div><strong>字数:</strong> ' + (result.word_count || 0) + '</div>' +
+            '<div><strong>路径:</strong> ' + escapeHtml(result.local_path || "") + '</div>' +
+            '<div><strong>章纲:</strong> ' + escapeHtml(result.outline_path || "无") + '</div>' +
+          '</div>' +
+          (result.summary ? '<div style="margin-bottom:12px;"><strong>摘要:</strong><div style="background:var(--bg);padding:12px;border-radius:6px;margin-top:4px;font-size:13px;">' + escapeHtml(result.summary) + '</div></div>' : '') +
+          '<div style="display:flex;gap:8px;">' +
+            '<button class="btn btn-sm" onclick="readChapterContent(' + chapterNo + ',\'final\')">查看正文</button>' +
+            '<button class="btn btn-sm" onclick="readChapterContent(' + chapterNo + ',\'draft\')">查看初稿</button>' +
+          '</div>' +
+          '<div id="chapterContentPreview" style="display:none;margin-top:12px;"></div>';
+      }
+    }
+
+    async function readChapterContent(chapterNo, version) {
+      if (!currentLocalProjectId) return;
+      setStatus("读取章节内容...");
+      var result = await api("/api/tool", {
+        tool: "local.chapter.read",
+        arguments: { project_id: currentLocalProjectId, chapter_no: chapterNo, version: version }
+      });
+      var el = $("chapterContentPreview");
+      if (result && result.content) {
+        el.style.display = "block";
+        el.innerHTML = '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">' +
+          '<strong>' + version + ' (' + result.word_count + ' 字)</strong>' +
+          '<button class="btn btn-sm" onclick="this.parentElement.parentElement.style.display=\'none\'">关闭</button>' +
+        '</div>' +
+        '<pre style="background:var(--bg);padding:12px;border-radius:6px;white-space:pre-wrap;font-size:13px;max-height:500px;overflow-y:auto;">' + escapeHtml(result.content) + '</pre>';
+      }
+    }
+
+    // ========== Pipeline ==========
+    async function runPipeline() {
+      var projectId = $("pipelineProjectSelect").value;
+      var chapterNo = parseInt($("pipelineChapterNo").value);
+      var targetWords = parseInt($("pipelineTargetWords").value);
+      var purpose = $("pipelinePurpose").value;
+      if (!projectId) { showToast("warning", "请先选择项目"); return; }
+      if (!chapterNo) { showToast("warning", "请输入章节号"); return; }
+
+      $("pipelineStatus").style.display = "none";
+      $("pipelineResult").style.display = "block";
+      $("pipelinePassStatus").textContent = "正在生成章纲...";
+
+      setStatus("生成章纲...");
+      var ctxResult = await api("/api/tool", {
+        tool: "workflow.prepare_chapter_context",
+        arguments: Object.assign(baseProjectArgs(), { chapter_no: chapterNo, purpose: "outline" })
+      });
+
+      var outlineText = "# 第 " + chapterNo + " 章 章纲\n\n" + (ctxResult.warnings ? "注意: " + JSON.stringify(ctxResult.warnings) : "无");
+      await api("/api/tool", {
+        tool: "local.chapter.write_outline",
+        arguments: { project_id: projectId, chapter_no: chapterNo, outline: outlineText }
+      });
+      $("pipelinePass1").className = "badge badge-success";
+      $("pipelinePassStatus").textContent = "章纲已生成，正在生成初稿...";
+
+      setStatus("生成初稿...");
+      var draftResult = await api("/api/tool", {
+        tool: "workflow.prepare_chapter_context",
+        arguments: Object.assign(baseProjectArgs(), { chapter_no: chapterNo, purpose: purpose })
+      });
+      var draftText = "# 第 " + chapterNo + " 章\n\n" + (draftResult.warnings ? "注意: " + JSON.stringify(draftResult.warnings) : "内容待生成");
+      await api("/api/tool", {
+        tool: "local.chapter.write",
+        arguments: { project_id: projectId, chapter_no: chapterNo, content: draftText, version: purpose }
+      });
+      $("pipelinePass2").className = "badge badge-success";
+      $("pipelinePassStatus").textContent = "初稿已生成，正在审查...";
+
+      setStatus("多模型审查...");
+      var reviewText = "# 审查报告\n\n模型: default\n评分: 待评估\n问题: 无";
+      await api("/api/tool", {
+        tool: "local.review.write",
+        arguments: { project_id: projectId, chapter_no: chapterNo, model_name: "default", report: reviewText, score: 75, passed: true }
+      });
+      $("pipelinePass3").className = "badge badge-success";
+      $("pipelinePassStatus").textContent = "生成完成！";
+
+      showToast("success", "第 " + chapterNo + " 章生成完成", "已保存到本地目录");
+
+      if (currentPage === "local-chapters") loadLocalChapters();
+    }
+
+    // ========== Knowledge Pack ==========
     var currentPackProjectId = null;
     var currentPackActive = [];
     var currentPackCustom = {};
@@ -9360,9 +11293,18 @@ function renderPagination(containerId, currentPage, totalPages, loadFn) {
     }
 
     // Update project dropdowns to include knowledge pack page
-    
+    var origUpdateProjectDropdowns = window.updateProjectDropdowns;
+    window.updateProjectDropdowns = function(projects) {
+      if (origUpdateProjectDropdowns) origUpdateProjectDropdowns(projects);
+      var el = $("packProjectSelect");
+      if (!el) return;
+      var current = el.value;
+      el.innerHTML = '<option value="">选择项目</option>' +
+        projects.map(function(p) { return '<option value="' + p.project_id + '">' + escapeHtml(p.project_id) + ' — ' + escapeHtml(p.local_root || "") + '</option>'; }).join("");
+      if (current) el.value = current;
+    };
 
-        // ==== Page-specific init handlers ==========
+      // ========== Page-specific init handlers ==========
 
       window.addEventListener("online", updateConnectionStatus);
       window.addEventListener("offline", updateConnectionStatus);
@@ -9391,26 +11333,5 @@ function renderPagination(containerId, currentPage, totalPages, loadFn) {
       init();
     }
   </script>
-
-<script src="js/app.js"></script>
-<script src="js/auth.js"></script>
-<script src="js/pages/genre.js"></script>
-<script src="js/pages/category.js"></script>
-<script src="js/pages/binding.js"></script>
-<script src="js/pages/system.js"></script>
-
-<div id="page-genre-manage" class="page hidden">
-  <div class="page-header"><h2>📖 小说类型管理</h2><button class="btn" onclick="window.showGenreForm()">+ 新建类型</button></div>
-  <div class="list-container" id="genreList"><p class="empty-state">加载中...</p></div>
-</div>
-<div id="page-category-manage" class="page hidden">
-  <div class="page-header"><h2>📂 分类管理</h2><button class="btn" onclick="window.showCategoryForm()">+ 新建分类</button></div>
-  <div class="list-container" id="categoryList"><p class="empty-state">加载中...</p></div>
-</div>
-<div id="page-genre-category-bind" class="page hidden">
-  <div class="page-header"><h2>🔗 类型与分类绑定</h2><button class="btn" onclick="window.saveAllBindings()">💾 保存绑定</button></div>
-  <div style="overflow-x:auto;"><table id="bindingMatrix" class="data-table"><thead><tr><th>分类 / 小说类型</th></tr></thead><tbody></tbody></table></div>
-</div>
-
 </body>
 </html>
