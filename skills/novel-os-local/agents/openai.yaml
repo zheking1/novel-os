@@ -1,0 +1,4 @@
+interface:
+  display_name: "Novel OS Local"
+  short_description: "Local writing workflow for Novel OS MCP"
+  default_prompt: "Use this skill to initialize a local novel workspace, fetch context from Novel OS MCP, save generated files locally, and submit structured commits or review reports."

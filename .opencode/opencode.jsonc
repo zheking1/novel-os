@@ -1,0 +1,13 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "mcp": {
+    "novel-os": {
+      "type": "remote",
+      "url": "http://${NAS_HOST}:48083/mcp",
+      "enabled": true,
+      "headers": {
+        "Authorization": "ApiKey nsk-9AZKzp-xlc3pEteZHr0-XmoD5edvp21tQV-rJgB6Ajs"
+      }
+    }
+  }
+}

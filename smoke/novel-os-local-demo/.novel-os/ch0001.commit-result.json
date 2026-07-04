@@ -1,0 +1,14 @@
+{
+  "chapter": {
+    "id": "d6b538c7-2b7e-45d6-8cca-1938df2866d7",
+    "chapter_no": 1,
+    "title": "Chapter 1"
+  },
+  "commit": {
+    "id": "9df4e587-479c-4e1f-81ea-273d9c0e5091",
+    "commit_no": 1,
+    "accepted": true,
+    "accepted_at": "2026-06-22T08:08:09.959009Z",
+    "created_at": "2026-06-22T08:08:09.959009Z"
+  }
+}

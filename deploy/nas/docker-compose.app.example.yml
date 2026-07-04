@@ -1,0 +1,86 @@
+# This file is for the future novel-os-mcp app container.
+# Use it together with docker-compose.yml after the MCP image/source exists:    
+#   docker compose -f docker-compose.yml -f docker-compose.app.example.yml up -d
+
+services:
+  novel-os-mcp:
+    build:
+      context: ./novel-os-mcp
+      dockerfile: Dockerfile
+    image: novel-os-mcp:latest
+    container_name: novel-os-mcp
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      TZ: ${TZ}
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      QDRANT_URL: http://qdrant:6333
+      QDRANT_API_KEY: ${QDRANT_API_KEY}
+      REDIS_URL: redis://:${REDIS_PASSWORD}@${REDIS_HOST}:${REDIS_PORT}/${REDIS_DB}
+      REDIS_HOST: ${REDIS_HOST}
+      REDIS_PORT: ${REDIS_PORT}
+      REDIS_DB: ${REDIS_DB}
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
+      NOVEL_PROJECTS_DIR: /app/projects
+      NOVEL_OS_AUTH_MODE: ${NOVEL_OS_AUTH_MODE:-dev}
+      NOVEL_OS_DEV_USER: admin
+      NOVEL_OS_DEV_WORKSPACE: default
+      NOVEL_OS_DEV_SCOPES: admin,read,write
+      NOVEL_OS_HOST: 0.0.0.0
+      NOVEL_OS_PORT: 8787
+      PYTHONUNBUFFERED: "1"
+      MAX_WORKERS: "4"
+      WORKER_TIMEOUT: "120"
+    ports:
+      - "${NOVEL_MCP_BIND_ADDR:-127.0.0.1}:${NOVEL_MCP_PORT:-8787}:8787"
+    volumes:
+      - ./data/projects:/app/projects
+      - ./data/logs:/app/logs
+    depends_on:
+      postgres:
+        condition: service_healthy
+      qdrant:
+        condition: service_started
+    deploy:
+      resources:
+        limits:
+          cpus: "2.0"
+          memory: "4G"
+        reservations:
+          cpus: "1.0"
+          memory: "2G"
+    networks:
+      - novel_net
+
+  novel-os-web:
+    build:
+      context: ./novel-os-web
+      dockerfile: Dockerfile
+    image: novel-os-web:latest
+    container_name: novel-os-web
+    restart: unless-stopped
+    environment:
+      TZ: ${TZ}
+      NOVEL_OS_WEB_HOST: 0.0.0.0
+      NOVEL_OS_WEB_PORT: 8790
+      NOVEL_OS_MCP_URL: http://novel-os-mcp:8787/mcp
+      NOVEL_OS_WEB_DATA_DIR: /app/data
+    ports:
+      - "${NOVEL_WEB_BIND_ADDR:-127.0.0.1}:${NOVEL_WEB_PORT:-8790}:8790"
+    volumes:
+      - ./data/web:/app/data
+      - ./novel-os-web/index.html:/app/index.html
+    depends_on:
+      novel-os-mcp:
+        condition: service_started
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: "512M"
+        reservations:
+          cpus: "0.2"
+          memory: "256M"
+    networks:
+      - novel_net

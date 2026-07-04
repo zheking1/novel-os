@@ -1,0 +1,90 @@
+services:
+  postgres:
+    image: docker.1ms.run/pgvector/pgvector:pg16
+    container_name: novel-postgres
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      TZ: ${TZ}
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    ports:
+      - "${POSTGRES_BIND_ADDR}:${POSTGRES_PORT}:5432"
+    volumes:
+      - ./data/postgres:/var/lib/postgresql/data
+      - ./postgres/init:/docker-entrypoint-initdb.d:ro
+      - ./postgres/postgresql.conf:/etc/postgresql/postgresql.conf:ro
+    command: postgres -c config_file=/etc/postgresql/postgresql.conf
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: "2G"
+        reservations:
+          cpus: "0.5"
+          memory: "1G"
+    networks:
+      - novel_net
+
+  qdrant:
+    image: docker.1ms.run/qdrant/qdrant:latest
+    container_name: novel-qdrant
+    restart: unless-stopped
+    environment:
+      TZ: ${TZ}
+      QDRANT__SERVICE__API_KEY: ${QDRANT_API_KEY}
+      QDRANT__STORAGE__DISK_PERSIST: "true"
+      QDRANT__SERVICE__GRPC_PORT: 6334
+    ports:
+      - "${QDRANT_BIND_ADDR}:${QDRANT_HTTP_PORT}:6333"
+      - "${QDRANT_BIND_ADDR}:${QDRANT_GRPC_PORT}:6334"
+    volumes:
+      - ./data/qdrant:/qdrant/storage
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: "3G"
+        reservations:
+          cpus: "0.5"
+          memory: "1.5G"
+    networks:
+      - novel_net
+
+  adminer:
+    image: adminer:latest
+    container_name: novel-adminer
+    restart: unless-stopped
+    profiles:
+      - admin
+    environment:
+      TZ: ${TZ}
+      ADMINER_DEFAULT_SERVER: postgres
+    ports:
+      - "${ADMINER_BIND_ADDR}:${ADMINER_PORT}:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          cpus: "0.3"
+          memory: "256M"
+    networks:
+      - novel_net
+
+networks:
+  novel_net:
+    name: novel_net
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16
+

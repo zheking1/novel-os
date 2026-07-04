@@ -1,0 +1,162 @@
+name: Version & Release
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - '.opencode/**'
+      - '!manifest.json'
+      - '!.github/**'
+    tags:
+      - 'v*'
+
+jobs:
+  update-manifest:
+    if: github.ref_type == 'branch'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: Determine version
+        id: ver
+        run: |
+          TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "v0.0.0")
+          DATE_VER=$(date -u +'%Y%m%d.%H%M')
+          VERSION="${TAG}-${DATE_VER}"
+          UPDATED=$(date -u +'%Y-%m-%dT%H:%M:%SZ')
+          echo "tag=$TAG" >> $GITHUB_OUTPUT
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "updated=$UPDATED" >> $GITHUB_OUTPUT
+
+      - name: Build changelog
+        run: |
+          LAST_UPDATED=$(python3 -c "
+          import json
+          try:
+              m = json.load(open('manifest.json', encoding='utf-8'))
+              print(m.get('updated', ''))
+          except:
+              pass
+          ")
+          SINCE_FLAG=""
+          if [ -n "$LAST_UPDATED" ]; then
+            SINCE_FLAG="--since=$LAST_UPDATED"
+          fi
+          git log $SINCE_FLAG --format='%h|%s' --no-merges \
+            | python3 -c "
+          import sys, json
+          entries = []
+          for line in sys.stdin:
+              line = line.strip()
+              if not line or '|' not in line:
+                  continue
+              h, msg = line.split('|', 1)
+              t = msg.split(':')[0] if ':' in msg else 'chore'
+              entries.append({'hash': h, 'type': t, 'message': msg})
+          print(json.dumps(entries[:50], ensure_ascii=True))
+          " > /tmp/changelog.json
+
+      - name: Regenerate manifest
+        env:
+          PYTHONUTF8: "1"
+        run: |
+          python3 .opencode/scripts/gen_manifest.py \
+            --version "${{ steps.ver.outputs.version }}" \
+            --tag "${{ steps.ver.outputs.tag }}" \
+            --updated "${{ steps.ver.outputs.updated }}" \
+            --changelog-file /tmp/changelog.json \
+            --opencode-dir .opencode > manifest.json
+
+      - name: Commit manifest
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          if ! git diff --quiet manifest.json; then
+            git add manifest.json
+            git commit -m "chore: update manifest to ${{ steps.ver.outputs.version }} [skip ci]"
+            git push origin master
+          fi
+
+  release:
+    if: github.ref_type == 'tag'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: master
+          fetch-depth: 0
+          fetch-tags: true
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: Get tag info
+        id: tags
+        run: |
+          TAG=${GITHUB_REF#refs/tags/}
+          PREV_TAG=$(git describe --tags --abbrev=0 --exclude="$TAG" 2>/dev/null || echo "")
+          echo "tag=$TAG" >> $GITHUB_OUTPUT
+          echo "prev_tag=$PREV_TAG" >> $GITHUB_OUTPUT
+
+      - name: Build changelog
+        run: |
+          RANGE=""
+          if [ -n "${{ steps.tags.outputs.prev_tag }}" ]; then
+            RANGE="${{ steps.tags.outputs.prev_tag }}..${{ steps.tags.outputs.tag }}"
+          fi
+          # Generate both JSON (manifest) and Markdown (Release body)
+          git log $RANGE --format='%h|%s' --no-merges \
+            | python3 -c "
+          import sys, json
+          entries = []
+          for line in sys.stdin:
+              line = line.strip()
+              if not line or '|' not in line: continue
+              h, msg = line.split('|', 1)
+              t = msg.split(':')[0] if ':' in msg else 'chore'
+              entries.append({'hash': h, 'type': t, 'message': msg})
+          json.dump(entries, open('/tmp/changelog.json', 'w'), ensure_ascii=True)
+          with open('/tmp/changelog.md', 'w') as f:
+              for e in entries:
+                  f.write(f\"- {e['message']} ({e['hash']})\n\")
+          "
+
+      - name: Update manifest for tag
+        env:
+          PYTHONUTF8: "1"
+        run: |
+          python3 .opencode/scripts/gen_manifest.py \
+            --version "${{ steps.tags.outputs.tag }}" \
+            --tag "${{ steps.tags.outputs.tag }}" \
+            --updated "$(date -u +'%Y-%m-%dT%H:%M:%SZ')" \
+            --changelog-file /tmp/changelog.json \
+            --opencode-dir .opencode > manifest.json
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add manifest.json
+          git commit -m "chore: release ${{ steps.tags.outputs.tag }} [skip ci]" || true
+          git push origin master
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.tags.outputs.tag }}
+          name: Webnovel Writer for OpenCode ${{ steps.tags.outputs.tag }}
+          body_path: /tmp/changelog.md
+          generate_release_notes: false

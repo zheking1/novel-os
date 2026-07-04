@@ -1,0 +1,180 @@
+from dataclasses import dataclass
+from hashlib import sha256
+
+from fastmcp.server.dependencies import get_http_headers
+
+from .config import Settings
+from .db import Database
+
+
+@dataclass(frozen=True)
+class Principal:
+    username: str
+    workspace: str | None
+    project_id: str | None
+    scopes: set[str]
+
+    def require(self, scope: str) -> None:
+        if "admin" not in self.scopes and scope not in self.scopes:
+            raise PermissionError(f"Missing required scope: {scope}")
+
+
+class AuthService:
+    def __init__(self, settings: Settings, db: Database):
+        self._settings = settings
+        self._db = db
+
+    async def current_principal(self) -> Principal:
+        mode = self._settings.auth_mode.lower().strip()
+        if mode == "dev":
+            return Principal(
+                username=self._settings.dev_user,
+                workspace=self._settings.dev_workspace,
+                project_id=None,
+                scopes=self._settings.dev_scope_set,
+            )
+        if mode == "token":
+            return await self._token_principal()
+        raise PermissionError(f"Unsupported NOVEL_OS_AUTH_MODE: {self._settings.auth_mode}")
+
+    async def _token_principal(self) -> Principal:
+        token = self._bearer_token()
+        token_hash = sha256(token.encode("utf-8")).hexdigest()
+        row = await self._db.fetchrow(
+            """
+            SELECT
+              t.id AS token_id,
+              t.scopes,
+              t.project_id::text AS project_id,
+              u.username,
+              u.status AS user_status,
+              w.slug AS workspace_slug
+            FROM api_tokens t
+            JOIN users u ON u.id = t.user_id
+            LEFT JOIN workspaces w ON w.id = t.workspace_id
+            WHERE t.token_hash = $1
+              AND t.revoked_at IS NULL
+              AND (t.expires_at IS NULL OR t.expires_at > now())
+            """,
+            token_hash,
+        )
+        if row is None or row["user_status"] != "active":
+            raise PermissionError("Invalid or expired API token")
+        await self._db.execute("UPDATE api_tokens SET last_used_at = now() WHERE id = $1", row["token_id"])
+        return Principal(
+            username=row["username"],
+            workspace=row["workspace_slug"],
+            project_id=row["project_id"],
+            scopes=set(row["scopes"] or []),
+        )
+
+    @staticmethod
+    def _bearer_token() -> str:
+        headers = get_http_headers(include={"authorization", "x-novel-os-token"})
+        authorization = headers.get("authorization") or headers.get("Authorization") or ""
+        
+        # Support ApiKey prefix
+        if authorization.startswith("ApiKey "):
+            return authorization[7:].strip()
+        
+        prefix = "Bearer "
+        if authorization.startswith(prefix):
+            token = authorization[len(prefix) :].strip()
+        else:
+            token = headers.get("x-novel-os-token") or headers.get("X-Novel-OS-Token") or ""
+        if not token:
+            raise PermissionError("Missing Authorization: Bearer <token> or ApiKey <key>")
+        return token
+
+    @staticmethod
+    def _role_allows(role: str | None, access: str) -> bool:
+        if access == "read":
+            return role in {"owner", "writer", "reader"}
+        if access == "write":
+            return role in {"owner", "writer"}
+        return False
+
+    async def require_workspace_access(self, principal: Principal, workspace_slug: str, access: str = "read") -> None:
+        if "admin" in principal.scopes:
+            return
+        if principal.workspace is not None and principal.workspace != workspace_slug:
+            raise PermissionError(f"Token is scoped to workspace: {principal.workspace}")
+        row = await self._db.fetchrow(
+            """
+            SELECT wm.role
+            FROM workspace_members wm
+            JOIN workspaces w ON w.id = wm.workspace_id
+            JOIN users u ON u.id = wm.user_id
+            WHERE w.slug = $1
+              AND u.username = $2
+              AND u.status = 'active'
+            """,
+            workspace_slug,
+            principal.username,
+        )
+        if row is None or not self._role_allows(row["role"], access):
+            raise PermissionError(f"No access to workspace: {workspace_slug}")
+
+    async def require_project_access(self, principal: Principal, project_id: str, access: str = "read") -> None:
+        if "admin" in principal.scopes:
+            return
+        if principal.project_id is not None and principal.project_id != project_id:
+            raise PermissionError("Token is scoped to a different project")
+        row = await self._db.fetchrow(
+            """
+            SELECT pm.role
+            FROM project_members pm
+            JOIN users u ON u.id = pm.user_id
+            WHERE pm.project_id = $1
+              AND u.username = $2
+              AND u.status = 'active'
+            """,
+            project_id,
+            principal.username,
+        )
+        if row is None or not self._role_allows(row["role"], access):
+            raise PermissionError("No access to project")
+
+    async def resolve_project_id(
+        self,
+        workspace_slug: str,
+        project_slug: str,
+        principal: Principal | None = None,
+        access: str = "read",
+    ) -> str:
+        if principal is not None:
+            await self.require_workspace_access(principal, workspace_slug)
+        row = await self._db.fetchrow(
+            """
+            SELECT p.id::text AS project_id
+            FROM projects p
+            JOIN workspaces w ON w.id = p.workspace_id
+            WHERE w.slug = $1 AND p.slug = $2
+            """,
+            workspace_slug,
+            project_slug,
+        )
+        if row is None:
+            raise ValueError(f"Project not found: {workspace_slug}/{project_slug}")
+        if principal is not None:
+            await self.require_project_access(principal, row["project_id"], access)
+        return row["project_id"]
+
+    async def resolve_workspace_id(
+        self,
+        principal: Principal,
+        workspace_slug: str,
+        access: str = "read",
+    ) -> str:
+        await self.require_workspace_access(principal, workspace_slug, access)
+        row = await self._db.fetchrow(
+            """
+            SELECT id::text AS workspace_id
+            FROM workspaces
+            WHERE slug = $1
+            """,
+            workspace_slug,
+        )
+        if row is None:
+            raise ValueError(f"Workspace not found: {workspace_slug}")
+        return row["workspace_id"]

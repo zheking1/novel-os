@@ -1,0 +1,13 @@
+{
+  "id": "98265441-f3be-476d-8078-d43d416c20fd",
+  "chapter_no": 2,
+  "purpose": "draft",
+  "focus": [
+    "isolation"
+  ],
+  "budget": "{\"memory_limit\": 20, \"recent_count\": 8}",
+  "sections": "[{\"name\": \"active_rules\", \"content\": \"[]\", \"source_count\": 0, \"tokens_estimated\": 1}, {\"name\": \"current_state\", \"content\": \"[]\", \"source_count\": 0, \"tokens_estimated\": 1}, {\"name\": \"recent_summaries\", \"content\": \"[{\\\"chapter_no\\\":1,\\\"title\\\":\\\"Chapter 1\\\",\\\"content\\\":\\\"The protagonist receives a sealed warning before an important auction.\\\",\\\"metadata\\\":\\\"{}\\\"}]\", \"source_count\": 1, \"tokens_estimated\": 45}, {\"name\": \"chapter_plan\", \"content\": \"{}\", \"source_count\": 0, \"tokens_estimated\": 1}, {\"name\": \"open_foreshadowing\", \"content\": \"[]\", \"source_count\": 0, \"tokens_estimated\": 1}, {\"name\": \"relevant_memory\", \"content\": \"[]\", \"source_count\": 0, \"tokens_estimated\": 1}]",
+  "retrieval_audit": "[{\"count\": 0, \"source\": \"canon_rules\"}, {\"count\": 1, \"source\": \"recent_summaries\"}, {\"count\": 0, \"source\": \"foreshadowing\"}, {\"count\": 0, \"source\": \"memory_chunks\"}]",
+  "warnings": "[]",
+  "created_at": "2026-06-22T13:24:59.085769Z"
+}

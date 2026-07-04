@@ -1,0 +1,2 @@
+-r .opencode/scripts/requirements.txt
+-r .opencode/dashboard/requirements.txt

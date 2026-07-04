@@ -1,0 +1,15 @@
+{
+  "model_id": "manual-reviewer",
+  "score": 82,
+  "summary": "The opening has a clear hook, but the auction threat needs a sharper immediate cost.",
+  "findings": [
+    {
+      "dimension": "reader_pull",
+      "severity": "medium",
+      "target": "auction warning",
+      "evidence": "The letter warns that the auction decides control of the city, but the protagonist's personal risk is still abstract.",
+      "suggestion": "Add one consequence that directly threatens the protagonist if they ignore the auction."
+    }
+  ]
+}
+

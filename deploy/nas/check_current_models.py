@@ -1,0 +1,13 @@
+import paramiko
+ssh = paramiko.SSHClient()
+ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+ssh.connect('${NAS_HOST}', username='root', password='${NAS_SSH_PASSWORD}')
+
+# Check current model profiles
+stdin, stdout, stderr = ssh.exec_command(
+    "docker exec novel-postgres psql -U novel_os -d novel_os -c \"SELECT profile_key, display_name, provider, model_name, task_types FROM model_profiles ORDER BY profile_key\""
+)
+print("=== Current Model Profiles ===")
+print(stdout.read().decode('utf-8', errors='replace'))
+
+ssh.close()

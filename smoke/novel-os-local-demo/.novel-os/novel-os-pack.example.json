@@ -1,0 +1,49 @@
+{
+  "items": [
+    {
+      "item_type": "trope",
+      "key": "example_trope",
+      "title": "Example Trope",
+      "content": "Describe a reusable trope, pattern, prompt, or writing technique here.",
+      "metadata": {
+        "tags": [
+          "example"
+        ]
+      }
+    }
+  ],
+  "rules": [
+    {
+      "rule_key": "example.style.rule",
+      "rule_type": "style",
+      "title": "Example Style Rule",
+      "content": "Rules imported here become active project data and can evolve without MCP code changes.",
+      "severity": "warning"
+    }
+  ],
+  "review_councils": [
+    {
+      "name": "default-review-council",
+      "is_active": true,
+      "config": {
+        "dimensions": [
+          "consistency",
+          "ooc",
+          "pacing",
+          "reader_pull",
+          "foreshadowing"
+        ],
+        "models": [
+          {
+            "id": "consistency-reviewer",
+            "role": "continuity"
+          },
+          {
+            "id": "pacing-reviewer",
+            "role": "pacing"
+          }
+        ]
+      }
+    }
+  ]
+}

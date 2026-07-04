@@ -1,0 +1,7 @@
+{
+  "id": "55e42cd7-124f-48f6-a078-aadd577b222a",
+  "status": "pending",
+  "config": "{\"dimensions\": [\"consistency\", \"ooc\", \"pacing\", \"reader_pull\", \"foreshadowing\"], \"local_files\": [{\"kind\": \"chapter\", \"sha256\": \"ecf71794854b52bcb984be65d33c628e9a9e5b6283f73702247cc42e64914919\", \"path_hint\": \"chapters/volume_001/ch0001.md\"}]}",
+  "created_at": "2026-06-22T08:11:13.389688Z",
+  "updated_at": "2026-06-22T08:11:13.389688Z"
+}

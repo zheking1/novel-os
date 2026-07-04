@@ -1,0 +1,33 @@
+name: npm-package
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - '.npm-package/**'
+      - '.opencode/**'
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build-and-verify:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: .npm-package
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          registry-url: 'https://registry.npmjs.org'
+
+      - name: 构建离线包
+        run: node scripts/build-bundle.js
+
+      - name: 验证
+        run: node scripts/verify-bundle.js
+
+      - name: npm pack (验证)
+        run: npm pack
