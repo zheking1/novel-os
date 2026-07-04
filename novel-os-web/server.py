@@ -374,6 +374,10 @@ class Handler(BaseHTTPRequestHandler):
         return username, user
 
     def do_GET(self) -> None:
+        # Static file serving
+        if self.path.startswith(("/js/", "/css/")):
+            self.serve_static()
+            return
         if self.path == "/health":
             self.send_json(200, {"status": "ok", "default_mcp_url": DEFAULT_MCP_URL})
             return
@@ -543,6 +547,29 @@ class Handler(BaseHTTPRequestHandler):
             return
         result = McpClient(url, token).call_tool(tool, arguments)
         self.send_json(200, {"ok": True, "result": result})
+
+    def serve_static(self) -> None:
+        path = self.path.lstrip("/")
+        filepath = Path(os.environ.get("NOVEL_OS_WEB_ROOT", Path(__file__).parent)) / path
+        filepath = filepath.resolve()
+        if not str(filepath).startswith(str(Path(__file__).parent.resolve())):
+            self.send_json(403, {"error": "forbidden"})
+            return
+        if filepath.exists() and filepath.is_file():
+            body = filepath.read_bytes()
+            self.send_response(200)
+            if path.endswith(".js"):
+                self.send_header("Content-Type", "application/javascript; charset=utf-8")
+            elif path.endswith(".css"):
+                self.send_header("Content-Type", "text/css; charset=utf-8")
+            else:
+                self.send_header("Content-Type", "application/octet-stream")
+            self.send_header("Content-Length", str(len(body)))
+            self.send_header("Cache-Control", "public, max-age=3600")
+            self.end_headers()
+            self.wfile.write(body)
+        else:
+            self.send_json(404, {"error": "not found"})
 
     def log_message(self, fmt: str, *args: Any) -> None:
         print(fmt % args)
