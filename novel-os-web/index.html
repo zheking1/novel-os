@@ -189,9 +189,9 @@
               <span class="menu-arrow" aria-hidden="true">▶</span>
             </div>
             <div class="submenu" role="menu">
-              <div class="submenu-item" data-page="project-world-rules" data-i18n="nav.worldRules" role="menuitem" tabindex="0">World Rules</div>
-              <div class="submenu-item" data-page="project-characters" data-i18n="nav.characters" role="menuitem" tabindex="0">Characters</div>
-              <div class="submenu-item" data-page="project-factions" data-i18n="nav.factions" role="menuitem" tabindex="0">Factions</div>
+              
+              
+              
               <div class="submenu-item" data-page="project-world-state" data-i18n="nav.worldState" role="menuitem" tabindex="0">World State</div>
             </div>
           </div>
@@ -10016,5 +10016,25 @@
       init();
     }
   </script>
+
+    <!-- MODULAR PAGES -->
+    <div id="page-genre-manage" class="page hidden">
+      <div class="page-header"><h2>📖 小说类型管理</h2><button class="btn" onclick="window.showGenreForm()">+ 新建类型</button></div>
+      <div class="list-container" id="genreList"><p class="empty-state">加载中...</p></div>
+    </div>
+    <div id="page-category-manage" class="page hidden">
+      <div class="page-header"><h2>📂 分类管理</h2><button class="btn" onclick="window.showCategoryForm()">+ 新建分类</button></div>
+      <div class="list-container" id="categoryList"><p class="empty-state">加载中...</p></div>
+    </div>
+    <div id="page-genre-category-bind" class="page hidden">
+      <div class="page-header"><h2>🔗 类型与分类绑定</h2><button class="btn" onclick="window.saveAllBindings()">💾 保存绑定</button></div>
+      <div style="overflow-x:auto;"><table id="bindingMatrix" class="data-table"><thead><tr><th>分类 / 小说类型</th></tr></thead><tbody></tbody></table></div>
+    </div>
+
+
+<script src="js/pages/genre.js"></script>
+<script src="js/pages/category.js"></script>
+<script src="js/pages/binding.js"></script>
+
 </body>
 </html>
