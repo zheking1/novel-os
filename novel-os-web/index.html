@@ -7014,22 +7014,22 @@
 
     // ===== Page Init Registrations =====
   window['init_canon-list'] = function() { var b=$('canonListBtn'); if(b)b.click(); };
-  window['init_canon-create'] = loadCanonCreate;
+  window['init_canon-create'] = function() { var b=$('canonCreateBtn'); if(b)b.click(); };
   window['init_entities-list'] = function() { var b=$('entityListBtn'); if(b)b.click(); };
-  window['init_entities-create'] = loadEntitiesCreate;
+  window['init_entities-create'] = function() { var b=$('entityCreateBtn'); if(b)b.click(); };
   window['init_template-list'] = function() { var b=$('templateListBtn'); if(b)b.click(); };
-  window['init_template-create'] = loadTemplateCreate;
+  window['init_template-create'] = function() { var b=$('templateCreateBtn'); if(b)b.click(); };
   window['init_model-profiles'] = function() { var b=$('modelProfilesListBtn'); if(b)b.click(); };
   window['init_model-cost'] = function() { var b=$('costReportBtn'); if(b)b.click(); };
-  window['init_skills'] = loadSkillList;
+  window['init_skills'] = function() {};
   window['init_knowledge-pack'] = function() { var b=$('packProjectSelect'); if(b)b.click(); };
-  window['init_knowledge-stats'] = loadKnowledgeStats;
-  window['init_auto-search'] = initAutoSearch;
-  window['init_knowledge-graph'] = initKnowledgeGraph;
-  window['init_api-tokens'] = function() { var b=$('apiTokensListBtn'); if(b)b.click(); };
-  window['init_backup'] = loadBackupList;
-  window['init_system-health'] = function() { var b=$('healthCheckBtn'); if(b)b.click(); };
-  window['init_market'] = loadMarketTemplates;
+  window['init_knowledge-stats'] = function() {};
+  window['init_auto-search'] = function() {};
+  window['init_knowledge-graph'] = function() {};
+  window['init_api-tokens'] = function() {};
+  window['init_backup'] = function() {};
+  window['init_system-health'] = function() {};
+  window['init_market'] = function() {};
   window['init_genre-manage'] = loadGenreManage;
   window['init_category-manage'] = loadCategoryManage;
   window['init_genre-category-bind'] = loadBindingPage;
