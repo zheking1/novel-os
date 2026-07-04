@@ -565,7 +565,7 @@ class Handler(BaseHTTPRequestHandler):
             else:
                 self.send_header("Content-Type", "application/octet-stream")
             self.send_header("Content-Length", str(len(body)))
-            self.send_header("Cache-Control", "public, max-age=3600")
+            self.send_header("Cache-Control", "no-cache, no-store, must-revalidate")
             self.end_headers()
             self.wfile.write(body)
         else:
