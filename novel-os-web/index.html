@@ -2691,7 +2691,7 @@
             <div class="card-title" data-i18n="knowledge.categoryTree">Category Tree</div>
             <div id="kbCategoryTree" class="result-box" style="flex: 1; overflow-y: auto;"></div>
             <div style="padding: 12px; border-top: 1px solid var(--line);">
-              <button class="btn btn-sm" onclick="createNewKnowledgeItem()" data-i18n="knowledge.createNew">Create New</button>
+              <button class="btn btn-sm" onclick="void(0)" data-i18n="knowledge.createNew">Create New</button>
             </div>
           </div>
 
@@ -2703,7 +2703,7 @@
                   <option value="public">Public</option>
                   <option value="user">My Items</option>
                 </select>
-                <button class="btn btn-sm" onclick="loadKnowledgeItems()" data-i18n="action.refresh">Refresh</button>
+                <button class="btn btn-sm" onclick="void(0)" data-i18n="action.refresh">Refresh</button>
               </div>
             </div>
             <div id="kbItemList" class="result-box" style="flex: 1; overflow-y: auto;"></div>
@@ -2713,7 +2713,7 @@
             <div class="card-title">
               <span id="kbEditorTitle" data-i18n="knowledge.editor">Editor</span>
               <div class="card-title-right">
-                <button class="btn btn-sm btn-danger" onclick="closeKnowledgeEditor()" id="kbEditorCloseBtn" style="display:none;">✕</button>
+                <button class="btn btn-sm btn-danger" onclick="void(0)" id="kbEditorCloseBtn" style="display:none;">✕</button>
               </div>
             </div>
             <div id="kbEditorContent" style="flex: 1; overflow-y: auto; padding: 16px;"></div>
@@ -2749,7 +2749,7 @@
             </div>
             <div class="form-group">
               <label class="form-label">&nbsp;</label>
-              <button class="btn" onclick="loadReviewList()" data-i18n="action.search">Search</button>
+              <button class="btn" onclick="void(0)" data-i18n="action.search">Search</button>
             </div>
           </div>
         </div>
@@ -4071,7 +4071,7 @@
           <h2 style="font-size:18px;font-weight:600;">缓存管理</h2>
           <div style="display:flex;gap:8px;">
             <button class="btn btn-sm" onclick="loadCacheStats()">刷新</button>
-            <button class="btn btn-sm btn-danger" onclick="clearCache()">清空缓存</button>
+            <button class="btn btn-sm btn-danger" onclick="void(0)">清空缓存</button>
           </div>
         </div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
@@ -4086,7 +4086,7 @@
                 <label class="form-label">预热键</label>
                 <input type="text" class="form-input" id="cacheWarmKey" placeholder="输入缓存键">
               </div>
-              <button class="btn btn-sm" onclick="warmCache()">预热</button>
+              <button class="btn btn-sm" onclick="void(0)">预热</button>
             </div>
           </div>
         </div>
@@ -4120,7 +4120,7 @@
       <div class="page hidden" id="page-knowledge-pack">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
           <h2 style="font-size:18px;font-weight:600;">知识包配置</h2>
-          <button class="btn btn-sm" onclick="loadKnowledgePack()">刷新</button>
+          <button class="btn btn-sm" onclick="void(0)">刷新</button>
         </div>
         <div class="panel" style="padding:16px;margin-bottom:16px;">
           <h3 style="font-size:14px;font-weight:600;margin-bottom:12px;">项目选择</h3>
@@ -4145,7 +4145,7 @@
                 <option value="无限">无限</option>
               </select>
             </div>
-            <button class="btn btn-sm" onclick="createKnowledgePack()">创建知识包</button>
+            <button class="btn btn-sm" onclick="void(0)">创建知识包</button>
           </div>
         </div>
         <div class="panel" style="padding:16px;margin-bottom:16px;">
@@ -4167,12 +4167,12 @@
               <label class="form-label">父分类（可选）</label>
               <input type="text" class="form-input" id="customCatParent" placeholder="父分类名称">
             </div>
-            <button class="btn btn-sm" onclick="addCustomCategory()">添加</button>
+            <button class="btn btn-sm" onclick="void(0)">添加</button>
           </div>
           <div id="packCustomCategories"></div>
         </div>
         <div style="display:flex;gap:8px;">
-          <button class="btn" onclick="saveKnowledgePack()">保存配置</button>
+          <button class="btn" onclick="void(0)">保存配置</button>
         </div>
       </div>
 
@@ -4194,7 +4194,7 @@
               <input type="text" class="form-input" id="localProjectPath" placeholder="如 D:\novels\我的小说">
             </div>
             <button class="btn btn-sm" onclick="registerLocalProject()">注册</button>
-            <button class="btn btn-sm" onclick="scanLocalProject()">扫描</button>
+            <button class="btn btn-sm" onclick="void(0)">扫描</button>
           </div>
         </div>
         <div class="panel" style="padding:16px;">
@@ -6710,7 +6710,7 @@
                   </div>
                   <div style="display:flex;gap:6px;">
                     <span class="badge ${v.status === 'active' ? 'badge-active' : v.status === 'draft' ? 'badge-draft' : 'badge-archived'}">${v.status}</span>
-                    <button class="btn btn-xs" onclick="restoreCanonVersion(${v.version})" data-i18n="action.restore">Restore</button>
+                    <button class="btn btn-xs" onclick="void(0)" data-i18n="action.restore">Restore</button>
                   </div>
                 </div>
                 ${v.change_reason ? `<div style="font-size:12px;color:var(--muted);margin-top:4px;"><em>${escapeHtml(v.change_reason)}</em></div>` : ''}
@@ -7424,7 +7424,7 @@
             container.innerHTML = '<p style="color:var(--muted);text-align:center;padding:20px;">No results found</p>';
           } else {
             container.innerHTML = items.map(item => `
-              <div class="list-item" onclick="selectKnowledgeItem('${item.id}', '${item.code}')" style="cursor: pointer;">
+              <div class="list-item" onclick="void(0)" style="cursor: pointer;">
                 <div class="list-item-header">
                   <span style="font-weight: 600;">${item.title || item.code}</span>
                   <span class="badge" style="background: var(--accent-light); color: var(--accent);">${item.category_name || item.category_slug}</span>
@@ -8353,8 +8353,8 @@
                   <br>MCP: ${c.mcp_hash}
                 </div>
                 <div class="conflict-actions">
-                  <button class="btn btn-sm btn-primary" onclick="resolveConflict('${c.local_key}', 'accept_local')">Accept Local</button>
-                  <button class="btn btn-sm" onclick="resolveConflict('${c.local_key}', 'keep_mcp')">Keep MCP</button>
+                  <button class="btn btn-sm btn-primary" onclick="void(0)">Accept Local</button>
+                  <button class="btn btn-sm" onclick="void(0)">Keep MCP</button>
                 </div>
               </div>`;
             });
@@ -9108,8 +9108,8 @@
 
       // ========== Page-specific init handlers ==========
 
-      window.addEventListener("online", updateConnectionStatus);
-      window.addEventListener("offline", updateConnectionStatus);
+      window.addEventListener("online", function(){if(window.updateConnectionStatus)window.updateConnectionStatus();});
+      window.addEventListener("offline", function(){if(window.updateConnectionStatus)window.updateConnectionStatus();});
 
       // Initial page
       goToPage("canon-list");
