@@ -6578,7 +6578,6 @@ function renderCanonList(docs) {
       };
 
       // API Tokens management
-      async
       window.revokeToken = async (tokenId) => {
         if (!confirm(t("confirm.revokeToken"))) return;
         const result = await api("/api/tool", {
@@ -9199,7 +9198,6 @@ function renderPagination(containerId, currentPage, totalPages, loadFn) {
     var currentPlanId = null;
 
     asyncasyncasync// ========== System Monitoring ==========
-    async
     async function loadCacheStats() {
       var result = await api("/api/tool", { tool: "system.cache.get_stats", arguments: {} });
       var el = $("cacheStats");
@@ -9228,9 +9226,6 @@ function renderPagination(containerId, currentPage, totalPages, loadFn) {
       }
     }
 
-    async
-    async
-    async
     // ========== Local Project Management ==========
     var currentLocalProjectId = null;
 
