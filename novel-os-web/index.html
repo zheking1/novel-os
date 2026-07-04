@@ -4486,7 +4486,7 @@
       const el = $("tokenState");
       if (el) el.textContent = hasToken ? t("status.tokenStored") : t("status.tokenMissing");
     }
-    // ========== Navigation ==========
+      // ==== Navigation ==========
     const loadedModules = new Set();
     const moduleLoadCallbacks = {};
 
@@ -4646,7 +4646,7 @@
       });
     }
 
-    // ========== Universal Knowledge Manager ==========
+      // ==== Universal Knowledge Manager ==========
     let ukCurrentCategory = null;
     let ukAllCategories = [];
     let ukTreeData = {};
@@ -5072,7 +5072,7 @@
       else setStatus(t("status.error"));
     };
 
-    // ========== 项目知识页面 (Project Knowledge) ==========
+      // ==== 项目知识页面 (Project Knowledge) ==========
 
     let kbListOffset = 0;
     const kbListLimit = 50;
@@ -5810,8 +5810,8 @@ function buildTree(parentKey, depth = 0, parentElement = container) {
       });
     }
 
-    // ========== Auth views ==========
-    // ========== API ==========
+      // ==== Auth views ==========
+      // ==== API ==========
     async function api(path, body) {
       try {
         const options = body ? {
@@ -5873,7 +5873,7 @@ function buildTree(parentKey, depth = 0, parentElement = container) {
       else show("login");
     }
 
-    // ========== Tool calling ==========
+      // ==== Tool calling ==========
     function baseProjectArgs() {
       return {
         workspace: $("workspaceSelect")?.value || $("workspace")?.value || "",
@@ -5905,7 +5905,7 @@ function buildTree(parentKey, depth = 0, parentElement = container) {
       return response;
     }
 
-    // ========== State keys ==========
+      // ==== State keys ==========
     const stateKeys = ["mcpUrl", "workspace", "project"];
     function loadState() {
       for (const key of stateKeys) {
@@ -5921,7 +5921,7 @@ function buildTree(parentKey, depth = 0, parentElement = container) {
       }
     }
 
-    // ========== Project selector ==========
+      // ==== Project selector ==========
     let allProjects = [];
 
 
@@ -5996,7 +5996,7 @@ function buildTree(parentKey, depth = 0, parentElement = container) {
       return $("workspaceSelect")?.value || $("workspace")?.value || "";
     }
 
-    // ========== Canon CRUD ==========
+      // ==== Canon CRUD ==========
 function renderCanonList(docs) {
       const container = $("canonListResult");
       if (!docs || docs.length === 0) {
@@ -6060,7 +6060,7 @@ function renderCanonList(docs) {
       }
     }
 
-    // ========== Entities ==========
+      // ==== Entities ==========
     let currentEntityId = null;
 
     function renderEntityList(entities) {
@@ -6157,7 +6157,7 @@ function renderCanonList(docs) {
       `).join("");
     }
 
-    // ========== Rules ==========
+      // ==== Rules ==========
     function renderRulesResult(data, title, containerId) {
       const container = $(containerId);
       if (!container) return;
@@ -6183,7 +6183,7 @@ function renderCanonList(docs) {
       }
     }
 
-    // ========== Skill Management ==========
+      // ==== Skill Management ==========
     let skillCurrentId = null;
     let skillCurrentSteps = [];
 
@@ -6460,7 +6460,7 @@ function renderCanonList(docs) {
       else setStatus(t("status.error"));
     }
 
-    // ========== Initialize ==========
+      // ==== Initialize ==========
     function init() {
       loadState();
       setupMenuGroups();
@@ -6652,7 +6652,7 @@ function renderCanonList(docs) {
         callTool($("toolName").value, args);
       };
 
-      // ========== Canon buttons ==========
+        // ==== Canon buttons ==========
       $("canonUpsert").onclick = async () => {
         const base = getActiveProjectArgs();
         if (!base) return;
@@ -6775,7 +6775,7 @@ function renderCanonList(docs) {
         }
       };
 
-      // ========== Entity buttons ==========
+        // ==== Entity buttons ==========
       $("entitySaveBtn").onclick = async () => {
         const base = getActiveProjectArgs();
         if (!base) return;
@@ -6972,7 +6972,7 @@ function renderCanonList(docs) {
         }
       };
 
-      // ========== Rules buttons ==========
+        // ==== Rules buttons ==========
       $("rulesListBtn").onclick = async () => {
         const base = getActiveProjectArgs();
         if (!base) return;
@@ -7078,7 +7078,7 @@ function renderCanonList(docs) {
         }
       };
 
-      // ========== Review Center handlers ==========
+        // ==== Review Center handlers ==========
 
       // Tab switching
       document.querySelectorAll(".tabs .tab").forEach(tab => {
@@ -7397,7 +7397,7 @@ function renderCouncilConfigs(configs) {
         currentCouncilConfig = null;
       };
 
-      // ========== Knowledge Base handlers ==========
+        // ==== Knowledge Base handlers ==========
 
       // Navigate to knowledge list with category filter
       window.goToKnowledgeList = (categorySlug) => {
@@ -7564,7 +7564,7 @@ function renderKnowledgeItemDetail(item) {
         }
       };
 
-      // ========== Chapter Plans handlers ==========
+        // ==== Chapter Plans handlers ==========
 
   
 function renderChapterPlans(plans) {
@@ -7648,7 +7648,7 @@ function renderChapterPlans(plans) {
         currentChapterPlan = null;
       };
 
-      // ========== Foreshadowing Kanban handlers ==========
+        // ==== Foreshadowing Kanban handlers ==========
 
       let currentForeshadowing = null;
 
@@ -7804,7 +7804,7 @@ function openForeshadowingDetail(key) {
           });
       }
 
-      // ========== Volume handlers ==========
+        // ==== Volume handlers ==========
 
   
 function renderVolumes(volumes) {
@@ -7907,7 +7907,7 @@ function renderVolumes(volumes) {
         $("volumeDetailCard").style.display = "none";
       };
 
-      // ========== Plot Thread handlers ==========
+        // ==== Plot Thread handlers ==========
 
       let currentThread = null;
 
@@ -8327,7 +8327,7 @@ function renderThreads(threads) {
         $("foreshadowingOverdueCard").style.display = "none";
       };
 
-      // ========== Model Profile handlers ==========
+        // ==== Model Profile handlers ==========
       window.selectModelProfile = async (profileKey) => {
         const workspace = getActiveWorkspace() || "default";
         setStatus(t("status.running"));
@@ -8425,12 +8425,12 @@ function renderThreads(threads) {
         $("modelProfileDetailCard").style.display = "none";
       };
 
-      // ========== Model Profiles Init ==========
+        // ==== Model Profiles Init ==========
 
       let modelProfilesInitStarted = false;
       window['init_model-profiles'] = init_model_profiles_fn;
 
-      // ========== Cost Report handlers ==========
+        // ==== Cost Report handlers ==========
 
       $("costReportBtn").onclick = async () => {
         const workspace = getActiveWorkspace() || "default";
@@ -8480,12 +8480,12 @@ function renderThreads(threads) {
         }
       };
 
-      // ========== Cost Report Init ==========
+        // ==== Cost Report Init ==========
 
       let modelCostInitStarted = false;
       window['init_model-cost'] = init_model_cost_fn;
 
-      // ========== Context Preview handlers ==========
+        // ==== Context Preview handlers ==========
 
       $("generateContextBtn").onclick = async () => {
         const base = getActiveProjectArgs();
@@ -8595,7 +8595,7 @@ function renderThreads(threads) {
         }
       };
 
-      // ========== Sync & Audit handlers ==========
+        // ==== Sync & Audit handlers ==========
 
       $("refreshBindingsBtn").onclick = async () => {
         const base = getActiveProjectArgs();
@@ -8803,7 +8803,7 @@ function renderThreads(threads) {
         setStatus(t("msg.loaded"));
       };
 
-      // ========== Template handlers ==========
+        // ==== Template handlers ==========
 
       let currentTemplate = null;
       window.selectTemplate = async (templateId) => {
@@ -8935,7 +8935,7 @@ function renderThreads(threads) {
         }
       };
 
-      // ========== Template List Init ==========
+        // ==== Template List Init ==========
 
       let templateListInitStarted = false;
       window['init_template-list'] = init_template_list_fn;
@@ -8978,7 +8978,7 @@ function renderThreads(threads) {
         }
       };
 
-      // ========== Graph handlers ==========
+        // ==== Graph handlers ==========
       $("graphLoadBtn").onclick = async () => {
         const base = getActiveProjectArgs();
         if (!base) return;
@@ -9029,7 +9029,7 @@ function renderThreads(threads) {
         svg.setAttribute("data-scale", 1);
       };
 
-      // ========== Market handlers ==========
+        // ==== Market handlers ==========
 
       var marketTemplatesCache = [];
 
@@ -9091,7 +9091,7 @@ function renderThreads(threads) {
         $("marketDetailCard").style.display = "none";
       };
 
-      // ========== Offline handlers ==========
+        // ==== Offline handlers ==========
 
   
 function updateConnectionStatus() {
@@ -9176,7 +9176,7 @@ function renderCacheList() {
       renderOfflineQueue();
       renderCacheList();
 
-      // ==========
+        // ====
   
 function renderPagination(containerId, currentPage, totalPages, loadFn) {
         var container = $(containerId);
@@ -9194,10 +9194,10 @@ function renderPagination(containerId, currentPage, totalPages, loadFn) {
         container.innerHTML = html;
       }
 
-    // ========== Pipeline ==========
+      // ==== Pipeline ==========
     var currentPlanId = null;
 
-    asyncasyncasync// ========== System Monitoring ==========
+        // ======= System Monitoring ==========
     async function loadCacheStats() {
       var result = await api("/api/tool", { tool: "system.cache.get_stats", arguments: {} });
       var el = $("cacheStats");
@@ -9226,7 +9226,7 @@ function renderPagination(containerId, currentPage, totalPages, loadFn) {
       }
     }
 
-    // ========== Local Project Management ==========
+      // ==== Local Project Management ==========
     var currentLocalProjectId = null;
 
     async function updateProjectDropdowns(projects) {
@@ -9241,9 +9241,9 @@ function renderPagination(containerId, currentPage, totalPages, loadFn) {
       });
     }
 
-    asyncasyncasyncasync// ========== Local Chapter Management ==========
-    asyncasyncasync// ========== Pipeline ==========
-    async// ========== Knowledge Pack ==========
+        // ======= Local Chapter Management ==========
+        // ======= Pipeline ==========
+    async  // ==== Knowledge Pack ==========
     var currentPackProjectId = null;
     var currentPackActive = [];
     var currentPackCustom = {};
@@ -9362,7 +9362,7 @@ function renderPagination(containerId, currentPage, totalPages, loadFn) {
     // Update project dropdowns to include knowledge pack page
     
 
-      // ========== Page-specific init handlers ==========
+        // ==== Page-specific init handlers ==========
 
       window.addEventListener("online", updateConnectionStatus);
       window.addEventListener("offline", updateConnectionStatus);
