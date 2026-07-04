@@ -6930,32 +6930,6 @@
       }
     }
 
-    function renderReviewList(items) {
-      const container = $("kbReviewList");
-      if (!items || items.length === 0) {
-        container.innerHTML = '<p style="color:var(--muted);text-align:center;padding:20px;">No review items found</p>';
-        return;
-      }
-      container.innerHTML = items.map(item => `
-        <div class="list-item" onclick="selectReviewItem('${item.review_id}')" style="cursor: pointer;">
-          <div class="list-item-header">
-            <span style="font-weight: 600;">${item.title || item.code}</span>
-            <div style="display:flex;gap:6px;align-items:center;">
-              <span class="badge ${item.review_status === 'pending' ? 'badge-warning' : item.review_status === 'approved' ? 'badge-success' : 'badge-danger'}">
-                ${item.review_status}
-              </span>
-              <span class="badge" style="background: var(--accent-light); color: var(--accent);">${item.category_name || item.category_slug || 'N/A'}</span>
-            </div>
-          </div>
-          <div class="list-item-meta">
-            <span>Submitted by: ${item.submitter_name}</span>
-            <span style="margin:0 6px;">|</span>
-            <span>${new Date(item.submit_time).toLocaleString()}</span>
-          </div>
-          ${item.submit_reason ? `<div style="font-size:12px;color:var(--muted);margin-top:6px;">Reason: ${item.submit_reason}</div>` : ''}
-        </div>
-      `).join("");
-    }
 
     async function selectReviewItem(reviewId) {
       const result = await api("/api/tool", { tool: "knowledge.review.get", arguments: { review_id: reviewId } });
@@ -7399,91 +7373,16 @@
       }
     }
 
-    function renderCanonList(docs) {
-      const container = $("canonListResult");
-      if (!docs || docs.length === 0) {
-        container.innerHTML = '<p style="color:var(--muted);text-align:center;padding:20px;">No documents found</p>';
-        return;
-      }
-      container.innerHTML = docs.map(doc => `
-        <div class="list-item" onclick="selectCanonDoc('${doc.key}')">
-          <div class="list-item-header">
-            <span>${doc.title || doc.key}</span>
-            <div style="display:flex;gap:6px;align-items:center;">
-              <span class="badge ${doc.status === 'draft' ? 'badge-draft' : doc.status === 'archived' ? 'badge-archived' : 'badge-active'}">${doc.status}</span>
-              ${doc.review_status === 'pending' ? '<span class="badge badge-warning">pending</span>' : ''}
-              ${doc.review_status === 'approved' ? '<span class="badge badge-success">approved</span>' : ''}
-              ${doc.review_status === 'rejected' ? '<span class="badge badge-archived">rejected</span>' : ''}
-            </div>
-          </div>
-          <div class="list-item-meta">
-            <span style="font-weight:500;">${doc.key}</span>
-            <span style="margin:0 6px;">|</span>
-            <span>${doc.doc_type}</span>
-            <span style="margin:0 6px;">|</span>
-            <span>v${doc.version}</span>
-            ${doc.source_type ? `<span style="margin:0 6px;">|</span><span>${doc.source_type}</span>` : ''}
-            ${doc.updated_by ? `<span style="margin:0 6px;">|</span><span>by ${doc.updated_by}</span>` : ''}
-          </div>
-          ${doc.content ? `<div style="font-size:12px;color:var(--muted);margin-top:6px;line-height:1.5;">${doc.content.substring(0, 150)}${doc.content.length > 150 ? '...' : ''}</div>` : ''}
-        </div>
-      `).join("");
-    }
 
     window.selectCanonDoc = (key) => {
       $("canonKey").value = key;
       loadCanonDoc(key);
     };
 
-    async function loadCanonDoc(key) {
-      const base = getActiveProjectArgs();
-      if (!base) return;
-      const args = { ...base, key };
-      const result = await api("/api/tool", { tool: "canon.doc.get", arguments: args });
-      if (result.ok && result.result) {
-        const doc = result.result;
-        $("canonKey").value = doc.key || "";
-        $("canonTitle").value = doc.title || "";
-        $("canonContent").value = doc.content || "";
-        $("canonType").value = doc.doc_type || "other";
-        $("canonStatus").value = doc.status || "active";
-        $("canonReviewStatus").value = doc.review_status || "approved";
-        $("canonSourceType").value = doc.source_type || "manual";
-        $("canonVersion").value = doc.version ? "v" + doc.version : "";
-        $("canonUpdatedAt").value = doc.updated_at || "";
-        const scope = doc.scope;
-        if (scope && typeof scope === "object") {
-          if (scope.volume_no) $("canonScope").value = "volume";
-          else if (scope.chapter_no) $("canonScope").value = "chapter";
-          else $("canonScope").value = "";
-        }
-        goToPage("canon-create");
-        setStatus(t("msg.loaded"));
-      }
-    }
 
     // ========== Entities ==========
     let currentEntityId = null;
 
-    function renderEntityList(entities) {
-      const container = $("entityListResult");
-      if (!entities || entities.length === 0) {
-        container.innerHTML = '<p style="color:var(--muted);text-align:center;padding:20px;">No entities found</p>';
-        return;
-      }
-      container.innerHTML = entities.map(entity => `
-        <div class="list-item" onclick="selectEntity('${entity.id}', '${entity.entity_type}', '${entity.name}')">
-          <div class="list-item-header">
-            <span>${entity.name}</span>
-            <span class="badge ${entity.lifecycle_status === 'active' ? 'badge-active' : entity.lifecycle_status === 'archived' ? 'badge-archived' : 'badge-warning'}">${entity.lifecycle_status || 'active'}</span>
-          </div>
-          <div class="list-item-meta">
-            ${entity.entity_type} | ${entity.importance || 'medium'}
-            ${entity.tags && entity.tags.length ? ' | ' + entity.tags.slice(0, 3).join(', ') : ''}
-          </div>
-        </div>
-      `).join("");
-    }
 
     window.selectEntity = (id, entityType, name) => {
       currentEntityId = id;
@@ -7492,33 +7391,6 @@
       loadEntityDetails(entityType, name);
     };
 
-    async function loadEntityDetails(entityType, name) {
-      const base = getActiveProjectArgs();
-      if (!base) return;
-      const args = { ...base, entity_type: entityType, name };
-      setStatus(t("status.running"));
-      const result = await api("/api/tool", { tool: "state.entity.get", arguments: args });
-      if (result.ok && result.result) {
-        const entity = result.result;
-        currentEntityId = entity.id;
-        $("entityType").value = entity.entity_type || "character";
-        $("entityName").value = entity.name || "";
-        $("entityStatus").value = entity.lifecycle_status || "active";
-        $("entityImportance").value = entity.importance || "medium";
-        $("entityAliases").value = entity.aliases ? entity.aliases.join(", ") : "";
-        $("entityTags").value = entity.tags ? entity.tags.join(", ") : "";
-        $("firstSeenVolume").value = entity.first_seen_volume_no || "";
-        $("firstSeenChapter").value = entity.first_seen_chapter_no || "";
-        $("lastSeenVolume").value = entity.last_seen_volume_no || "";
-        $("lastSeenChapter").value = entity.last_seen_chapter_no || "";
-        $("entityProfile").value = entity.profile ? JSON.stringify(entity.profile, null, 2) : "{}";
-        $("entityMetadata").value = entity.metadata ? JSON.stringify(entity.metadata, null, 2) : "{}";
-        goToPage("entities-create");
-        setStatus(t("msg.loaded"));
-      } else {
-        setStatus(t("status.error"));
-      }
-    }
 
     function renderSnapshotList(snapshots) {
       const container = $("snapshotListResult");
@@ -7560,30 +7432,6 @@
     }
 
     // ========== Rules ==========
-    function renderRulesResult(data, title, containerId) {
-      const container = $(containerId);
-      if (!container) return;
-      if (!data || (Array.isArray(data) && data.length === 0)) {
-        container.innerHTML = `<p style="color:var(--muted);">${title || 'No results'}</p>`;
-        return;
-      }
-      if (Array.isArray(data)) {
-        container.innerHTML = data.map(item => `
-          <div class="result-item">
-            <strong>${item.title || item.key || item.rule_key || item.id || 'Rule'}</strong>
-            ${item.status ? `<span class="badge ${item.status === 'active' ? 'badge-active' : item.status === 'draft' ? 'badge-draft' : 'badge-archived'}">${item.status}</span>` : ''}
-            ${item.severity ? `<span class="badge ${item.severity === 'critical' ? 'badge-archived' : 'badge-warning'}">${item.severity}</span>` : ''}
-            <div style="font-size:12px;color:var(--muted);margin-top:4px;">
-              ${item.content ? item.content.substring(0, 200) + '...' : ''}
-              ${item.description ? item.description.substring(0, 200) : ''}
-              ${item.message ? item.message : ''}
-            </div>
-          </div>
-        `).join("");
-      } else {
-        container.innerHTML = `<pre class="output" style="font-size:12px;color:var(--text);">${JSON.stringify(data, null, 2)}</pre>`;
-      }
-    }
 
     // ========== Skill Management ==========
     let skillCurrentId = null;
@@ -8545,35 +8393,6 @@
       let currentRuleProposal = null;
       let currentCouncilConfig = null;
 
-      function renderRevisionTasks(tasks) {
-        const container = $("revisionTasksResult");
-        const countBadge = $("revisionTasksCount");
-        if (!tasks || tasks.length === 0) {
-          container.innerHTML = '<p style="color:var(--muted);text-align:center;padding:20px;">No revision tasks</p>';
-          countBadge.textContent = "0";
-          return;
-        }
-        countBadge.textContent = tasks.length;
-        const criticalCount = tasks.filter(t => t.severity === "critical").length;
-        if (criticalCount > 0) {
-          countBadge.className = "badge badge-archived";
-        }
-        container.innerHTML = tasks.map(task => `
-          <div class="list-item" onclick="selectRevisionTask('${task.id}')">
-            <div class="list-item-header">
-              <span>${task.title}</span>
-              <div style="display:flex;gap:6px;">
-                <span class="badge ${task.severity === 'critical' ? 'badge-archived' : task.severity === 'high' ? 'badge-warning' : 'badge-active'}">${task.severity}</span>
-                <span class="badge ${task.status === 'open' ? 'badge-warning' : task.status === 'done' ? 'badge-success' : 'badge-active'}">${task.status}</span>
-              </div>
-            </div>
-            <div class="list-item-meta">
-              Chapter: ${task.chapter_id || '-'} | Created: ${task.created_at || '-'}
-            </div>
-            ${task.description ? `<div style="font-size:12px;color:var(--muted);margin-top:6px;">${escapeHtml(task.description.substring(0, 150))}</div>` : ''}
-          </div>
-        `).join("");
-      }
 
       window.selectRevisionTask = async (taskId) => {
         const base = getActiveProjectArgs();
@@ -8646,27 +8465,6 @@
         currentRevisionTask = null;
       };
 
-      function renderRuleProposals(proposals) {
-        const container = $("ruleProposalsResult");
-        if (!proposals || proposals.length === 0) {
-          container.innerHTML = '<p style="color:var(--muted);text-align:center;padding:20px;">No rule proposals</p>';
-          return;
-        }
-        container.innerHTML = proposals.map(p => `
-          <div class="list-item" onclick="selectRuleProposal('${p.id}')">
-            <div class="list-item-header">
-              <span>${p.rule_key || p.title}</span>
-              <div style="display:flex;gap:6px;">
-                <span class="badge ${p.severity === 'critical' ? 'badge-archived' : 'badge-warning'}">${p.severity}</span>
-                <span class="badge ${p.status === 'proposed' ? 'badge-warning' : p.status === 'approved' ? 'badge-success' : 'badge-archived'}">${p.status}</span>
-              </div>
-            </div>
-            <div class="list-item-meta">
-              ${p.title} | ${p.created_at || '-'}
-            </div>
-          </div>
-        `).join("");
-      }
 
       window.selectRuleProposal = async (proposalId) => {
         const base = getActiveProjectArgs();
@@ -8742,24 +8540,6 @@
         currentRuleProposal = null;
       };
 
-      function renderCouncilConfigs(configs) {
-        const container = $("councilConfigsResult");
-        if (!configs || configs.length === 0) {
-          container.innerHTML = '<p style="color:var(--muted);text-align:center;padding:20px;">No council configs</p>';
-          return;
-        }
-        container.innerHTML = configs.map(c => `
-          <div class="list-item" onclick="selectCouncilConfig('${c.id}')">
-            <div class="list-item-header">
-              <span>${c.name}</span>
-              ${c.is_active ? '<span class="badge badge-success">Active</span>' : ''}
-            </div>
-            <div class="list-item-meta">
-              ID: ${c.id}
-            </div>
-          </div>
-        `).join("");
-      }
 
       window.selectCouncilConfig = async (configId) => {
         const base = getActiveProjectArgs();
@@ -9009,29 +8789,6 @@
 
       // ========== Chapter Plans handlers ==========
 
-      function renderChapterPlans(plans) {
-        const container = $("chapterPlansResult");
-        const countBadge = $("chapterPlansCount");
-        if (!plans || plans.length === 0) {
-          container.innerHTML = '<p style="color:var(--muted);text-align:center;padding:20px;">No chapter plans</p>';
-          countBadge.textContent = "0";
-          return;
-        }
-        countBadge.textContent = plans.length;
-        container.innerHTML = plans.map(p => `
-          <div class="list-item" onclick="selectChapterPlan('${p.id}')">
-            <div class="list-item-header">
-              <span>Chapter ${p.chapter_no}</span>
-              <div style="display:flex;gap:6px;">
-                <span class="badge ${p.status === 'completed' ? 'badge-success' : p.status === 'writing' ? 'badge-warning' : p.status === 'skipped' ? 'badge-archived' : 'badge-active'}">${p.status}</span>
-              </div>
-            </div>
-            <div class="list-item-meta">
-              ID: ${p.id} | ${p.updated_at || p.created_at || '-'}
-            </div>
-          </div>
-        `).join("");
-      }
 
       let currentChapterPlan = null;
 
@@ -9109,53 +8866,6 @@
         critical: "importance-critical"
       };
 
-      function renderForeshadowingKanban(items) {
-        const board = $("foreshadowingKanban");
-        const statusGroups = {};
-        foreshadowingStatuses.forEach(s => statusGroups[s.value] = []);
-        items.forEach(item => {
-          if (statusGroups[item.status]) {
-            statusGroups[item.status].push(item);
-          } else {
-            statusGroups["planted"].push(item);
-          }
-        });
-
-        let html = '<div class="kanban-columns">';
-        foreshadowingStatuses.forEach(status => {
-          const itemsInStatus = statusGroups[status.value] || [];
-          html += `
-            <div class="kanban-column">
-              <div class="kanban-column-header">
-                <span>${status.label}</span>
-                <span class="kanban-column-count">${itemsInStatus.length}</span>
-              </div>
-              <div class="kanban-column-content">
-          `;
-          itemsInStatus.forEach(item => {
-            const isOverdue = item.is_overdue || false;
-            const overdueClass = isOverdue ? "foreshadowing-card-overdue" : "";
-            html += `
-              <div class="foreshadowing-card ${importanceColors[item.importance] || "importance-medium"} ${overdueClass}" 
-                   onclick="openForeshadowingDetail('${item.key}')">
-                <div class="foreshadowing-card-header">
-                  <span class="foreshadowing-card-key">[${item.key}]</span>
-                  <span class="foreshadowing-card-importance">${item.importance}</span>
-                </div>
-                <div class="foreshadowing-card-title">${escapeHtml(item.title)}</div>
-                ${item.expected_payoff_range ? `<div class="foreshadowing-card-range">${escapeHtml(item.expected_payoff_range)}</div>` : ""}
-                ${isOverdue ? `<div class="foreshadowing-card-overdue-badge">⚠️ OVERDUE</div>` : ""}
-              </div>
-            `;
-          });
-          html += `
-              </div>
-            </div>
-          `;
-        });
-        html += '</div>';
-        board.innerHTML = html;
-      }
 
       function renderForeshadowingDetail(item) {
         const content = $("foreshadowingDetailContent");
@@ -9245,25 +8955,6 @@
 
       // ========== Volume handlers ==========
 
-      function renderVolumes(volumes) {
-        const container = $("volumesResult");
-        if (!volumes || volumes.length === 0) {
-          container.innerHTML = '<p style="color:var(--muted);text-align:center;padding:20px;">No volumes</p>';
-          return;
-        }
-        container.innerHTML = volumes.map(v => `
-          <div class="list-item" onclick="selectVolume(${v.volume_no})">
-            <div class="list-item-header">
-              <span>Vol. ${v.volume_no}: ${v.title || 'Untitled'}</span>
-              <span class="badge ${v.status === 'writing' ? 'badge-warning' : v.status === 'completed' ? 'badge-success' : 'badge-active'}">${v.status}</span>
-            </div>
-            <div class="list-item-meta">
-              Ch. ${v.start_chapter_no || '-'} - ${v.end_chapter_no || '-'}
-              ${v.outline ? ` | ${escapeHtml(v.outline.substring(0, 80))}...` : ''}
-            </div>
-          </div>
-        `).join("");
-      }
 
       window.selectVolume = async (volumeNo) => {
         const base = getActiveProjectArgs();
@@ -9349,30 +9040,6 @@
 
       let currentThread = null;
 
-      function renderThreads(threads) {
-        const container = $("threadsResult");
-        const countBadge = $("threadsCount");
-        if (!threads || threads.length === 0) {
-          container.innerHTML = '<p style="color:var(--muted);text-align:center;padding:20px;">No threads</p>';
-          countBadge.textContent = "0";
-          return;
-        }
-        countBadge.textContent = threads.length;
-        container.innerHTML = threads.map(t => `
-          <div class="list-item" onclick="selectThread('${t.key}')">
-            <div class="list-item-header">
-              <span>${t.title}</span>
-              <div style="display:flex;gap:6px;">
-                <span class="badge ${t.status === 'open' ? 'badge-warning' : t.status === 'resolved' ? 'badge-success' : 'badge-active'}">${t.status}</span>
-                <span class="badge ${t.importance === 'critical' ? 'badge-archived' : t.importance === 'high' ? 'badge-warning' : 'badge-active'}">${t.importance}</span>
-              </div>
-            </div>
-            <div class="list-item-meta">
-              Key: ${t.key} | Type: ${t.thread_type} | Vol: ${t.volume_no || '-'} | Ch: ${t.current_chapter_no || '-'}
-            </div>
-          </div>
-        `).join("");
-      }
 
       window.selectThread = async (key) => {
         const base = getActiveProjectArgs();
@@ -10743,26 +10410,6 @@
         });
       }
 
-      function renderCacheList() {
-        // Show local project stats
-        api("/api/tool", { tool: "local.project.list", arguments: {} }).then(function(result) {
-          var projects = (result && result.projects) ? result.projects : [];
-          if (projects.length > 0) {
-            $("offlineCacheList").innerHTML = projects.map(function(p) {
-              return '<div class="list-item">' +
-                '<div class="list-item-header">' +
-                  '<span>' + escapeHtml(p.project_id) + '</span>' +
-                  '<span class="badge">' + (p.chapter_count || 0) + ' 章</span>' +
-                  '<span class="badge">' + (p.total_words || 0) + ' 字</span>' +
-                '</div>' +
-                '<div class="list-item-meta">' + escapeHtml(p.local_root || "") + '</div>' +
-              '</div>';
-            }).join("");
-          } else {
-            $("offlineCacheList").innerHTML = '<p style="color:var(--muted);">暂无缓存数据</p>';
-          }
-        });
-      }
 
       $("offlineRefreshStatus").onclick = function() {
         updateConnectionStatus();
