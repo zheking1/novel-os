@@ -5111,94 +5111,7 @@
 
     // ========== 项目知识页面 (Project Knowledge) ==========
 
-    async function init_project_world_rules() {
-      const container = $("projectWorldRulesResult");
-      if (!container) return;
-      container.innerHTML = "<p>Loading...</p>";
-      const result = await api("/api/tool", {
-        tool: "canon.doc.list",
-        arguments: { doc_type: "world", limit: 50 }
-      });
-      if (result.ok && result.result) {
-        const items = result.result.items || [];
-        container.innerHTML = items.length === 0 ? "<p>No world rules found.</p>" :
-          items.map(item => `
-            <div class="list-item" onclick="goToPage('canon-list')" style="cursor:pointer;">
-              <div class="list-item-title">${item.title || item.key}</div>
-              <div class="list-item-meta">${item.status || ""} | v${item.version || 1}</div>
-            </div>
-          `).join("");
-      } else {
-        container.innerHTML = "<p>Failed to load.</p>";
-      }
-    }
-
-    async function init_project_characters() {
-      const container = $("projectCharactersResult");
-      if (!container) return;
-      container.innerHTML = "<p>Loading...</p>";
-      const result = await api("/api/tool", {
-        tool: "state.entity.list",
-        arguments: { entity_type: "character", limit: 50 }
-      });
-      if (result.ok && result.result) {
-        const items = result.result.items || [];
-        container.innerHTML = items.length === 0 ? "<p>No characters found.</p>" :
-          items.map(item => `
-            <div class="list-item" onclick="goToPage('entities-list')" style="cursor:pointer;">
-              <div class="list-item-title">${item.name || item.entity_key}</div>
-              <div class="list-item-meta">${item.status || ""} | ${item.entity_type || ""}</div>
-            </div>
-          `).join("");
-      } else {
-        container.innerHTML = "<p>Failed to load.</p>";
-      }
-    }
-
-    async function init_project_factions() {
-      const container = $("projectFactionsResult");
-      if (!container) return;
-      container.innerHTML = "<p>Loading...</p>";
-      const result = await api("/api/tool", {
-        tool: "state.entity.list",
-        arguments: { entity_type: "faction", limit: 50 }
-      });
-      if (result.ok && result.result) {
-        const items = result.result.items || [];
-        container.innerHTML = items.length === 0 ? "<p>No factions found.</p>" :
-          items.map(item => `
-            <div class="list-item" onclick="goToPage('entities-list')" style="cursor:pointer;">
-              <div class="list-item-title">${item.name || item.entity_key}</div>
-              <div class="list-item-meta">${item.status || ""} | ${item.entity_type || ""}</div>
-            </div>
-          `).join("");
-      } else {
-        container.innerHTML = "<p>Failed to load.</p>";
-      }
-    }
-
-    async function init_project_world_state() {
-      const container = $("projectWorldStateContent");
-      if (!container) return;
-      container.innerHTML = "<p>Loading...</p>";
-      const result = await api("/api/tool", {
-        tool: "state.world.get",
-        arguments: {}
-      });
-      if (result.ok && result.result) {
-        const state = result.result;
-        container.innerHTML = `<pre class="output">${JSON.stringify(state, null, 2)}</pre>`;
-      } else {
-        container.innerHTML = "<p>No world state data.</p>";
-      }
-      // Wire refresh button
-      const refreshBtn = $("refreshWorldStateBtn");
-      if (refreshBtn) {
-        refreshBtn.onclick = () => init_project_world_state();
-      }
-    }
-
-    let kbListOffset = 0;
+    asyncasyncasyncasynclet kbListOffset = 0;
     const kbListLimit = 50;
 
     async function loadKnowledgeStats() {
@@ -9563,74 +9476,7 @@
     // ========== Pipeline ==========
     var currentPlanId = null;
 
-    async function createPipelinePlan() {
-      var chapterNo = parseInt($("pipelineChapterNo").value);
-      var targetWords = parseInt($("pipelineTargetWords").value);
-      var purpose = $("pipelinePurpose").value;
-      if (!chapterNo) { showToast("warning", "请输入章节号"); return; }
-      setStatus("创建生成计划...");
-      var result = await api("/api/tool", {
-        tool: "pipeline.create_plan",
-        arguments: Object.assign(baseProjectArgs(), { chapter_no: chapterNo, target_words: targetWords, purpose: purpose })
-      });
-      if (result && result.plan_id) {
-        currentPlanId = result.plan_id;
-        showToast("success", "计划已创建", "ID: " + result.plan_id);
-        $("pipelineStatus").style.display = "none";
-        $("pipelineResult").style.display = "block";
-        loadPipelineStatus();
-      } else {
-        showToast("error", "创建失败", result.error || "未知错误");
-      }
-    }
-
-    async function loadPipelineStatus() {
-      if (!currentPlanId) return;
-      var result = await api("/api/tool", {
-        tool: "pipeline.get_plan",
-        arguments: Object.assign(baseProjectArgs(), { plan_id: currentPlanId })
-      });
-      if (result && result.passes) {
-        var passes = result.passes;
-        ["pipelinePass1", "pipelinePass2", "pipelinePass3"].forEach(function(id, i) {
-          var el = $(id);
-          var pass = passes[i];
-          if (pass) {
-            el.className = "badge badge-" + (pass.status === "completed" ? "success" : pass.status === "running" ? "warning" : "default");
-            el.textContent = "Pass " + (i + 1) + ": " + (pass.status === "completed" ? "完成" : pass.status === "running" ? "运行中" : "待执行");
-          }
-        });
-      }
-    }
-
-    async function loadChapterList() {
-      var volumeFilter = $("chapterVolumeFilter").value;
-      var statusFilter = $("chapterStatusFilter").value;
-      var args = Object.assign(baseProjectArgs(), { limit: 100 });
-      if (volumeFilter) args.volume_no = parseInt(volumeFilter);
-      var result = await api("/api/tool", {
-        tool: "plot.list_chapter_plans",
-        arguments: args
-      });
-      var list = $("chapterList");
-      if (result && result.chapters && result.chapters.length > 0) {
-        list.innerHTML = result.chapters
-          .filter(function(c) { return !statusFilter || c.status === statusFilter; })
-          .map(function(c) {
-            return '<div class="list-item" style="cursor:pointer;">' +
-              '<div class="list-item-header">' +
-              '<span style="font-weight:500;">第 ' + c.chapter_no + ' 章</span>' +
-              '<span class="badge">' + (c.status || "planned") + '</span>' +
-              '</div>' +
-              '<div class="list-item-meta">' + escapeHtml(c.title || c.synopsis || "") + '</div>' +
-              '</div>';
-          }).join("");
-      } else {
-        list.innerHTML = '<p style="color:var(--muted);padding:20px;">暂无章节</p>';
-      }
-    }
-
-    // ========== System Monitoring ==========
+    asyncasyncasync// ========== System Monitoring ==========
     async function loadSystemHealth() {
       setStatus("加载系统状态...");
       var result = await api("/api/tool", { tool: "admin.health", arguments: {} });
@@ -9727,31 +9573,7 @@
     // ========== Local Project Management ==========
     var currentLocalProjectId = null;
 
-    async function loadLocalProjects() {
-      var result = await api("/api/tool", { tool: "local.project.list", arguments: {} });
-      var el = $("localProjectList");
-      if (result && result.projects && result.projects.length > 0) {
-        el.innerHTML = result.projects.map(function(p) {
-          return '<div class="list-item">' +
-            '<div class="list-item-header">' +
-              '<span style="font-weight:500;">' + escapeHtml(p.project_id) + '</span>' +
-              '<span class="badge">' + (p.chapter_count || 0) + ' 章</span>' +
-              '<span class="badge">' + (p.total_words || 0) + ' 字</span>' +
-            '</div>' +
-            '<div class="list-item-meta">' + escapeHtml(p.local_root || "") + '</div>' +
-            '<div style="margin-top:8px;display:flex;gap:8px;">' +
-              '<button class="btn btn-sm" onclick="scanProject(\'' + p.project_id + '\',\'' + (p.local_root||"").replace(/\\/g,"\\\\") + '\')">扫描</button>' +
-              '<button class="btn btn-sm" onclick="viewProjectStats(\'' + p.project_id + '\')">统计</button>' +
-            '</div>' +
-          '</div>';
-        }).join("");
-        updateProjectDropdowns(result.projects);
-      } else {
-        el.innerHTML = '<p style="color:var(--muted);padding:20px;">暂无注册项目，请先注册本地项目目录</p>';
-      }
-    }
-
-    function updateProjectDropdowns(projects) {
+    asyncfunction updateProjectDropdowns(projects) {
       var selects = ["chapterProjectSelect", "pipelineProjectSelect"];
       selects.forEach(function(id) {
         var el = $(id);
@@ -9763,183 +9585,9 @@
       });
     }
 
-    async function registerLocalProject() {
-      var projectId = $("localProjectId").value.trim();
-      var localPath = $("localProjectPath").value.trim();
-      if (!projectId || !localPath) { showToast("warning", "请填写项目 ID 和目录路径"); return; }
-      setStatus("注册项目...");
-      var result = await api("/api/tool", {
-        tool: "local.project.register",
-        arguments: { project_id: projectId, local_root: localPath }
-      });
-      if (result && !result.error) {
-        showToast("success", "项目已注册", localPath);
-        loadLocalProjects();
-      }
-    }
-
-    async function scanLocalProject() {
-      var projectId = $("localProjectId").value.trim();
-      var localPath = $("localProjectPath").value.trim();
-      if (!projectId || !localPath) { showToast("warning", "请填写项目 ID 和目录路径"); return; }
-      setStatus("扫描项目目录...");
-      var result = await api("/api/tool", {
-        tool: "local.project.scan",
-        arguments: { project_id: projectId, local_root: localPath }
-      });
-      if (result && !result.error) {
-        showToast("success", "扫描完成", result.chapters.length + " 章节, " + result.total_words + " 字");
-        loadLocalProjects();
-      }
-    }
-
-    async function scanProject(projectId, localPath) {
-      setStatus("扫描 " + projectId + "...");
-      var result = await api("/api/tool", {
-        tool: "local.project.scan",
-        arguments: { project_id: projectId, local_root: localPath }
-      });
-      if (result && !result.error) {
-        showToast("success", "扫描完成", result.chapters.length + " 章节");
-        loadLocalProjects();
-      }
-    }
-
-    async function viewProjectStats(projectId) {
-      setStatus("加载统计...");
-      var result = await api("/api/tool", { tool: "local.stats", arguments: { project_id: projectId } });
-      if (result && !result.error) {
-        showToast("info", projectId + " 统计", result.chapter_count + " 章, " + result.total_words + " 字");
-      }
-    }
-
-    // ========== Local Chapter Management ==========
-    async function loadLocalChapters() {
-      var projectId = $("chapterProjectSelect").value;
-      var status = $("chapterStatusFilter").value;
-      if (!projectId) { $("localChapterList").innerHTML = '<p style="color:var(--muted);padding:20px;">请先选择项目</p>'; return; }
-      currentLocalProjectId = projectId;
-      setStatus("加载章节...");
-      var args = { project_id: projectId, limit: 100 };
-      if (status) args.status = status;
-      var result = await api("/api/tool", { tool: "local.chapter.list", arguments: args });
-      var el = $("localChapterList");
-      if (result && result.chapters && result.chapters.length > 0) {
-        el.innerHTML = result.chapters.map(function(c) {
-          var statusColor = c.status === "final" ? "success" : c.status === "draft" ? "warning" : "default";
-          return '<div class="list-item" style="cursor:pointer;" onclick="viewChapterDetail(' + c.chapter_no + ')">' +
-            '<div class="list-item-header">' +
-              '<span style="font-weight:500;">第 ' + c.chapter_no + ' 章</span>' +
-              '<span class="badge badge-' + statusColor + '">' + (c.status || "planned") + '</span>' +
-              '<span class="badge">' + (c.word_count || 0) + ' 字</span>' +
-            '</div>' +
-            '<div class="list-item-meta">' + escapeHtml(c.title || c.summary || "") + '</div>' +
-          '</div>';
-        }).join("");
-      } else {
-        el.innerHTML = '<p style="color:var(--muted);padding:20px;">暂无章节</p>';
-      }
-    }
-
-    async function viewChapterDetail(chapterNo) {
-      if (!currentLocalProjectId) return;
-      setStatus("加载章节详情...");
-      var result = await api("/api/tool", {
-        tool: "local.chapter.get",
-        arguments: { project_id: currentLocalProjectId, chapter_no: chapterNo }
-      });
-      var el = $("localChapterDetail");
-      if (result && !result.error) {
-        el.style.display = "block";
-        el.innerHTML = '<h3 style="font-size:14px;font-weight:600;margin-bottom:12px;">第 ' + chapterNo + ' 章</h3>' +
-          '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px;">' +
-            '<div><strong>状态:</strong> ' + (result.status || "planned") + '</div>' +
-            '<div><strong>字数:</strong> ' + (result.word_count || 0) + '</div>' +
-            '<div><strong>路径:</strong> ' + escapeHtml(result.local_path || "") + '</div>' +
-            '<div><strong>章纲:</strong> ' + escapeHtml(result.outline_path || "无") + '</div>' +
-          '</div>' +
-          (result.summary ? '<div style="margin-bottom:12px;"><strong>摘要:</strong><div style="background:var(--bg);padding:12px;border-radius:6px;margin-top:4px;font-size:13px;">' + escapeHtml(result.summary) + '</div></div>' : '') +
-          '<div style="display:flex;gap:8px;">' +
-            '<button class="btn btn-sm" onclick="readChapterContent(' + chapterNo + ',\'final\')">查看正文</button>' +
-            '<button class="btn btn-sm" onclick="readChapterContent(' + chapterNo + ',\'draft\')">查看初稿</button>' +
-          '</div>' +
-          '<div id="chapterContentPreview" style="display:none;margin-top:12px;"></div>';
-      }
-    }
-
-    async function readChapterContent(chapterNo, version) {
-      if (!currentLocalProjectId) return;
-      setStatus("读取章节内容...");
-      var result = await api("/api/tool", {
-        tool: "local.chapter.read",
-        arguments: { project_id: currentLocalProjectId, chapter_no: chapterNo, version: version }
-      });
-      var el = $("chapterContentPreview");
-      if (result && result.content) {
-        el.style.display = "block";
-        el.innerHTML = '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">' +
-          '<strong>' + version + ' (' + result.word_count + ' 字)</strong>' +
-          '<button class="btn btn-sm" onclick="this.parentElement.parentElement.style.display=\'none\'">关闭</button>' +
-        '</div>' +
-        '<pre style="background:var(--bg);padding:12px;border-radius:6px;white-space:pre-wrap;font-size:13px;max-height:500px;overflow-y:auto;">' + escapeHtml(result.content) + '</pre>';
-      }
-    }
-
-    // ========== Pipeline ==========
-    async function runPipeline() {
-      var projectId = $("pipelineProjectSelect").value;
-      var chapterNo = parseInt($("pipelineChapterNo").value);
-      var targetWords = parseInt($("pipelineTargetWords").value);
-      var purpose = $("pipelinePurpose").value;
-      if (!projectId) { showToast("warning", "请先选择项目"); return; }
-      if (!chapterNo) { showToast("warning", "请输入章节号"); return; }
-
-      $("pipelineStatus").style.display = "none";
-      $("pipelineResult").style.display = "block";
-      $("pipelinePassStatus").textContent = "正在生成章纲...";
-
-      setStatus("生成章纲...");
-      var ctxResult = await api("/api/tool", {
-        tool: "workflow.prepare_chapter_context",
-        arguments: Object.assign(baseProjectArgs(), { chapter_no: chapterNo, purpose: "outline" })
-      });
-
-      var outlineText = "# 第 " + chapterNo + " 章 章纲\n\n" + (ctxResult.warnings ? "注意: " + JSON.stringify(ctxResult.warnings) : "无");
-      await api("/api/tool", {
-        tool: "local.chapter.write_outline",
-        arguments: { project_id: projectId, chapter_no: chapterNo, outline: outlineText }
-      });
-      $("pipelinePass1").className = "badge badge-success";
-      $("pipelinePassStatus").textContent = "章纲已生成，正在生成初稿...";
-
-      setStatus("生成初稿...");
-      var draftResult = await api("/api/tool", {
-        tool: "workflow.prepare_chapter_context",
-        arguments: Object.assign(baseProjectArgs(), { chapter_no: chapterNo, purpose: purpose })
-      });
-      var draftText = "# 第 " + chapterNo + " 章\n\n" + (draftResult.warnings ? "注意: " + JSON.stringify(draftResult.warnings) : "内容待生成");
-      await api("/api/tool", {
-        tool: "local.chapter.write",
-        arguments: { project_id: projectId, chapter_no: chapterNo, content: draftText, version: purpose }
-      });
-      $("pipelinePass2").className = "badge badge-success";
-      $("pipelinePassStatus").textContent = "初稿已生成，正在审查...";
-
-      setStatus("多模型审查...");
-      var reviewText = "# 审查报告\n\n模型: default\n评分: 待评估\n问题: 无";
-      await api("/api/tool", {
-        tool: "local.review.write",
-        arguments: { project_id: projectId, chapter_no: chapterNo, model_name: "default", report: reviewText, score: 75, passed: true }
-      });
-      $("pipelinePass3").className = "badge badge-success";
-      $("pipelinePassStatus").textContent = "生成完成！";
-
-      showToast("success", "第 " + chapterNo + " 章生成完成", "已保存到本地目录");
-
-      if (currentPage === "local-chapters") loadLocalChapters();
-    }
-
-    // ========== Knowledge Pack ==========
+    asyncasyncasyncasync// ========== Local Chapter Management ==========
+    asyncasyncasync// ========== Pipeline ==========
+    async// ========== Knowledge Pack ==========
     var currentPackProjectId = null;
     var currentPackActive = [];
     var currentPackCustom = {};
@@ -10056,16 +9704,7 @@
     }
 
     // Update project dropdowns to include knowledge pack page
-    var origUpdateProjectDropdowns = window.updateProjectDropdowns;
-    window.updateProjectDropdowns = function(projects) {
-      if (origUpdateProjectDropdowns) origUpdateProjectDropdowns(projects);
-      var el = $("packProjectSelect");
-      if (!el) return;
-      var current = el.value;
-      el.innerHTML = '<option value="">选择项目</option>' +
-        projects.map(function(p) { return '<option value="' + p.project_id + '">' + escapeHtml(p.project_id) + ' — ' + escapeHtml(p.local_root || "") + '</option>'; }).join("");
-      if (current) el.value = current;
-    };
+    
 
       // ========== Page-specific init handlers ==========
 
