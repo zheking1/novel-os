@@ -5227,7 +5227,8 @@
         const container = $("kbCategoryTree");
         container.innerHTML = '';
 
-        function buildTree(parentKey, depth = 0, parentElement = container) {
+    
+function buildTree(parentKey, depth = 0, parentElement = container) {
           const children = parentMap[parentKey] || [];
           if (children.length === 0) return;
 
@@ -5995,7 +5996,8 @@
       return $("workspaceSelect")?.value || $("workspace")?.value || "";
     }
 
-    // ========== Canon CRUD ==========    function renderCanonList(docs) {
+    // ========== Canon CRUD ==========
+function renderCanonList(docs) {
       const container = $("canonListResult");
       if (!docs || docs.length === 0) {
         container.innerHTML = '<p style="color:var(--muted);text-align:center;padding:20px;">No documents found</p>';
@@ -7097,7 +7099,8 @@
       let currentRuleProposal = null;
       let currentCouncilConfig = null;
 
-      function renderRevisionTasks(tasks) {
+  
+function renderRevisionTasks(tasks) {
         const container = $("revisionTasksResult");
         const countBadge = $("revisionTasksCount");
         if (!tasks || tasks.length === 0) {
@@ -7198,7 +7201,8 @@
         currentRevisionTask = null;
       };
 
-      function renderRuleProposals(proposals) {
+  
+function renderRuleProposals(proposals) {
         const container = $("ruleProposalsResult");
         if (!proposals || proposals.length === 0) {
           container.innerHTML = '<p style="color:var(--muted);text-align:center;padding:20px;">No rule proposals</p>';
@@ -7294,7 +7298,8 @@
         currentRuleProposal = null;
       };
 
-      function renderCouncilConfigs(configs) {
+  
+function renderCouncilConfigs(configs) {
         const container = $("councilConfigsResult");
         if (!configs || configs.length === 0) {
           container.innerHTML = '<p style="color:var(--muted);text-align:center;padding:20px;">No council configs</p>';
@@ -7425,7 +7430,8 @@
         }
       };
 
-      function renderKnowledgeItemDetail(item) {
+  
+function renderKnowledgeItemDetail(item) {
         return `
           <div style="padding: 12px; background: var(--bg); border-radius: 6px;">
             <div style="margin-bottom: 8px;"><strong>Code:</strong> ${item.code}</div>
@@ -7561,7 +7567,8 @@
 
       // ========== Chapter Plans handlers ==========
 
-      function renderChapterPlans(plans) {
+  
+function renderChapterPlans(plans) {
         const container = $("chapterPlansResult");
         const countBadge = $("chapterPlansCount");
         if (!plans || plans.length === 0) {
@@ -7661,7 +7668,8 @@
         critical: "importance-critical"
       };
 
-      function renderForeshadowingKanban(items) {
+  
+function renderForeshadowingKanban(items) {
         const board = $("foreshadowingKanban");
         const statusGroups = {};
         foreshadowingStatuses.forEach(s => statusGroups[s.value] = []);
@@ -7709,7 +7717,8 @@
         board.innerHTML = html;
       }
 
-      function renderForeshadowingDetail(item) {
+  
+function renderForeshadowingDetail(item) {
         const content = $("foreshadowingDetailContent");
         content.innerHTML = `
           <div class="form-row">
@@ -7776,7 +7785,8 @@
         $("foreshadowingDetailCard").style.display = "block";
       }
 
-      function openForeshadowingDetail(key) {
+  
+function openForeshadowingDetail(key) {
         const base = getActiveProjectArgs();
         if (!base) return;
         setStatus(t("status.running"));
@@ -7797,7 +7807,8 @@
 
       // ========== Volume handlers ==========
 
-      function renderVolumes(volumes) {
+  
+function renderVolumes(volumes) {
         const container = $("volumesResult");
         if (!volumes || volumes.length === 0) {
           container.innerHTML = '<p style="color:var(--muted);text-align:center;padding:20px;">No volumes</p>';
@@ -7901,7 +7912,8 @@
 
       let currentThread = null;
 
-      function renderThreads(threads) {
+  
+function renderThreads(threads) {
         const container = $("threadsResult");
         const countBadge = $("threadsCount");
         if (!threads || threads.length === 0) {
@@ -9082,7 +9094,8 @@
 
       // ========== Offline handlers ==========
 
-      function updateConnectionStatus() {
+  
+function updateConnectionStatus() {
         const label = $("connectionStatusLabel");
         const dot = $("connectionStatusDot");
         const detail = $("connectionStatusDetail");
@@ -9104,7 +9117,8 @@
           `;
         }
       }
-      function renderCacheList() {
+  
+function renderCacheList() {
         // Show local project stats
         api("/api/tool", { tool: "local.project.list", arguments: {} }).then(function(result) {
           var projects = (result && result.projects) ? result.projects : [];
@@ -9164,7 +9178,8 @@
       renderCacheList();
 
       // ==========
-      function renderPagination(containerId, currentPage, totalPages, loadFn) {
+  
+function renderPagination(containerId, currentPage, totalPages, loadFn) {
         var container = $(containerId);
         if (!container || totalPages <= 1) { if (container) container.innerHTML = ""; return; }
         var html = '<button class="pagination-btn" ' + (currentPage <= 1 ? 'disabled' : '') + ' onclick="' + loadFn + '(' + (currentPage - 1) + ')">‹</button>';

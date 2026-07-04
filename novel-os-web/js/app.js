@@ -4,8 +4,9 @@
 ;(function() {
   'use strict';
 
-  // ===== $() =====
-  const $ = (id) => document.getElementById(id);
+// ===== $() =====
+const $ = (id) => document.getElementById(id);
+window.$ = $;
 
   // ===== escapeHtml() =====
   function escapeHtml(str) {
