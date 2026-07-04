@@ -12,7 +12,7 @@
       });
       if (result.ok && Array.isArray(result.result)) {
         window.allWorkspaces = result.result;
-        const sel = $("workspaceSelect");
+        const sel = window.$("workspaceSelect");
         if (!sel) return;
         sel.innerHTML = '<option value="">-- Select --</option>';
         result.result.forEach(function(w) {
@@ -32,7 +32,7 @@
   }
 
   async function loadProjects() {
-    var workspace = ($("workspaceSelect") && $("workspaceSelect").value) || '';
+    var workspace = (window.$("workspaceSelect") && window.$("workspaceSelect").value) || '';
     if (!workspace) {
       setStatus("Error: workspace required");
       return;
@@ -45,7 +45,7 @@
       });
       if (result.ok && Array.isArray(result.result)) {
         window.allProjects = result.result;
-        var sel = $("projectSelect");
+        var sel = window.$("projectSelect");
         if (!sel) return;
         var curVal = sel.value;
         sel.innerHTML = '<option value="">--</option>';
@@ -73,7 +73,7 @@
 
   // Bind workspaceSelect onchange
   document.addEventListener('DOMContentLoaded', function() {
-    var sel = $("workspaceSelect");
+    var sel = window.$("workspaceSelect");
     if (sel) {
       sel.addEventListener('change', function() {
         window.currentWs = sel.value || "default";
