@@ -1569,6 +1569,15 @@
 
         </div>
       </div>
+      <div class="menu-section" data-section="knowledge" role="region" aria-label="Knowledge">
+        <h3 class="menu-title">📚 Knowledge</h3>
+        <div class="submenu" role="menu">
+          <div class="submenu-item" data-page="genre-manage" role="menuitem" tabindex="0">小说类型管理</div>
+          <div class="submenu-item" data-page="category-manage" role="menuitem" tabindex="0">分类管理</div>
+          <div class="submenu-item" data-page="genre-category-bind" role="menuitem" tabindex="0">类型绑定</div>
+        </div>
+      </div>
+
 
     </aside>
 
@@ -11333,5 +11342,17 @@
       init();
     }
   </script>
+    <div id="page-genre-manage" class="page hidden">
+      <div class="page-header"><h2>小说类型管理</h2><button class="btn" onclick="window.showGenreForm()">+ New</button></div>
+      <div class="list-container" id="genreList"></div>
+    </div>
+    <div id="page-category-manage" class="page hidden">
+      <div class="page-header"><h2>分类管理</h2><button class="btn" onclick="window.showCategoryForm()">+ New</button></div>
+      <div class="list-container" id="categoryList"></div>
+    </div>
+    <div id="page-genre-category-bind" class="page hidden">
+      <div class="page-header"><h2>类型绑定</h2><button class="btn" onclick="window.saveAllBindings()">Save</button></div>
+      <div style="overflow-x:auto;"><table id="bindingMatrix" class="data-table"><thead><tr><th>Cat / Genre</th></tr></thead><tbody></tbody></table></div>
+    </div>
 </body>
 </html>
