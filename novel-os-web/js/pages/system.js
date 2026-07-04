@@ -110,7 +110,7 @@ function renderMarketTemplates(templates) {
   window.renderMarketTemplates = renderMarketTemplates;
 
 // ===== loadMarketTemplates() =====
-function loadMarketTemplates() {
+async function loadMarketTemplates() {
         var result = await api("/api/tool", { tool: "prompt.template.list", arguments: { limit: 100 } });
         if (result && result.templates) {
           marketTemplatesCache = result.templates;
@@ -212,7 +212,7 @@ function renderGraph(nodes, links) {
   window.renderGraph = renderGraph;
 
 // ===== loadApiTokens() =====
-function loadApiTokens() {
+async function loadApiTokens() {
         const workspace = $("workspace")?.value || $("workspaceSelect")?.value || null;
         const args = { include_revoked: false };
         if (workspace) args.workspace = workspace;
@@ -244,7 +244,7 @@ function loadApiTokens() {
   window.loadApiTokens = loadApiTokens;
 
 // ===== loadSystemHealth() =====
-function loadSystemHealth() {
+async function loadSystemHealth() {
       setStatus("加载系统状态...");
       var result = await api("/api/tool", { tool: "admin.health", arguments: {} });
       var cards = $("healthCards");
@@ -278,7 +278,7 @@ function loadSystemHealth() {
   window.loadSystemHealth = loadSystemHealth;
 
 // ===== loadBackupList() =====
-function loadBackupList() {
+async function loadBackupList() {
       var result = await api("/api/tool", { tool: "backup.list", arguments: {} });
       var el = $("backupList");
       if (result && result.backups && result.backups.length > 0) {
@@ -295,7 +295,7 @@ function loadBackupList() {
   window.loadBackupList = loadBackupList;
 
 // ===== saveBackupSchedule() =====
-function saveBackupSchedule() {
+async function saveBackupSchedule() {
       var interval = parseInt($("backupInterval").value);
       if (!interval || interval < 1) { showToast("warning", "请输入有效间隔"); return; }
       var result = await api("/api/tool", { tool: "backup.schedule.upsert", arguments: Object.assign(baseProjectArgs(), { interval_hours: interval, enabled: true }) });
@@ -306,7 +306,7 @@ function saveBackupSchedule() {
   window.saveBackupSchedule = saveBackupSchedule;
 
 // ===== createBackup() =====
-function createBackup() {
+async function createBackup() {
       setStatus("创建备份...");
       var result = await api("/api/tool", { tool: "backup.create", arguments: Object.assign(baseProjectArgs(), { backup_type: "full" }) });
       if (result && !result.error) {
