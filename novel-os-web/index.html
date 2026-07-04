@@ -9229,7 +9229,7 @@ function renderPagination(containerId, currentPage, totalPages, loadFn) {
     // ========== Local Project Management ==========
     var currentLocalProjectId = null;
 
-    asyncfunction updateProjectDropdowns(projects) {
+    async function updateProjectDropdowns(projects) {
       var selects = ["chapterProjectSelect", "pipelineProjectSelect"];
       selects.forEach(function(id) {
         var el = $(id);
