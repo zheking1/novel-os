@@ -6418,7 +6418,7 @@
     let skillCurrentId = null;
     let skillCurrentSteps = [];
 
-    window['init_skill-manage'] = init_skill_manage_fn;
+    window['init_skill-manage'] = window.init_skill_manage_fn || function(){};
 
 
 
@@ -6434,7 +6434,7 @@
 
     // ========== Initialize ==========
     function init() {
-      loadState();
+      if(window.loadState)window.loadState();
       setupMenuGroups();
       setupDropdown("langBtn", "langMenu");
       setupDropdown("userBtn", "userMenu");
@@ -6500,7 +6500,7 @@
 
       // Save connection
       $("save").onclick = () => {
-        saveState();
+        if(window.saveState)window.saveState();
         setStatus(t("status.saved"));
       };
 
