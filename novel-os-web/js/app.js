@@ -41,4 +41,29 @@ async function api(path, body) {
     }
 
 
+
+  // showToast
+  function function showToast(type, title, msg, duration) {
+      duration = duration || 4000;
+      var container = $("toastContainer");
+      var icons = { success: "✓", error: "✕", warning: "⚠", info: "ℹ" };
+      var el = document.createElement("div");
+      el.className = "toast " + type;
+      el.innerHTML = '<span class="toast-icon">' + (icons[type] || "ℹ") + '</span>' +
+        '<div class="toast-body"><div class="toast-title">' + escapeHtml(title) + '</div>' +
+        (msg ? '<div class="toast-msg">' + escapeHtml(msg) + '</div>' : '') + '</div>' +
+        '<button class="toast-close" onclick="this.parentElement.remove()">×</button>';
+      container.appendChild(el);
+      setTimeout(function() { el.classList.add("removing"); setTimeout(function() { el.remove(); }, 300); }, duration);
+    }
+  window.showToast = showToast;
+
+
+  // setStatus
+  function function setStatus(text) {
+      console.log("Status:", text);
+      showToast("info", text);
+    }
+  window.setStatus = setStatus;
+
 })();

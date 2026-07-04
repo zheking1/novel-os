@@ -3206,6 +3206,7 @@
   </div>
 
   <script src="js/app.js"></script>
+<script src="js/auth.js"></script>
 <script>
     console.log("[DEBUG] Script started");
     {
@@ -5930,25 +5931,8 @@
     // ========== API ==========
     
 
-    function showToast(type, title, msg, duration) {
-      duration = duration || 4000;
-      var container = $("toastContainer");
-      var icons = { success: "✓", error: "✕", warning: "⚠", info: "ℹ" };
-      var el = document.createElement("div");
-      el.className = "toast " + type;
-      el.innerHTML = '<span class="toast-icon">' + (icons[type] || "ℹ") + '</span>' +
-        '<div class="toast-body"><div class="toast-title">' + escapeHtml(title) + '</div>' +
-        (msg ? '<div class="toast-msg">' + escapeHtml(msg) + '</div>' : '') + '</div>' +
-        '<button class="toast-close" onclick="this.parentElement.remove()">×</button>';
-      container.appendChild(el);
-      setTimeout(function() { el.classList.add("removing"); setTimeout(function() { el.remove(); }, 300); }, duration);
-    }
-
-    function setStatus(text) {
-      console.log("Status:", text);
-      showToast("info", text);
-    }
-
+    
+    
     async function refreshAuth() {
       const me = await api("/api/me");
       if ($("setupMcpUrl")) $("setupMcpUrl").value = me.default_mcp_url || "http://novel-os-mcp:8787/mcp";
@@ -6019,32 +6003,7 @@
     let allProjects = [];
 
 
-    async function loadWorkspaces() {
-      try {
-        const result = await api("/api/tool", {
-          tool: "workspace.list",
-          arguments: {}
-        });
-        if (result.ok && Array.isArray(result.result)) {
-          allWorkspaces = result.result;
-          const sel = $("workspaceSelect");
-          sel.innerHTML = '<option value="">-- Select --</option>';
-          result.result.forEach(w => {
-            const opt = document.createElement("option");
-            opt.value = w.slug;
-            opt.textContent = (w.name || w.slug) + ' (' + w.slug + ')';
-            sel.appendChild(opt);
-          });
-          if (result.result.length > 0) {
-            sel.value = result.result[0].slug;
-            await loadProjects();
-          }
-        }
-      } catch (e) {
-        console.error("loadWorkspaces:", e);
-      }
-    }
-
+    
     async function loadProjects() {
       const workspace = $("workspaceSelect").value || $("workspace")?.value;
       if (!workspace) {
@@ -6067,11 +6026,7 @@
             opt.textContent = `${p.title || p.slug} (${p.slug})`;
             sel.appendChild(opt);
           });
-          setStatus(t("msg.loaded"));
-        } else {
-          setStatus(t("status.error"));
-        }
-      } catch (e) {
+          set      } catch (e) {
         setStatus(t("status.error"));
       }
     }
