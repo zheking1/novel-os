@@ -8429,7 +8429,7 @@ function renderThreads(threads) {
       // ========== Model Profiles Init ==========
 
       let modelProfilesInitStarted = false;
-      async      window['init_model-profiles'] = init_model_profiles_fn;
+      window['init_model-profiles'] = init_model_profiles_fn;
 
       // ========== Cost Report handlers ==========
 
@@ -8484,7 +8484,7 @@ function renderThreads(threads) {
       // ========== Cost Report Init ==========
 
       let modelCostInitStarted = false;
-      async      window['init_model-cost'] = init_model_cost_fn;
+      window['init_model-cost'] = init_model_cost_fn;
 
       // ========== Context Preview handlers ==========
 
@@ -8939,7 +8939,7 @@ function renderThreads(threads) {
       // ========== Template List Init ==========
 
       let templateListInitStarted = false;
-      async      window['init_template-list'] = init_template_list_fn;
+      window['init_template-list'] = init_template_list_fn;
 
       $("templateCloseBtn").onclick = () => {
         $("templateDetailCard").style.display = "none";
@@ -9034,7 +9034,7 @@ function renderThreads(threads) {
 
       var marketTemplatesCache = [];
 
-      async      window.openMarketDetail = async function(key) {
+      window.openMarketDetail = async function(key) {
         var template = marketTemplatesCache.find(function(t) { return (t.key || t.id) === key; });
         if (!template) {
           // Fetch from API
