@@ -1,5 +1,5 @@
-/* === Theme 1 === */
-:root {
+
+    :root {
       --bg: #f5f6f8;
       --panel: #fff;
       --line: #e2e6eb;
@@ -1224,4 +1224,4 @@
     .data-table tr:hover {
       background: var(--bg);
     }
-
+  
