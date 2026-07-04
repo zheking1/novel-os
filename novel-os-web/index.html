@@ -7392,44 +7392,7 @@
     };
 
 
-    function renderSnapshotList(snapshots) {
-      const container = $("snapshotListResult");
-      if (!snapshots || snapshots.length === 0) {
-        container.innerHTML = '<p style="color:var(--muted);">No snapshots found</p>';
-        return;
-      }
-      container.innerHTML = snapshots.map(snap => `
-        <div class="result-item">
-          <strong>Chapter ${snap.chapter_no || 'N/A'}</strong>
-          ${snap.is_current ? '<span class="badge badge-success">current</span>' : ''}
-          <span class="badge badge-warning">${snap.duration_type || 'persistent'}</span>
-          ${snap.change_reason ? `<div style="font-size:12px;color:var(--muted);margin-top:4px;">${snap.change_reason}</div>` : ''}
-          <pre class="output" style="font-size:11px;margin-top:4px;max-height:100px;overflow:auto;background:#f1f5f9;color:var(--text);">${JSON.stringify(snap.state || {}, null, 2)}</pre>
-        </div>
-      `).join("");
-    }
 
-    function renderRelationList(relations) {
-      const container = $("relationListResult");
-      if (!relations || relations.length === 0) {
-        container.innerHTML = '<p style="color:var(--muted);">No relationships found</p>';
-        return;
-      }
-      container.innerHTML = relations.map(rel => `
-        <div class="result-item">
-          <strong>${rel.source_name || rel.source_entity_id}</strong>
-          <span style="color:var(--muted);"> → ${rel.relation_type} → </span>
-          <strong>${rel.target_name || rel.target_entity_id}</strong>
-          ${rel.attitude ? `<span class="badge ${rel.attitude === 'positive' ? 'badge-success' : rel.attitude === 'negative' ? 'badge-archived' : 'badge-warning'}">${rel.attitude}</span>` : ''}
-          ${rel.intensity != null ? `<span style="font-size:11px;color:var(--muted);margin-left:6px;">intensity: ${rel.intensity}</span>` : ''}
-          <div style="font-size:12px;color:var(--muted);margin-top:4px;">
-            ${rel.status || 'active'}
-            ${rel.source_chapter_no ? ' | ch. ' + rel.source_chapter_no : ''}
-            ${!rel.known_by_reader ? ' | reader-hidden' : ''}
-          </div>
-        </div>
-      `).join("");
-    }
 
     // ========== Rules ==========
 
@@ -7582,84 +7545,9 @@
       modal.classList.remove("hidden");
     }
 
-    function renderStepList() {
-      const container = $("skillStepList");
-      if (skillCurrentSteps.length === 0) {
-        container.innerHTML = `<p style="color:var(--muted);font-size:12px;">No steps</p>`;
-        return;
-      }
-      container.innerHTML = skillCurrentSteps.map((step, i) => `
-        <div style="padding:6px 8px;background:var(--bg);border-radius:4px;margin-bottom:4px;display:flex;align-items:center;gap:8px;font-size:12px;">
-          <span style="font-weight:500;">${step.step_order}.</span>
-          <span style="flex:1;">${escapeHtml(step.step_name)}</span>
-          <button class="btn btn-sm" style="padding:1px 4px;font-size:10px;" onclick="openStepEdit(${i})" title="Edit">✎</button>
-          <button class="btn btn-sm" style="padding:1px 4px;font-size:10px;color:var(--danger);" onclick="removeStep(${i})" title="Delete">✕</button>
-        </div>
-      `).join("");
-    }
 
-    function openStepEdit(index) {
-      const modal = $("skillStepModal");
-      $("skillStepId").value = "";
-      $("skillStepSkillId").value = skillCurrentId || "";
-      $("skillStepOrder").value = skillCurrentSteps.length + 1;
-      $("skillStepName").value = "";
-      $("skillStepTool").value = "";
-      $("skillStepDesc").value = "";
-      $("skillStepParams").value = "{}";
-      $("skillStepOptional").checked = false;
-      $("skillStepCondition").value = "";
 
-      if (index !== null && skillCurrentSteps[index]) {
-        $("skillStepTitle").textContent = t("skill.editStep");
-        const step = skillCurrentSteps[index];
-        $("skillStepId").value = step.id || index;
-        $("skillStepOrder").value = step.step_order;
-        $("skillStepName").value = step.step_name || "";
-        $("skillStepTool").value = step.tool_name || "";
-        $("skillStepDesc").value = step.description || "";
-        $("skillStepParams").value = JSON.stringify(step.parameters || {}, null, 2);
-        $("skillStepOptional").checked = step.optional;
-        $("skillStepCondition").value = step.conditional || "";
-      } else {
-        $("skillStepTitle").textContent = t("skill.addStep");
-      }
-      modal.classList.remove("hidden");
-    }
 
-    function removeStep(index) {
-      skillCurrentSteps.splice(index, 1);
-      renderStepList();
-    }
-
-    function saveStep() {
-      const name = $("skillStepName").value.trim();
-      const order = parseInt($("skillStepOrder").value);
-      if (!name || !order) return;
-
-      let params = {};
-      try { params = JSON.parse($("skillStepParams").value || "{}"); } catch(e) {}
-
-      const stepData = {
-        step_order: order,
-        step_name: name,
-        tool_name: $("skillStepTool").value.trim() || null,
-        description: $("skillStepDesc").value.trim() || null,
-        parameters: params,
-        optional: $("skillStepOptional").checked,
-        conditional: $("skillStepCondition").value.trim() || null,
-      };
-
-      const id = $("skillStepId").value;
-      if (id && !isNaN(parseInt(id))) {
-        skillCurrentSteps[parseInt(id)] = stepData;
-      } else {
-        skillCurrentSteps.push(stepData);
-      }
-      skillCurrentSteps.sort((a, b) => a.step_order - b.step_order);
-      $("skillStepModal").classList.add("hidden");
-      renderStepList();
-    }
 
     async function saveSkill() {
       const id = $("skillEditId").value;
@@ -7706,11 +7594,6 @@
     }
 
     let skillDeleteTargetId = null;
-    function deleteSkillConfirm(id) {
-      skillDeleteTargetId = id;
-      $("skillDeleteMsg").textContent = `Delete this skill? This cannot be undone.`;
-      $("skillDeleteModal").classList.remove("hidden");
-    }
 
     async function deleteSkillExecute() {
       if (!skillDeleteTargetId) return;
@@ -8624,21 +8507,6 @@
         }
       };
 
-      function renderKnowledgeItemDetail(item) {
-        return `
-          <div style="padding: 12px; background: var(--bg); border-radius: 6px;">
-            <div style="margin-bottom: 8px;"><strong>Code:</strong> ${item.code}</div>
-            <div style="margin-bottom: 8px;"><strong>Category:</strong> ${item.category_name || item.category_slug || 'N/A'}</div>
-            <div style="margin-bottom: 8px;"><strong>Level:</strong> ${item.level || 'N/A'}</div>
-            <div style="margin-bottom: 8px;"><strong>Source:</strong> ${item.source || 'N/A'}</div>
-            ${item.applicable_genres && item.applicable_genres.length ? `<div style="margin-bottom: 8px;"><strong>Genres:</strong> ${item.applicable_genres.join(', ')}</div>` : ''}
-            ${item.applicable_skills && item.applicable_skills.length ? `<div style="margin-bottom: 8px;"><strong>Skills:</strong> ${item.applicable_skills.join(', ')}</div>` : ''}
-            <div style="margin-bottom: 8px;"><strong>Views:</strong> ${item.view_count || 0} | <strong>Uses:</strong> ${item.use_count || 0}</div>
-            <div style="margin-bottom: 8px;"><strong>Created:</strong> ${item.created_at || 'N/A'}</div>
-            <div><strong>Updated:</strong> ${item.updated_at || 'N/A'}</div>
-          </div>
-        `;
-      }
 
       // Save Knowledge Item
       window.saveKnowledgeItem = async () => {
@@ -8838,91 +8706,7 @@
       };
 
 
-      function renderForeshadowingDetail(item) {
-        const content = $("foreshadowingDetailContent");
-        content.innerHTML = `
-          <div class="form-row">
-            <div class="form-group">
-              <label class="form-label" data-i18n="field.key">Key</label>
-              <input class="form-input" id="fsDetailKey" value="${escapeHtml(item.key)}" readonly>
-            </div>
-            <div class="form-group">
-              <label class="form-label" data-i18n="field.title">Title</label>
-              <input class="form-input" id="fsDetailTitle" value="${escapeHtml(item.title)}">
-            </div>
-          </div>
-          <div class="form-row">
-            <div class="form-group">
-              <label class="form-label" data-i18n="field.status">Status</label>
-              <select class="form-select" id="fsDetailStatus">
-                ${foreshadowingStatuses.map(s => `<option value="${s.value}" ${item.status === s.value ? "selected" : ""}>${s.label}</option>`).join("")}
-              </select>
-            </div>
-            <div class="form-group">
-              <label class="form-label" data-i18n="field.importance">Importance</label>
-              <select class="form-select" id="fsDetailImportance">
-                <option value="low" ${item.importance === "low" ? "selected" : ""}>low</option>
-                <option value="medium" ${item.importance === "medium" ? "selected" : ""}>medium</option>
-                <option value="high" ${item.importance === "high" ? "selected" : ""}>high</option>
-                <option value="critical" ${item.importance === "critical" ? "selected" : ""}>critical</option>
-              </select>
-            </div>
-          </div>
-          <div class="form-row">
-            <div class="form-group">
-              <label class="form-label" data-i18n="field.layer">Layer</label>
-              <select class="form-select" id="fsDetailLayer">
-                <option value="visible" ${item.layer === "visible" ? "selected" : ""}>visible</option>
-                <option value="hidden" ${item.layer === "hidden" ? "selected" : ""}>hidden</option>
-                <option value="subtle" ${item.layer === "subtle" ? "selected" : ""}>subtle</option>
-              </select>
-            </div>
-            <div class="form-group">
-              <label class="form-label" data-i18n="field.expectedPayoff">Expected Payoff Range</label>
-              <input class="form-input" id="fsDetailRange" value="${escapeHtml(item.expected_payoff_range || "")}">
-            </div>
-          </div>
-          <div class="form-row">
-            <div class="form-group">
-              <label class="form-label" data-i18n="field.deadlineChapter">Payoff Deadline Chapter</label>
-              <input class="form-input" type="number" id="fsDetailDeadlineChapter" value="${item.payoff_deadline_chapter || ""}">
-            </div>
-            <div class="form-group">
-              <label class="form-label" data-i18n="field.deadlineVolume">Payoff Deadline Volume</label>
-              <input class="form-input" type="number" id="fsDetailDeadlineVolume" value="${item.payoff_deadline_volume || ""}">
-            </div>
-          </div>
-          <div class="form-group">
-            <label class="form-label" data-i18n="field.mustPayoff">Must Payoff</label>
-            <input type="checkbox" id="fsDetailMustPayoff" ${item.must_payoff ? "checked" : ""}>
-          </div>
-          <div class="form-group">
-            <label class="form-label" data-i18n="field.payload">Payload (JSON)</label>
-            <textarea class="form-textarea" id="fsDetailPayload" rows="4">${escapeHtml(JSON.stringify(item.payload || {}, null, 2))}</textarea>
-          </div>
-        `;
-        $("foreshadowingDetailTitle").textContent = `Foreshadowing: ${item.title}`;
-        $("foreshadowingDetailCard").style.display = "block";
-      }
 
-      function openForeshadowingDetail(key) {
-        const base = getActiveProjectArgs();
-        if (!base) return;
-        setStatus(t("status.running"));
-        api("/api/tool", { tool: "plot.list_foreshadowing", arguments: { ...base, statuses: [] } })
-          .then(result => {
-            if (result.ok && Array.isArray(result.result)) {
-              const item = result.result.find(i => i.key === key);
-              if (item) {
-                currentForeshadowing = item;
-                renderForeshadowingDetail(item);
-                setStatus(t("msg.loaded"));
-              } else {
-                setStatus(t("status.error") + ": not found");
-              }
-            }
-          });
-      }
 
       // ========== Volume handlers ==========
 
@@ -10176,28 +9960,6 @@
 
       // ========== Offline handlers ==========
 
-      function updateConnectionStatus() {
-        const label = $("connectionStatusLabel");
-        const dot = $("connectionStatusDot");
-        const detail = $("connectionStatusDetail");
-
-        const isOnline = navigator.onLine;
-        if (isOnline) {
-          label.textContent = t("offline.online");
-          dot.className = "offline-status-dot offline-status-online";
-          detail.innerHTML = `
-            <div class="offline-status-item">Network: Available</div>
-            <div class="offline-status-item">Last Sync: ${new Date().toLocaleString()}</div>
-          `;
-        } else {
-          label.textContent = t("offline.offline");
-          dot.className = "offline-status-dot offline-status-offline";
-          detail.innerHTML = `
-            <div class="offline-status-item">Network: Unavailable</div>
-            <div class="offline-status-item">Working in offline mode</div>
-          `;
-        }
-      }
 
 
 
@@ -10240,21 +10002,6 @@
       renderCacheList();
 
       // ==========
-      function renderPagination(containerId, currentPage, totalPages, loadFn) {
-        var container = $(containerId);
-        if (!container || totalPages <= 1) { if (container) container.innerHTML = ""; return; }
-        var html = '<button class="pagination-btn" ' + (currentPage <= 1 ? 'disabled' : '') + ' onclick="' + loadFn + '(' + (currentPage - 1) + ')">‹</button>';
-        var start = Math.max(1, currentPage - 2);
-        var end = Math.min(totalPages, currentPage + 2);
-        if (start > 1) { html += '<button class="pagination-btn" onclick="' + loadFn + '(1)">1</button>'; if (start > 2) html += '<span class="pagination-info">...</span>'; }
-        for (var i = start; i <= end; i++) {
-          html += '<button class="pagination-btn ' + (i === currentPage ? 'active' : '') + '" onclick="' + loadFn + '(' + i + ')">' + i + '</button>';
-        }
-        if (end < totalPages) { if (end < totalPages - 1) html += '<span class="pagination-info">...</span>'; html += '<button class="pagination-btn" onclick="' + loadFn + '(' + totalPages + ')">' + totalPages + '</button>'; }
-        html += '<button class="pagination-btn" ' + (currentPage >= totalPages ? 'disabled' : '') + ' onclick="' + loadFn + '(' + (currentPage + 1) + ')">›</button>';
-        html += '<span class="pagination-info">第 ' + currentPage + ' / ' + totalPages + ' 页</span>';
-        container.innerHTML = html;
-      }
 
     // ========== Pipeline ==========
     var currentPlanId = null;
