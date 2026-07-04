@@ -18,9 +18,16 @@ document.addEventListener('alpine:init', () => {
       this.status = this.t('status.loading');
       try {
         const ws = (document.getElementById('workspaceSelect')?.value) || 'default';
+        // Resolve category slug to UUID
+        const cat = await window.api('/api/tool', {
+          tool: 'setting.category.get',
+          arguments: { workspace: ws, slug: 'item-level' }
+        });
+        const catId = (cat && (cat.id || cat.result?.id)) || null;
+        if (!catId) { this.status = 'Category not found'; return; }
         const r = await window.api('/api/tool', {
           tool: 'setting.item.list',
-          arguments: { workspace: ws, category_id: 'item-level' }
+          arguments: { workspace: ws, category_id: catId }
         });
         this.levels = (r.ok && r.result) ? r.result : [];
         this.status = '';
@@ -52,10 +59,14 @@ document.addEventListener('alpine:init', () => {
       this.status = this.t('status.running');
       try {
         const ws = (document.getElementById('workspaceSelect')?.value) || 'default';
+        const cat = await window.api('/api/tool', {
+          tool: 'setting.category.get', arguments: { workspace: ws, slug: 'item-level' }
+        });
+        const catId = (cat && (cat.id || cat.result?.id)) || null;
         const r = await window.api('/api/tool', {
           tool: 'setting.item.upsert',
           arguments: {
-            workspace: ws, category_id: 'item-level',
+            workspace: ws, category_id: catId,
             core_summary: this.form.name,
             detailed_expansion: this.form.desc,
             sort_order: this.form.order,
