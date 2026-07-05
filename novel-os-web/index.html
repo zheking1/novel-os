@@ -31,8 +31,38 @@
 </head>
 <body class="bg-gray-50 text-gray-900">
 
+  <!-- 登录界面 -->
+  <div id="login-screen" class="hidden min-h-screen flex items-center justify-center">
+    <div class="bg-white rounded-xl shadow-lg p-8 w-full max-w-sm">
+      <div class="text-center mb-6">
+        <div class="w-12 h-12 bg-primary-600 rounded-xl flex items-center justify-center text-white font-bold text-xl mx-auto">N</div>
+        <h1 class="mt-3 text-xl font-bold text-gray-800">Novel OS</h1>
+        <p class="text-sm text-gray-500 mt-1">请登录以继续</p>
+      </div>
+      <form onsubmit="handleLogin(event)">
+        <div class="mb-4">
+          <label class="block text-sm font-medium text-gray-700 mb-1">用户名</label>
+          <input id="login-username" type="text" required autofocus
+                 class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none"
+                 placeholder="admin">
+        </div>
+        <div class="mb-6">
+          <label class="block text-sm font-medium text-gray-700 mb-1">密码</label>
+          <input id="login-password" type="password" required
+                 class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none"
+                 placeholder="密码">
+        </div>
+        <div id="login-error" class="hidden text-red-500 text-sm mb-3"></div>
+        <button type="submit" id="login-btn"
+                class="w-full bg-primary-600 text-white py-2 rounded-lg hover:bg-primary-700 transition-colors font-medium">
+          登录
+        </button>
+      </form>
+    </div>
+  </div>
+
   <!-- 应用容器 -->
-  <div id="app" class="min-h-screen flex">
+  <div id="app" class="min-h-screen flex hidden">
     
     <!-- 侧边栏 -->
     <aside class="w-64 bg-white border-r border-gray-200 flex flex-col fixed h-full">
@@ -155,9 +185,65 @@
       // 等待模块就绪
       await waitForModules();
       
-      // 初始化应用
-      await initApp();
+      // 检查登录状态
+      try {
+        const me = await fetch('/api/me').then(r => r.json());
+        if (me.authenticated) {
+          window.AppState.username = me.username;
+          showApp();
+          await initApp();
+        } else {
+          showLogin();
+        }
+      } catch (e) {
+        showLogin();
+      }
     });
+
+    function showLogin() {
+      document.getElementById('login-screen').classList.remove('hidden');
+      document.getElementById('app').classList.add('hidden');
+    }
+
+    function showApp() {
+      document.getElementById('login-screen').classList.add('hidden');
+      document.getElementById('app').classList.remove('hidden');
+    }
+
+    async function handleLogin(e) {
+      e.preventDefault();
+      const username = document.getElementById('login-username').value;
+      const password = document.getElementById('login-password').value;
+      const errorDiv = document.getElementById('login-error');
+      const btn = document.getElementById('login-btn');
+      
+      errorDiv.classList.add('hidden');
+      btn.textContent = '登录中...';
+      btn.disabled = true;
+      
+      try {
+        const resp = await fetch('/api/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ username, password })
+        });
+        const data = await resp.json();
+        if (data.ok) {
+          window.AppState.username = data.username;
+          showApp();
+          await initApp();
+        } else {
+          errorDiv.textContent = data.error || '登录失败';
+          errorDiv.classList.remove('hidden');
+        }
+      } catch (err) {
+        errorDiv.textContent = '网络错误: ' + err.message;
+        errorDiv.classList.remove('hidden');
+      } finally {
+        btn.textContent = '登录';
+        btn.disabled = false;
+      }
+    }
 
     async function waitForModules() {
       let retries = 0;
