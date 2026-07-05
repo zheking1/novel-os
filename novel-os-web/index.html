@@ -176,8 +176,8 @@
     window.AppState = {
       initialized: false,
       currentLang: null,
-      currentWorkspace: null,
-      currentProject: null
+      currentWorkspace: localStorage.getItem('novel-workspace') || null,
+      currentProject: localStorage.getItem('novel-project') || null
     };
 
     // 等待所有模块加载
@@ -276,6 +276,22 @@
         // 更新工作区选择器
         updateWorkspaceSelector(workspaces);
         
+        // 恢复之前选择的工作区
+        const savedWorkspace = localStorage.getItem('novel-workspace');
+        if (savedWorkspace && workspaces.some(w => w.slug === savedWorkspace)) {
+          const workspaceSelect = document.getElementById('workspace-select');
+          workspaceSelect.value = savedWorkspace;
+          await handleWorkspaceChange(savedWorkspace);
+          
+          // 恢复之前选择的项目
+          const savedProject = localStorage.getItem('novel-project');
+          if (savedProject) {
+            const projectSelect = document.getElementById('project-select');
+            projectSelect.value = savedProject;
+            await handleProjectChange(savedProject);
+          }
+        }
+        
         // 3. 渲染菜单
         console.log('[App] Rendering menu...');
         renderMenu();
@@ -356,6 +372,8 @@
       console.log('[App] Workspace changed:', workspaceSlug);
       window.AppState.currentWorkspace = workspaceSlug;
       window.AppState.currentProject = null;
+      localStorage.setItem('novel-workspace', workspaceSlug || '');
+      localStorage.removeItem('novel-project');
       
       // 清空项目选择器
       const projectSelect = document.getElementById('project-select');
@@ -390,6 +408,7 @@
     function handleProjectChange(projectSlug) {
       console.log('[App] Project changed:', projectSlug);
       window.AppState.currentProject = projectSlug;
+      localStorage.setItem('novel-project', projectSlug || '');
       
       // 重新渲染菜单
       renderMenu();
