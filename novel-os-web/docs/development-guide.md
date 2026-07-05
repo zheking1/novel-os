@@ -1,400 +1,227 @@
-# Novel OS Web Client - 开发文档
+# Novel OS Web Client - Development Guide
 
-## 一、开发环境
-
-### 1.1 技术栈
-- **前端框架**: Alpine.js（轻量级响应式框架）
-- **CSS**: Tailwind CSS（CDN版本）
-- **构建工具**: 无需构建，直接部署
-- **服务器**: Python HTTP Server
-
-### 1.2 目录结构
+## Architecture Overview
 
 ```
 novel-os-web/
-├── index.html                    # 主入口文件
-├── server.py                     # Python HTTP 服务器
-├── Dockerfile                    # Docker 构建文件
-├── i18n/                         # 国际化语言包
-│   ├── zh.json
-│   └── en.json
+├── index.html              # Main entry, SPA routing, login, workspace/project persistence
+├── server.py               # Web server with auth proxy
 ├── js/
-│   ├── core/                     # 核心模块
-│   │   ├── i18n.js               # 国际化模块
-│   │   ├── api-client.js         # API 客户端
-│   │   ├── app-core.js           # 应用核心工具
-│   │   ├── menu-manager.js       # 菜单管理器
-│   │   └── router.js             # 路由器
-│   ├── components/               # 通用组件
-│   │   ├── data-table.js         # 数据表格
-│   │   ├── modal-dialog.js       # 模态框
-│   │   ├── form-builder.js       # 表单构建器
-│   │   ├── loading-overlay.js    # 加载遮罩
-│   │   └── toast-container.js    # 消息提示
-│   └── pages/                    # 页面组件
-│       ├── level-manager.js      # 等级管理（已实现）
-│       ├── genre-manager.js      # 类型管理（已实现）
-│       ├── category-manager.js   # 分类管理（已实现）
-│       ├── binding-matrix-manager.js  # 类型绑定（已实现）
-│       ├── health-page.js        # 系统健康（已实现）
-│       └── ...                   # 待实现的页面
-└── docs/                         # 文档
-    ├── menu-migration-plan.md    # 菜单迁移计划
-    └── development-guide.md      # 开发指南（本文件）
+│   ├── core/               # Core modules
+│   │   ├── api-client.js   # Unified API client (callTool wrapper)
+│   │   ├── app-core.js     # App utilities (AppState, auth check)
+│   │   ├── menu-manager.js # 3-level menu structure
+│   │   ├── router.js       # Hash-based SPA router
+│   │   └── i18n.js         # Internationalization
+│   ├── components/         # Reusable components
+│   │   ├── data-table.js   # Generic data table
+│   │   └── modal-dialog.js # Modal dialog (confirm, alert)
+│   └── pages/              # Page components (one per menu item)
+│       ├── template-list-page.js  # Standardized CRUD template
+│       └── ...
+├── i18n/
+│   ├── zh.json             # Chinese translations
+│   └── en.json             # English translations
+└── docs/                   # This documentation
 ```
 
----
+## Deployment Workflow
 
-## 二、核心模块 API
+### NAS Server
+- **Host**: ${NAS_HOST}
+- **SSH**: `plink -batch -pw "${NAS_SSH_PASSWORD}" root@${NAS_HOST}`
+- **Upload**: `pscp -pw "${NAS_SSH_PASSWORD}" <file> root@${NAS_HOST}:<remote_path>`
 
-### 2.1 i18n 国际化模块
+### Deploy Steps
 
-```javascript
-// 获取翻译文本
-window.t(key, params = {})
-// 示例
-window.t('nav.canonList')  // "Canon文档"
-window.t('common.save')    // "保存"
+1. **Upload changed files** to NAS source directory:
+   ```bash
+   pscp -pw "${NAS_SSH_PASSWORD}" js/pages/my-page.js root@${NAS_HOST}:/opt/novel-os/novel-os-web/js/pages/my-page.js
+   ```
 
-// 切换语言
-await window.i18n.setLang('en')
+2. **Rebuild container** (only the affected service):
+   ```bash
+   plink -batch -pw "${NAS_SSH_PASSWORD}" root@${NAS_HOST} "cd /opt/novel-os && docker compose -f docker-compose.yml -f docker-compose.app.example.yml up -d --build novel-os-web"
+   ```
 
-// 获取当前语言
-window.i18n.getCurrentLang()  // 'zh' 或 'en'
-```
+3. **For MCP tool changes**, rebuild MCP container:
+   ```bash
+   plink -batch -pw "${NAS_SSH_PASSWORD}" root@${NAS_HOST} "cd /opt/novel-os && docker compose -f docker-compose.yml -f docker-compose.app.example.yml up -d --build novel-os-mcp"
+   ```
 
-### 2.2 ApiClient API 客户端
+### Important Notes
+- **Container restart loses non-persistent files**: Always upload to the source directory first, then rebuild
+- **Use `docker compose`** not `docker-compose` (v2 syntax)
+- **MCP tools are registered at startup**: Changes to tool definitions require MCP container rebuild
 
-```javascript
-// 工作区相关
-await window.ApiClient.workspace.list()
-await window.ApiClient.project.list(workspace)
+## Page Component Pattern
 
-// 设定相关
-await window.ApiClient.setting.list(workspace)
-await window.ApiClient.setting.get(workspace, slug)
-await window.ApiClient.setting.upsert(workspace, data)
-await window.ApiClient.setting.delete(workspace, categoryId)
+### Standardized CRUD Template (`template-list-page.js`)
 
-// 项目相关
-await window.ApiClient.item.list(workspace, categoryId)
-await window.ApiClient.item.upsert(workspace, data)
-await window.ApiClient.item.delete(workspace, itemId)
-
-// 类型相关
-await window.ApiClient.genre.list()
-await window.ApiClient.genre.upsert(data)
-await window.ApiClient.genre.delete(slug)
-
-// MCP 工具调用
-await window.ApiClient.callTool(toolName, args)
-```
-
-### 2.3 AppCore 应用核心
+Every CRUD page follows this pattern:
 
 ```javascript
-// 显示加载状态
-window.AppCore.setLoading(true/false)
-
-// 显示消息提示
-window.AppCore.toast(message, type)
-// type: 'success' | 'error' | 'warning' | 'info'
-
-// 防抖函数
-window.AppCore.debounce(fn, delay)
-
-// 节流函数
-window.AppCore.throttle(fn, limit)
-```
-
-### 2.4 MenuManager 菜单管理器
-
-```javascript
-// 获取菜单数据
-const menu = window.MenuManager.getMenu({ t: window.t, project: 'xxx' })
-
-// 设置当前页面
-window.MenuManager.setCurrentPage('canon-list')
-
-// 获取页面信息
-const pageInfo = window.MenuManager.getPageInfo('canon-list')
-
-// 切换分组展开状态
-window.MenuManager.toggleGroup('project-settings')
-```
-
-### 2.5 DataTable 数据表格
-
-```javascript
-window.DataTable.render({
-  containerId: 'table-container',
-  columns: [
-    { key: 'name', header: '名称' },
-    { key: 'slug', header: '标识', render: (val) => `<code>${val}</code>` },
-    { key: 'status', header: '状态', type: 'badge' }
-  ],
-  data: items,
-  actions: [
-    { label: '编辑', icon: '✏️', onClick: (id) => edit(id) },
-    { label: '删除', icon: '🗑️', onClick: (id) => delete(id) }
-  ],
-  emptyMessage: '暂无数据'
-})
-```
-
-### 2.6 ModalDialog 模态框
-
-```javascript
-// 显示确认框
-window.ModalDialog.confirm('确定删除吗？', async () => {
-  // 执行删除操作
-})
-
-// 显示提示框
-window.ModalDialog.alert('操作成功', 'success')
-
-// 显示自定义模态框
-window.ModalDialog.show({
-  title: '编辑',
-  content: '<form>...</form>',
-  size: 'md',
-  onConfirm: async (modalId) => {
-    // 保存操作
-  }
-})
-
-// 关闭模态框
-window.ModalDialog.close()
-```
-
----
-
-## 三、页面组件开发规范
-
-### 3.1 组件结构模板
-
-```javascript
-/**
- * Novel OS - [Page Name]
- * [页面描述]
- * @version 1.0.0
- */
-
 (function() {
   'use strict';
 
-  if (window.PageName) {
-    return;
-  }
-
-  const PageName = {
-    // 数据
-    items: [],
-
-    /**
-     * 初始化
-     */
-    async init() {
-      console.log('[PageName] Initializing...');
-      this.showLoading();
-
-      try {
-        await this.loadData();
-        this.render();
-      } catch (error) {
-        console.error('[PageName] Initialization failed:', error);
-        this.showError(error.message);
-      }
-    },
-
-    /**
-     * 加载数据
-     */
-    async loadData() {
-      const workspace = window.AppState?.currentWorkspace;
-      const project = window.AppState?.currentProject;
-      
-      // 调用 API 获取数据
-      const result = await window.ApiClient.callTool('tool.name', { workspace, project });
-      this.items = result || [];
-    },
-
-    /**
-     * 渲染页面
-     */
-    render() {
-      const container = document.getElementById('content-area');
-      if (!container) return;
-
-      container.innerHTML = `
-        <div class="space-y-6">
-          <!-- 页面头部 -->
-          <div class="flex items-center justify-between">
-            <div>
-              <h1 class="text-2xl font-bold text-gray-900">${t('page.title')}</h1>
-              <p class="mt-1 text-sm text-gray-500">${t('page.description')}</p>
-            </div>
-            <button onclick="PageName.showAddModal()"
-                    class="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700">
-              + ${t('common.new')}
-            </button>
-          </div>
-
-          <!-- 数据表格 -->
-          <div class="bg-white shadow rounded-lg overflow-hidden">
-            <div id="data-table"></div>
-          </div>
-        </div>
-      `;
-
-      this.renderTable();
-    },
-
-    /**
-     * 渲染表格
-     */
-    renderTable() {
-      window.DataTable.render({
-        containerId: 'data-table',
-        columns: [
-          // 定义列
-        ],
-        data: this.items,
-        actions: [
-          // 定义操作按钮
-        ],
-        emptyMessage: t('common.noData')
-      });
-    },
-
-    /**
-     * 显示加载状态
-     */
-    showLoading() {
-      const container = document.getElementById('content-area');
-      if (container) {
-        container.innerHTML = `
-          <div class="flex items-center justify-center py-12">
-            <div class="spinner w-8 h-8 border-4 border-primary-600 border-t-transparent rounded-full animate-spin"></div>
-            <span class="ml-3 text-gray-600">${t('common.loading')}</span>
-          </div>
-        `;
-      }
-    },
-
-    /**
-     * 显示错误
-     */
-    showError(message) {
-      const container = document.getElementById('content-area');
-      if (container) {
-        container.innerHTML = `
-          <div class="bg-red-50 border border-red-200 rounded-lg p-8 text-center">
-            <h2 class="text-xl font-bold text-red-600 mb-2">${t('common.error')}</h2>
-            <p class="text-red-500">${message}</p>
-          </div>
-        `;
-      }
-    }
+  // Page config at top level
+  const PAGE_CONFIG = {
+    pageId: 'my-page',
+    pageName: 'My Page',
+    apiNamespace: 'myApi',           // Maps to ApiClient.myApi
+    requiredProject: false,           // true = needs project selected
+    emptyIcon: '📋',
+    emptyText: 'No items',
+    emptyHint: 'Click button to create',
+    columns: [...],                   // Table columns
+    filters: [...],                   // Filter dropdowns
+    formFields: [...]                 // Create/edit form fields
   };
 
-  window.PageName = PageName;
+  const PAGE_ID = PAGE_CONFIG.pageId;
 
+  window.MyPage = {
+    currentData: [],
+    currentFilters: {},
+
+    init() {
+      this.render();
+      this.loadData();
+      return true;  // CRITICAL: must return true to prevent placeholder fallback
+    },
+
+    render() { /* ... */ },
+    async loadData() { /* ... */ },
+    renderList() { /* ... */ },
+    handleSearch: debounce(function(value) { /* ... */ }, 300),
+    handleFilter(key, value) { /* ... */ },
+    showCreateModal() { /* ... */ },
+    hideModal() { /* ... */ },
+    async handleEdit(id) { /* ... */ },
+    async handleSave(e) { /* ... */ },
+    async handleDelete(id, name) { /* ... */ },
+    renderBadge(item) { /* ... */ }
+  };
+
+  function debounce(fn, delay) { /* ... */ }
 })();
 ```
 
-### 3.2 开发步骤
+### Critical: `init()` Must Return `true`
 
-1. **创建组件文件**: 在 `js/pages/` 目录下创建新的 JS 文件
-2. **实现组件结构**: 按照模板实现 init, loadData, render 等方法
-3. **更新 index.html**: 
-   - 添加 `<script>` 标签加载组件
-   - 在 `navigateToPage()` 中添加路由
-4. **更新 i18n**: 添加翻译键
-5. **部署测试**: 上传到 NAS 并测试
+All page `init()` methods must return `true`. The routing pattern uses:
+```javascript
+window.XxxPage?.init() || showPlaceholder()
+```
+If `init()` returns `undefined` (default), the `||` operator triggers the placeholder fallback.
 
----
+### API Response Format Handling
 
-## 四、API 工具对照表
-
-| 功能 | API 工具名 | 参数 |
-|------|-----------|------|
-| 列出工作区 | `workspace.list` | `{}` |
-| 列出项目 | `project.list` | `{ workspace }` |
-| 列出分类 | `setting.category.list` | `{ workspace }` |
-| 获取分类 | `setting.category.get` | `{ workspace, slug }` |
-| 创建/更新分类 | `setting.category.upsert` | `{ workspace, name, slug, ... }` |
-| 删除分类 | `setting.category.delete` | `{ workspace, category_id }` |
-| 列出设定项 | `setting.item.list` | `{ workspace, category_id }` |
-| 创建/更新设定项 | `setting.item.upsert` | `{ workspace, name, category_id, ... }` |
-| 删除设定项 | `setting.item.delete` | `{ workspace, item_id }` |
-| 列出类型 | `setting.genre.list` | `{}` |
-| 创建/更新类型 | `setting.genre.upsert` | `{ name, slug, ... }` |
-| 删除类型 | `setting.genre.delete` | `{ slug }` |
-| 获取类型绑定矩阵 | `genre.binding.matrix` | `{}` |
-| 批量更新绑定 | `genre.binding.bulk_upsert` | `{ bindings: [...] }` |
-| 列出 Canon 文档 | `canon_doc.list` | `{ workspace, project }` |
-| 创建/更新 Canon 文档 | `canon_doc.upsert` | `{ workspace, project, key, title, content }` |
-| 删除 Canon 文档 | `canon_doc.delete` | `{ workspace, project, document_id }` |
-| 列出实体 | `state_entity.list` | `{ workspace, project }` |
-| 创建/更新实体 | `state_entity.upsert` | `{ workspace, project, name, entity_type, ... }` |
-| 删除实体 | `state_entity.delete` | `{ workspace, project, entity_id }` |
-| 列出情节线 | `plot_thread.list` | `{ workspace, project }` |
-| 创建/更新情节线 | `plot_thread.upsert` | `{ workspace, project, key, title, ... }` |
-| 列出伏笔 | `foreshadowing.list` | `{ workspace, project }` |
-| 创建/更新伏笔 | `foreshadowing.upsert` | `{ workspace, project, key, title, ... }` |
-| 获取系统健康 | `health.check` | `{}` |
-
----
-
-## 五、部署流程
-
-### 5.1 本地开发
-
-1. 修改本地文件
-2. 使用 pscp 上传到 NAS:
-```powershell
-pscp -pw "${NAS_SSH_PASSWORD}" <本地文件> root@${NAS_HOST}:/opt/novel-os/novel-os-web/<目标路径>
+`loadData()` should handle multiple response formats:
+```javascript
+const result = await window.ApiClient[PAGE_CONFIG.apiNamespace].list(workspace, this.currentFilters);
+if (Array.isArray(result)) {
+  this.currentData = result;
+} else if (result?.templates) {
+  this.currentData = result.templates;
+} else if (result?.items) {
+  this.currentData = result.items;
+} else if (result?.data) {
+  this.currentData = result.data;
+} else {
+  this.currentData = [];
+}
 ```
 
-### 5.2 重建镜像
+## API Client Conventions
 
-```powershell
-plink -batch -pw "${NAS_SSH_PASSWORD}" root@${NAS_HOST} "cd /opt/novel-os && docker compose -f docker-compose.yml -f docker-compose.app.example.yml up -d --build novel-os-web"
+### Tool Naming
+- MCP tools use **dots** not underscores: `prompt.template.upsert` (not `prompt_template_upsert`)
+- API client methods use **camelCase**: `promptTemplate.create()`
+
+### Project Parameter
+Most tools require `workspace` and `project`. The `api-client.js` auto-injects project:
+```javascript
+promptTemplate: {
+  async list(workspace, filters = {}, options = {}) {
+    const project = window.AppState?.currentProject;
+    return ApiClient.callTool('prompt.template.list', { workspace, project, ...filters }, options);
+  }
+}
 ```
 
-### 5.3 验证部署
+### Delete Tool Pattern
+Delete tools must return a dict, not a bool (FastMCP constraint):
+```python
+# WRONG - returns bool, causes "structured_content must be a dict or None" error
+return await service.delete(project_id, key)
 
-```powershell
-# 检查容器状态
-plink -batch -pw "${NAS_SSH_PASSWORD}" root@${NAS_HOST} "docker ps | grep novel-os-web"
-
-# 检查文件是否存在
-plink -batch -pw "${NAS_SSH_PASSWORD}" root@${NAS_HOST} "docker exec novel-os-web ls /app/js/pages/"
-
-# 测试 API
-plink -batch -pw "${NAS_SSH_PASSWORD}" root@${NAS_HOST} "curl -s http://127.0.0.1:8790/health"
+# CORRECT - wraps in dict
+deleted = await service.delete(project_id, key)
+return {"ok": deleted, "key": key}
 ```
 
----
+## Menu Structure
 
-## 六、常见问题
+### 3-Level Menu: Section > Group > Item
+- **Section**: Top-level (Project, Knowledge, System)
+- **Group**: Collapsible, can require project selection
+- **Item**: Navigable page
 
-### Q1: 页面刷新后 404
-**原因**: 文件未上传到容器，或容器未重建  
-**解决**: 
-1. 确保文件已上传到 NAS 的 `/opt/novel-os/novel-os-web/` 目录
-2. 执行 docker compose build 重建镜像
+### `requiresProject` Flag
+- Groups with `requiresProject: true` are hidden when no project is selected
+- All System and Knowledge groups have `requiresProject: false`
+- Project section groups require a project
 
-### Q2: API 调用失败
-**原因**: 工作区或项目未选择  
-**解决**: 确保 `window.AppState.currentWorkspace` 和 `window.AppState.currentProject` 已设置
+## State Management
 
-### Q3: 菜单不显示
-**原因**: i18n 翻译键缺失  
-**解决**: 检查 `i18n/zh.json` 和 `i18n/en.json` 是否包含对应的翻译键
+### `AppState` (global)
+```javascript
+window.AppState = {
+  initialized: false,
+  currentLang: 'zh',
+  currentWorkspace: null,
+  currentProject: null,
+  username: null
+};
+```
 
----
+### Persistence
+- Workspace and project selections are saved to `localStorage`
+- Keys: `novel-workspace`, `novel-project`
+- On page load, selections are restored from localStorage
 
-*文档版本：v1.0*
-*创建时间：2026-07-05*
+## Login Flow
+
+1. On load, SPA calls `/api/me` to check auth status
+2. If unauthenticated, shows login screen
+3. After login, hides login screen, renders menu and content
+4. Auth state is server-side (session-based)
+
+## Adding a New Page
+
+1. Create `js/pages/my-page.js` following the CRUD template
+2. Add route in `index.html`:
+   ```javascript
+   case 'my-page':
+     window.MyPage?.init() || showPlaceholder();
+     break;
+   ```
+3. Add script tag in `index.html`:
+   ```html
+   <script src="js/pages/my-page.js"></script>
+   ```
+4. Add menu item in `js/core/menu-manager.js`
+5. Add translation keys in `i18n/zh.json` and `i18n/en.json`
+
+## Commit Convention
+
+Each feature should be committed separately:
+```
+feat(component): description
+
+Examples:
+feat(template-page): restore delete button, add prompt.template.delete MCP tool
+fix(modal): center modal dialogs correctly
+feat(api-client): add promptTemplate.delete method
+```

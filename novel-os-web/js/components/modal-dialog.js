@@ -47,13 +47,12 @@
       }[size] || 'max-w-lg';
 
       const modalHtml = `
-        <div id="${id}" class="fixed inset-0 z-50 overflow-y-auto" aria-modal="true">
-          <div class="flex min-h-screen items-center justify-center px-4 pt-4 pb-20 text-center sm:block sm:p-0">
-            <!-- 背景遮罩 -->
-            <div class="fixed inset-0 transition-opacity bg-gray-500 bg-opacity-75" onclick="ModalDialog.close()"></div>
-            
-            <!-- 模态框内容 -->
-            <div class="${sizeClass} w-full transform overflow-hidden rounded-2xl bg-white text-left align-top shadow-xl transition-all my-8">
+        <div id="${id}" class="fixed inset-0 z-50 flex items-center justify-center p-4" aria-modal="true">
+          <!-- 背景遮罩 -->
+          <div class="fixed inset-0 transition-opacity bg-gray-500 bg-opacity-75" onclick="ModalDialog.close()"></div>
+          
+          <!-- 模态框内容 -->
+          <div class="${sizeClass} w-full relative z-10 transform overflow-hidden rounded-2xl bg-white text-left align-top shadow-xl transition-all">
               <!-- 头部 -->
               <div class="flex items-center justify-between px-6 py-4 border-b border-gray-200">
                 <h3 class="text-lg font-semibold text-gray-900">${title}</h3>
