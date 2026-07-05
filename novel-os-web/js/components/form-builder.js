@@ -7,7 +7,10 @@
 (function() {
   'use strict';
 
+  let componentRegistered = false;
   document.addEventListener('alpine:init', () => {
+    if (componentRegistered) return;
+    componentRegistered = true;
 
     /**
      * FormBuilder组件

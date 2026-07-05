@@ -209,8 +209,11 @@
   window.i18n = i18n;
   window.t = (key, params) => i18n.t(key, params);
 
-  // Alpine初始化时加载默认语言
-document.addEventListener('alpine:init', () => {
+  // Alpine初始化时加载默认语言（只执行一次）
+  let i18nInitialized = false;
+  document.addEventListener('alpine:init', () => {
+    if (i18nInitialized) return;
+    i18nInitialized = true;
     i18n.init('zh');
   });
 

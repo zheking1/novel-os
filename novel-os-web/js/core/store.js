@@ -7,8 +7,13 @@
 (function() {
   'use strict';
 
+  // 防止重复注册的标志
+  let storesRegistered = false;
+
   // 等待Alpine初始化
-document.addEventListener('alpine:init', () => {
+  document.addEventListener('alpine:init', () => {
+    if (storesRegistered) return;
+    storesRegistered = true;
 
     /**
      * 全局应用Store
