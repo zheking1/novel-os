@@ -27,17 +27,6 @@
         order: 1,
         requiresProject: false,
         groups: {
-          // 项目管理（始终显示）
-          'project-management': {
-            id: 'project-management',
-            labelKey: 'nav.projectMgmtGroup',
-            icon: '📁',
-            order: 0,
-            requiresProject: false,
-            items: [
-              { id: 'project-manage', labelKey: 'nav.projectManage', icon: '📂', path: '/projects' }
-            ]
-          },
           // 设定管理
           'project-settings': {
             id: 'project-settings',
@@ -152,6 +141,17 @@
         order: 3,
         requiresProject: false,
         groups: {
+          // 项目管理
+          'sys-project-mgmt': {
+            id: 'sys-project-mgmt',
+            labelKey: 'nav.projectMgmtGroup',
+            icon: '📁',
+            order: 0,
+            requiresProject: false,
+            items: [
+              { id: 'project-manage', labelKey: 'nav.projectManage', icon: '📂', path: '/projects' }
+            ]
+          },
           // 模型配置
           'sys-model': {
             id: 'sys-model',
