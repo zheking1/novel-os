@@ -11,6 +11,7 @@
     init() {
       this.render();
       this.loadData();
+      return true;
     },
 
     render() {

@@ -30,6 +30,7 @@
         console.error('[HealthPage] Initialization failed:', error);
         this.showError(error.message);
       }
+      return true;
     },
 
     /**

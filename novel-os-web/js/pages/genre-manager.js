@@ -30,6 +30,7 @@
         console.error('[GenreManager] Initialization failed:', error);
         this.showError(error.message);
       }
+      return true;
     },
 
     /**

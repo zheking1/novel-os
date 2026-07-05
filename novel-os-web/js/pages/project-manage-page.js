@@ -31,6 +31,7 @@ window.ProjectManagePage = {
       </div>
     `;
     await this.loadProjects();
+    return true;
   },
 
   async loadProjects() {

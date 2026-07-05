@@ -10,6 +10,7 @@
  */
 (function() {
   'use strict';
+  console.log('[TemplateListPage] Script loading...');
 
   // ==================== 页面配置 ====================
   const PAGE_CONFIG = {
@@ -55,6 +56,7 @@
     init() {
       this.render();
       this.loadData();
+      return true;
     },
 
     render() {
@@ -322,4 +324,5 @@
     };
   }
 
+  console.log('[TemplateListPage] Script loaded, window.TemplateListPage:', !!window.TemplateListPage);
 })();
