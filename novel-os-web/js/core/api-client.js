@@ -337,6 +337,28 @@
       async delete(workspace, templateKey, options = {}) {
         return ApiClient.callTool('prompt_template.delete', { workspace, template_key: templateKey }, options);
       }
+    },
+
+    modelProfile: {
+      async list(workspace, options = {}) {
+        return ApiClient.callTool('model.profile.list', { workspace }, options);
+      },
+      
+      async get(workspace, profileKey, options = {}) {
+        return ApiClient.callTool('model.profile.get', { workspace, profile_key: profileKey }, options);
+      },
+      
+      async create(workspace, data, options = {}) {
+        return ApiClient.callTool('model.profile.upsert', { workspace, ...data }, options);
+      },
+      
+      async update(workspace, profileKey, data, options = {}) {
+        return ApiClient.callTool('model.profile.upsert', { workspace, profile_key: profileKey, ...data }, options);
+      },
+      
+      async delete(workspace, profileKey, options = {}) {
+        return ApiClient.callTool('model.profile.delete', { workspace, profile_key: profileKey }, options);
+      }
     }
   };
 

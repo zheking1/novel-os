@@ -91,8 +91,7 @@
       const route = this.matchRoute(path);
       
       if (!route) {
-        console.warn('[Router] No route matched:', path);
-        this.navigate('/');
+        // 未定义路由时不报错，由页面处理
         return;
       }
       

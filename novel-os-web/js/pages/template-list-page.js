@@ -175,9 +175,21 @@
           return;
         }
 
-        // 获取数据
+        // 获取数据 - 处理不同的响应格式
         const result = await window.ApiClient[Config.apiNamespace].list(workspace, this.currentFilters);
-        this.currentData = result || [];
+        
+        // API可能返回不同格式: 数组, {templates: [...]}, {items: [...]}
+        if (Array.isArray(result)) {
+          this.currentData = result;
+        } else if (result?.templates) {
+          this.currentData = result.templates;
+        } else if (result?.items) {
+          this.currentData = result.items;
+        } else if (result?.data) {
+          this.currentData = result.data;
+        } else {
+          this.currentData = [];
+        }
         
         this.renderList();
       } catch (error) {
