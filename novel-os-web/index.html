@@ -580,17 +580,42 @@
   <script defer src="js/components/loading-overlay.js"></script>
 
   <!-- Page Components -->
-  <script>
+  <script defer>
+    // Wait for all deferred scripts to load
+    function waitForModules() {
+      return new Promise((resolve) => {
+        const check = () => {
+          if (window.apiClient && window.i18n && window.router && Alpine) {
+            resolve();
+          } else {
+            setTimeout(check, 100);
+          }
+        };
+        check();
+      });
+    }
+
     // Helper to safely access apiClient
     function getApiClient() {
       if (!window.apiClient) {
-        throw new Error('apiClient not initialized. Please wait for scripts to load.');
+        throw new Error('apiClient not initialized');
       }
       return window.apiClient;
     }
 
-    // App Shell
-    document.addEventListener('alpine:init', () => {
+    // Initialize after DOM and scripts are ready
+    document.addEventListener('DOMContentLoaded', async () => {
+      // Wait for all modules to be available
+      await waitForModules();
+
+      // Initialize i18n
+      await window.i18n.init('zh');
+
+      // Register Alpine components
+      registerComponents();
+    });
+
+    function registerComponents() {
 
       Alpine.data('appShell', () => ({
         // 状态
@@ -616,19 +641,7 @@
          * 初始化
          */
         async init() {
-          // 等待apiClient就绪
-          let retries = 0;
-          while (!window.apiClient && retries < 50) {
-            await new Promise(r => setTimeout(r, 100));
-            retries++;
-          }
-          if (!window.apiClient) {
-            console.error('apiClient failed to load after 5 seconds');
-            return;
-          }
-
-          // 初始化i18n
-          await window.i18n.init('zh');
+          // 使用当前i18n语言
           this.currentLang = window.i18n.getCurrentLang();
 
           // 构建菜单
@@ -859,16 +872,6 @@
         form: { slug: '', name: '', description: '', aliases: '', elements: '' },
 
         async init() {
-          // 等待apiClient就绪
-          let retries = 0;
-          while (!window.apiClient && retries < 50) {
-            await new Promise(r => setTimeout(r, 100));
-            retries++;
-          }
-          if (!window.apiClient) {
-            console.error('apiClient failed to load after 5 seconds');
-            return;
-          }
           await this.load();
         },
 
@@ -948,16 +951,6 @@
         form: { slug: '', name: '', icon: '📁', description: '', typeDesc: '' },
 
         async init() {
-          // 等待apiClient就绪
-          let retries = 0;
-          while (!window.apiClient && retries < 50) {
-            await new Promise(r => setTimeout(r, 100));
-            retries++;
-          }
-          if (!window.apiClient) {
-            console.error('apiClient failed to load after 5 seconds');
-            return;
-          }
           await this.load();
         },
 
