@@ -10,6 +10,7 @@ RUN apt-get update && apt-get install -y libpq-dev gcc && \
 COPY server.py index.html spa.html /app/
 COPY js/ /app/js/
 COPY css/ /app/css/
+COPY i18n/ /app/i18n/
 
 ENV NOVEL_OS_WEB_HOST=0.0.0.0
 ENV NOVEL_OS_WEB_ROOT=/app
