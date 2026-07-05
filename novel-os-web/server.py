@@ -112,9 +112,12 @@ def set_user_mcp_settings(username: str, mcp_url: str | None = None, mcp_token: 
     save_mcp_settings(settings)
 
 
-def hash_password(password: str) -> str:
+def hash_password(password: str, salt_b64: str | None = None) -> str:
     """Hash password using bcrypt-compatible format (using pbkdf2 for consistency)."""
-    salt_bytes = secrets.token_bytes(16)
+    if salt_b64:
+        salt_bytes = base64.urlsafe_b64decode(salt_b64)
+    else:
+        salt_bytes = secrets.token_bytes(16)
     digest = hashlib.pbkdf2_hmac("sha256", password.encode("utf-8"), salt_bytes, 200_000)
     return "pbkdf2_sha256$200000$%s$%s" % (
         base64.urlsafe_b64encode(salt_bytes).decode("ascii"),
@@ -279,8 +282,8 @@ class Handler(BaseHTTPRequestHandler):
             conn = get_db_connection()
             with conn.cursor(cursor_factory=RealDictCursor) as cur:
                 cur.execute(
-                    """SELECT username, nickname as display_name, status, password_hash, 
-                       role, is_active, created_at
+                    """SELECT username, display_name, status, password_hash,
+                       created_at
                        FROM users WHERE username = %s AND status = 'active'""",
                     (username,)
                 )
@@ -375,11 +378,14 @@ class Handler(BaseHTTPRequestHandler):
         return username, user
 
     def do_GET(self) -> None:
-        # Static file serving
+        # Static file serving (JS, CSS, i18n)
         if self.path.startswith(("/js/", "/css/", "/i18n/")):
             self.serve_static()
             return
-        if self.path == "/spa":
+        
+        # HTML files
+        path = self.path.split("?")[0]  # Remove query string
+        if path == "/spa":
             body = SPA_INDEX.read_bytes()
             self.send_response(200)
             self.send_header("Content-Type", "text/html; charset=utf-8")
@@ -388,6 +394,17 @@ class Handler(BaseHTTPRequestHandler):
             self.end_headers()
             self.wfile.write(body)
             return
+        if path == "/index-simple.html":
+            simple_index = Path(__file__).with_name("index-simple.html")
+            if simple_index.exists():
+                body = simple_index.read_bytes()
+                self.send_response(200)
+                self.send_header("Content-Type", "text/html; charset=utf-8")
+                self.send_header("Content-Length", str(len(body)))
+                self.send_header("Cache-Control", "no-cache, no-store, must-revalidate")
+                self.end_headers()
+                self.wfile.write(body)
+                return
         if self.path == "/health":
             self.send_json(200, {"status": "ok", "default_mcp_url": DEFAULT_MCP_URL})
             return
