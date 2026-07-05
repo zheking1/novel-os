@@ -319,45 +319,55 @@
 
     promptTemplate: {
       async list(workspace, filters = {}, options = {}) {
-        return ApiClient.callTool('prompt_template.list', { workspace, ...filters }, options);
+        const project = window.AppState?.currentProject;
+        return ApiClient.callTool('prompt.template.list', { workspace, project, ...filters }, options);
       },
       
       async get(workspace, templateKey, options = {}) {
-        return ApiClient.callTool('prompt_template.get', { workspace, template_key: templateKey }, options);
+        const project = window.AppState?.currentProject;
+        return ApiClient.callTool('prompt.template.get', { workspace, project, template_key: templateKey }, options);
       },
       
       async create(workspace, data, options = {}) {
-        return ApiClient.callTool('prompt_template.upsert', { workspace, ...data }, options);
+        const project = window.AppState?.currentProject;
+        return ApiClient.callTool('prompt.template.upsert', { workspace, project, ...data }, options);
       },
       
       async update(workspace, templateKey, data, options = {}) {
-        return ApiClient.callTool('prompt_template.upsert', { workspace, template_key: templateKey, ...data }, options);
+        const project = window.AppState?.currentProject;
+        return ApiClient.callTool('prompt.template.upsert', { workspace, project, template_key: templateKey, ...data }, options);
       },
       
       async delete(workspace, templateKey, options = {}) {
-        return ApiClient.callTool('prompt_template.delete', { workspace, template_key: templateKey }, options);
+        const project = window.AppState?.currentProject;
+        return ApiClient.callTool('prompt.template.delete', { workspace, project, template_key: templateKey }, options);
       }
     },
 
     modelProfile: {
       async list(workspace, options = {}) {
-        return ApiClient.callTool('model.profile.list', { workspace }, options);
+        const project = window.AppState?.currentProject;
+        return ApiClient.callTool('model.profile.list', { workspace, project, ...options }, options);
       },
       
       async get(workspace, profileKey, options = {}) {
-        return ApiClient.callTool('model.profile.get', { workspace, profile_key: profileKey }, options);
+        const project = window.AppState?.currentProject;
+        return ApiClient.callTool('model.profile.list', { workspace, project, profile_key: profileKey }, options);
       },
       
       async create(workspace, data, options = {}) {
-        return ApiClient.callTool('model.profile.upsert', { workspace, ...data }, options);
+        const project = window.AppState?.currentProject;
+        return ApiClient.callTool('model.profile.upsert', { workspace, project, ...data }, options);
       },
       
       async update(workspace, profileKey, data, options = {}) {
-        return ApiClient.callTool('model.profile.upsert', { workspace, profile_key: profileKey, ...data }, options);
+        const project = window.AppState?.currentProject;
+        return ApiClient.callTool('model.profile.upsert', { workspace, project, profile_key: profileKey, ...data }, options);
       },
       
       async delete(workspace, profileKey, options = {}) {
-        return ApiClient.callTool('model.profile.delete', { workspace, profile_key: profileKey }, options);
+        const project = window.AppState?.currentProject;
+        return ApiClient.callTool('model.profile.upsert', { workspace, project, profile_key: profileKey, status: 'inactive' }, options);
       }
     }
   };
