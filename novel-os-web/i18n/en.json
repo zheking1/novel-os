@@ -13,6 +13,9 @@
   "nav": {
     "home": "Home",
 
+    "projectMgmtGroup": "Project Management",
+    "projectManage": "Project List",
+
     "settingsGroup": "Settings",
     "canonList": "Canon Documents",
     "entityList": "Entity Manager",

@@ -25,8 +25,19 @@
         labelKey: 'section.project',
         icon: '📚',
         order: 1,
-        requiresProject: true,
+        requiresProject: false,
         groups: {
+          // 项目管理（始终显示）
+          'project-management': {
+            id: 'project-management',
+            labelKey: 'nav.projectMgmtGroup',
+            icon: '📁',
+            order: 0,
+            requiresProject: false,
+            items: [
+              { id: 'project-manage', labelKey: 'nav.projectManage', icon: '📂', path: '/projects' }
+            ]
+          },
           // 设定管理
           'project-settings': {
             id: 'project-settings',
@@ -290,6 +301,12 @@
 
         for (const groupId in section.groups) {
           const group = section.groups[groupId];
+          
+          // 如果分组需要项目但没有选择项目，跳过
+          if (group.requiresProject !== false && !project) {
+            continue;
+          }
+
           const items = [];
 
           for (const item of group.items) {

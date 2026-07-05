@@ -13,6 +13,9 @@
   "nav": {
     "home": "首页",
 
+    "projectMgmtGroup": "项目管理",
+    "projectManage": "项目列表",
+
     "settingsGroup": "设定管理",
     "canonList": "Canon文档",
     "entityList": "实体管理",
