@@ -3,11 +3,13 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
   <title>Novel OS Console</title>
   <link rel="stylesheet" href="css/style.css">
   <script defer src="js/alpine.min.js"></script>
   <script src="js/app.js"></script>
   <script src="js/auth.js"></script>
+  <script src="js/spa.js"></script>
   <script src="js/pages/genre.js"></script>
   <script src="js/pages/category.js"></script>
   <script src="js/pages/binding.js"></script>
@@ -16,111 +18,137 @@
 <body x-data="app" x-init="init()" class="bg-gray-50 min-h-screen">
   
   <!-- Sidebar -->
-  <aside class="w-56 bg-white border-r fixed h-screen overflow-y-auto p-4">
-    <h1 class="text-lg font-bold mb-4">Novel OS</h1>
-    
-    <template x-for="group in menu" :key="group.label">
-      <div class="mb-4">
-        <h2 class="text-xs uppercase text-gray-400 font-semibold mb-2" x-text="group.label"></h2>
-        <template x-for="item in group.items" :key="item.id">
-          <div @click="navigate(item.id)" 
-               :class="currentPage === item.id ? 'bg-blue-100 text-blue-700' : 'text-gray-600 hover:bg-gray-100'"
-               class="px-3 py-1.5 rounded cursor-pointer text-sm select-none">
-            <span x-text="item.icon"></span>
-            <span x-text="item.title"></span>
-          </div>
-        </template>
-      </div>
-    </template>
+  <aside class="w-56 bg-white border-r fixed h-screen overflow-y-auto flex flex-col">
+    <div class="p-4 border-b">
+      <h1 class="text-lg font-bold mb-1">Novel OS</h1>
+      <button class="text-xs text-blue-500" @click="toggleLang()">
+        <span x-text="lang === 'en' ? '中文' : 'English'"></span>
+      </button>
+    </div>
+    <nav class="flex-1 p-3 overflow-y-auto">
+      <template x-for="group in menu" :key="group.label">
+        <div class="mb-4">
+          <h2 class="text-xs uppercase text-gray-400 font-semibold mb-2 tracking-wide" x-text="group.label"></h2>
+          <template x-for="item in group.items" :key="item.id">
+            <div @click="navigate(item.id)"
+                 :class="currentPage === item.id ? 'bg-blue-100 text-blue-700 border-blue-300' : 'text-gray-600 hover:bg-gray-50 border-transparent'"
+                 class="px-3 py-2 rounded cursor-pointer text-sm border-l-2 transition-colors select-none">
+              <span x-text="item.icon" class="mr-1"></span>
+              <span x-text="item.title"></span>
+            </div>
+          </template>
+        </div>
+      </template>
+    </nav>
+    <div class="p-3 border-t text-xs text-gray-400">
+      <span x-text="status"></span>
+    </div>
   </aside>
   
-  <!-- Main Content -->
+  <!-- Main -->
   <main class="ml-56 p-6">
-    <!-- Workspace / Project Selector -->
-    <div class="flex gap-3 mb-4">
-      <select class="border rounded px-3 py-1 text-sm" x-model="workspace" @change="loadProjects()">
-        <option value="">Select Workspace</option>
+    <!-- Toolbar -->
+    <div class="flex gap-3 mb-4 bg-white p-3 rounded shadow-sm items-center">
+      <select class="border rounded px-3 py-1.5 text-sm" @change="loadProjects()" x-model="workspace">
+        <option value="" x-text="t('workspace.selectWs')"></option>
         <template x-for="w in workspaces" :key="w.slug">
           <option :value="w.slug" x-text="w.name || w.slug"></option>
         </template>
       </select>
-      <select class="border rounded px-3 py-1 text-sm" x-model="project">
-        <option value="">Select Project</option>
+      <select class="border rounded px-3 py-1.5 text-sm" x-model="project">
+        <option value="" x-text="t('workspace.selectPrj')"></option>
         <template x-for="p in projects" :key="p.slug">
           <option :value="p.slug" x-text="p.title || p.slug"></option>
         </template>
       </select>
-      <span class="text-sm text-gray-500 self-center" x-text="status"></span>
     </div>
-    
-    <!-- Pages -->
+
+    <!-- Item Level Page -->
     <div x-show="currentPage === 'item-level'" x-data="itemLevelManager" x-init="$nextTick(() => $data.init())">
       <div class="flex justify-between items-center mb-4">
-        <h2 class="text-xl font-bold">Item Levels</h2>
-        <button class="bg-blue-500 text-white px-4 py-1 rounded text-sm" @click="add()">+ New</button>
+        <h2 class="text-xl font-bold" x-text="t('itemLevel.title')"></h2>
+        <button class="bg-blue-500 text-white px-4 py-1.5 rounded text-sm hover:bg-blue-600" @click="add()" x-text="t('itemLevel.new')"></button>
       </div>
       <div class="space-y-2">
         <template x-for="(lvl, idx) in levels" :key="lvl.id">
-          <div class="bg-white border rounded p-3 flex justify-between items-center">
+          <div class="bg-white border rounded p-3 flex justify-between items-center shadow-sm">
             <div>
               <span class="font-medium" x-text="lvl.core_summary"></span>
               <span class="text-gray-400 ml-2 text-sm" x-text="lvl.detailed_expansion || ''"></span>
             </div>
             <div class="flex gap-2">
-              <button class="text-blue-500 text-sm" @click="edit(idx)">Edit</button>
-              <button class="text-red-500 text-sm" @click="remove(idx)">Delete</button>
+              <button class="text-blue-500 text-sm hover:underline" @click="edit(idx)" x-text="t('itemLevel.edit')"></button>
+              <button class="text-red-500 text-sm hover:underline" @click="remove(idx)" x-text="t('itemLevel.delete')"></button>
             </div>
           </div>
         </template>
+        <div x-show="!levels.length" class="text-gray-400 text-center py-8">No items yet. Click "+ New" to add.</div>
       </div>
       <!-- Modal -->
-      <div x-show="editing !== null" class="fixed inset-0 bg-black/30 z-50" @click.self="cancel()">
-        <div class="bg-white max-w-md mx-auto mt-20 p-6 rounded-lg">
-          <h3 class="font-bold mb-4" x-text="editing >= 0 ? 'Edit Level' : 'New Level'"></h3>
-          <input class="border rounded w-full px-3 py-2 mb-3 text-sm" x-model="form.name" placeholder="Name (e.g. Common, Rare, Epic)">
-          <textarea class="border rounded w-full px-3 py-2 mb-3 text-sm" x-model="form.desc" rows="3" placeholder="Description..."></textarea>
-          <div class="flex gap-3 mb-3">
-            <input class="border rounded w-20 px-3 py-2 text-sm" type="number" x-model="form.order" placeholder="Order">
-            <input class="border rounded flex-1 px-3 py-2 text-sm" x-model="form.range" placeholder="Range (e.g. 1-10)">
+      <div x-show="editing !== null" class="fixed inset-0 bg-black/30 z-50 flex items-start justify-center pt-20" @click.self="cancel()">
+        <div class="bg-white max-w-md w-full mx-4 p-6 rounded-lg shadow-xl">
+          <h3 class="font-bold mb-4" x-text="editing >= 0 ? t('itemLevel.edit') : t('itemLevel.new')"></h3>
+          <div class="space-y-3">
+            <div>
+              <label class="block text-xs text-gray-500 mb-1" x-text="t('itemLevel.name')"></label>
+              <input class="border rounded w-full px-3 py-2 text-sm focus:ring-1 focus:ring-blue-300" x-model="form.name">
+            </div>
+            <div>
+              <label class="block text-xs text-gray-500 mb-1" x-text="t('itemLevel.desc')"></label>
+              <textarea class="border rounded w-full px-3 py-2 text-sm focus:ring-1 focus:ring-blue-300" x-model="form.desc" rows="2"></textarea>
+            </div>
+            <div class="flex gap-3">
+              <div class="flex-1">
+                <label class="block text-xs text-gray-500 mb-1" x-text="t('itemLevel.order')"></label>
+                <input class="border rounded w-full px-3 py-2 text-sm" type="number" x-model="form.order">
+              </div>
+              <div class="flex-1">
+                <label class="block text-xs text-gray-500 mb-1" x-text="t('itemLevel.range')"></label>
+                <input class="border rounded w-full px-3 py-2 text-sm" x-model="form.range">
+              </div>
+            </div>
           </div>
-          <div class="flex gap-2">
-            <button class="bg-blue-500 text-white px-4 py-1 rounded text-sm" @click="save()">Save</button>
-            <button class="border px-4 py-1 rounded text-sm" @click="cancel()">Cancel</button>
+          <div class="flex gap-2 mt-4">
+            <button class="bg-blue-500 text-white px-4 py-1.5 rounded text-sm hover:bg-blue-600" @click="save()" x-text="t('itemLevel.save')"></button>
+            <button class="border px-4 py-1.5 rounded text-sm hover:bg-gray-100" @click="cancel()" x-text="t('itemLevel.cancel')"></button>
           </div>
         </div>
       </div>
     </div>
-    
-    <div x-show="currentPage === 'genre-manage'">
-      <p class="text-gray-500" x-text="'Genre Manager - ' + (window.allGenres || []).length + ' genres'"></p>
+
+    <!-- Genre Manager -->
+    <div x-show="currentPage === 'genre-manage'" class="bg-white p-4 rounded shadow-sm">
+      <h2 class="text-xl font-bold mb-3" x-text="t('genre.title')"></h2>
+      <p class="text-gray-500">Click to load genre data...</p>
     </div>
-    
-    <div x-show="currentPage === 'category-manage'">
-      <p class="text-gray-500">Category Manager</p>
+
+    <!-- Category Manager -->
+    <div x-show="currentPage === 'category-manage'" class="bg-white p-4 rounded shadow-sm">
+      <h2 class="text-xl font-bold mb-3" x-text="t('category.title')"></h2>
+      <p class="text-gray-500">Click to load category data...</p>
     </div>
-    
-    <div x-show="currentPage === 'binding'">
-      <p class="text-gray-500">Genre-Category Binding</p>
+
+    <!-- Binding -->
+    <div x-show="currentPage === 'binding'" class="bg-white p-4 rounded shadow-sm">
+      <h2 class="text-xl font-bold mb-3" x-text="t('binding.title')"></h2>
+      <p class="text-gray-500">Click to load binding matrix...</p>
     </div>
+
+    <!-- Level placeholder pages -->
+    <template x-for="lvl in ['character-level','skill-level','tech-level']" :key="lvl">
+      <div x-show="currentPage === lvl" class="bg-white p-4 rounded shadow-sm">
+        <h2 class="text-xl font-bold mb-3" x-text="lvl"></h2>
+        <p class="text-gray-500">Coming soon...</p>
+      </div>
+    </template>
   </main>
-  
+
   <!-- Toast -->
   <div class="fixed bottom-4 right-4 space-y-2 z-50">
     <template x-for="(t, idx) in toasts" :key="idx">
-      <div :class="'px-4 py-2 rounded text-white text-sm ' + (t.type === 'success' ? 'bg-green-500' : t.type === 'error' ? 'bg-red-500' : 'bg-yellow-500')" 
-           @click="t.list.splice(idx,1)">
-        <span x-text="t.msg"></span>
-      </div>
+      <div :class="(t.type === 'success' ? 'bg-green-500' : t.type === 'error' ? 'bg-red-500' : 'bg-yellow-500') + ' px-4 py-2 rounded text-white text-sm shadow-lg cursor-pointer'"
+           @click="toasts.splice(idx,1)" x-text="t.msg"></div>
     </template>
   </div>
-
-  <script>
-    window.showToast = function(type, title, msg) {
-      const app = document.querySelector('[x-data]').__x;
-      const store = app.getUnobservedData();
-      store.toasts.push({type, msg: title + (msg ? ': ' + msg : '')});
-      setTimeout(() => store.toasts.shift(), 3000);
-    };
-  </script>
 </body>
 </html>
