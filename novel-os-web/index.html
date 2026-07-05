@@ -563,72 +563,28 @@
   </div>
 
   <!-- Scripts -->
-  <!-- Prevent Alpine.js from auto-starting -->
-  <script>
-    window.Alpine = { start: false };
-  </script>
-  <script defer src="js/alpine.min.js?v=2"></script>
-
-  <!-- Core Modules -->
-  <script defer src="js/app.js?v=2"></script>
-  <script defer src="js/core/api-wrapper.js?v=2"></script>
-  <script defer src="js/core/store.js?v=2"></script>
-  <script defer src="js/core/router.js?v=2"></script>
-  <script defer src="js/core/i18n.js?v=2"></script>
+  <!-- Core Modules - Load synchronously first -->
+  <script src="js/app.js?v=2"></script>
+  <script src="js/core/api-wrapper.js?v=2"></script>
+  <script src="js/core/store.js?v=2"></script>
+  <script src="js/core/router.js?v=2"></script>
+  <script src="js/core/i18n.js?v=2"></script>
 
   <!-- Components -->
-  <script defer src="js/components/toast-container.js?v=2"></script>
-  <script defer src="js/components/data-table.js?v=2"></script>
-  <script defer src="js/components/modal-dialog.js?v=2"></script>
-  <script defer src="js/components/form-builder.js?v=2"></script>
-  <script defer src="js/components/loading-overlay.js?v=2"></script>
+  <script src="js/components/toast-container.js?v=2"></script>
+  <script src="js/components/data-table.js?v=2"></script>
+  <script src="js/components/modal-dialog.js?v=2"></script>
+  <script src="js/components/form-builder.js?v=2"></script>
+  <script src="js/components/loading-overlay.js?v=2"></script>
 
-  <!-- Page Components - Load synchronously before Alpine starts -->
+  <!-- Page Components - Register before Alpine starts -->
   <script>
-    // Wait for all deferred scripts to load
-    function waitForModules() {
-      return new Promise((resolve) => {
-        const check = () => {
-          if (window.apiClient && window.i18n && window.router && window.Alpine) {
-            resolve();
-          } else {
-            setTimeout(check, 50);
-          }
-        };
-        check();
-      });
-    }
-
     // Helper to safely access apiClient
     function getApiClient() {
       if (!window.apiClient) {
         throw new Error('apiClient not initialized');
       }
       return window.apiClient;
-    }
-
-    // Register all components and start Alpine
-    async function initApp() {
-      // Wait for all modules
-      await waitForModules();
-
-      // Initialize i18n
-      await window.i18n.init('zh');
-
-      // Register all Alpine components
-      registerComponents();
-
-      // Manually start Alpine after components are registered
-      if (window.Alpine && window.Alpine.start) {
-        window.Alpine.start();
-      }
-    }
-
-    // Start initialization when DOM is ready
-    if (document.readyState === 'loading') {
-      document.addEventListener('DOMContentLoaded', initApp);
-    } else {
-      initApp();
     }
 
     function registerComponents() {
@@ -1047,7 +1003,13 @@
       }));
 
     }
+
+    // Register components immediately (before Alpine loads)
+    registerComponents();
   </script>
+
+  <!-- Alpine.js - Load last after all components are registered -->
+  <script src="js/alpine.min.js?v=2"></script>
 
 </body>
 </html>
