@@ -281,14 +281,32 @@
         if (savedWorkspace && workspaces.some(w => w.slug === savedWorkspace)) {
           const workspaceSelect = document.getElementById('workspace-select');
           workspaceSelect.value = savedWorkspace;
-          await handleWorkspaceChange(savedWorkspace);
           
-          // 恢复之前选择的项目
-          const savedProject = localStorage.getItem('novel-project');
-          if (savedProject) {
-            const projectSelect = document.getElementById('project-select');
-            projectSelect.value = savedProject;
-            await handleProjectChange(savedProject);
+          // 手动加载项目（不调用handleWorkspaceChange以保留savedProject）
+          window.AppState.currentWorkspace = savedWorkspace;
+          const projectSelect = document.getElementById('project-select');
+          projectSelect.innerHTML = `<option value="">${t('common.loading')}</option>`;
+          
+          try {
+            const projects = await window.ApiClient.project.list(savedWorkspace, { showLoading: false });
+            if (projects && projects.length > 0) {
+              projectSelect.innerHTML = `
+                <option value="">${t('project.select')}</option>
+                ${projects.map(p => `<option value="${p.slug}">${p.title || p.name || p.slug}</option>`).join('')}
+              `;
+              
+              // 恢复之前选择的项目
+              const savedProject = localStorage.getItem('novel-project');
+              if (savedProject && projects.some(p => p.slug === savedProject)) {
+                projectSelect.value = savedProject;
+                window.AppState.currentProject = savedProject;
+              }
+            } else {
+              projectSelect.innerHTML = `<option value="">${t('project.none')}</option>`;
+            }
+          } catch (e) {
+            console.error('[App] Failed to load projects:', e);
+            projectSelect.innerHTML = `<option value="">${t('error.loadFailed')}</option>`;
           }
         }
         

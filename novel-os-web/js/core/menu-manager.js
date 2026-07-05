@@ -109,6 +109,7 @@
             labelKey: 'nav.knowledgeMgmtGroup',
             icon: '📚',
             order: 1,
+            requiresProject: false,
             items: [
               { id: 'uk-manage', labelKey: 'nav.ukManage', icon: '📖', path: '/knowledge/uk-manage' },
               { id: 'auto-search', labelKey: 'nav.autoSearch', icon: '🔍', path: '/knowledge/auto-search' },
@@ -125,6 +126,7 @@
             labelKey: 'nav.knowledgeReviewGroup',
             icon: '🔍',
             order: 2,
+            requiresProject: false,
             items: [
               { id: 'knowledge-review', labelKey: 'nav.knowledgeReview', icon: '📋', path: '/knowledge/review' },
               { id: 'knowledge-expiry', labelKey: 'nav.knowledgeExpiry', icon: '⏰', path: '/knowledge/expiry' }
@@ -158,6 +160,7 @@
             labelKey: 'nav.modelGroup',
             icon: '🤖',
             order: 1,
+            requiresProject: false,
             items: [
               { id: 'model-profiles', labelKey: 'nav.modelProfiles', icon: '⚙️', path: '/system/model-profiles' },
               { id: 'model-cost', labelKey: 'nav.costReport', icon: '💰', path: '/system/cost' }
@@ -169,6 +172,7 @@
             labelKey: 'nav.templateGroup',
             icon: '📋',
             order: 2,
+            requiresProject: false,
             items: [
               { id: 'template-list', labelKey: 'nav.templateList', icon: '📝', path: '/system/templates' },
               { id: 'market-browse', labelKey: 'nav.marketBrowse', icon: '🏪', path: '/system/market' }
@@ -180,6 +184,7 @@
             labelKey: 'nav.skillGroup',
             icon: '🎯',
             order: 3,
+            requiresProject: false,
             items: [
               { id: 'skill-manage', labelKey: 'nav.skillManage', icon: '🎯', path: '/system/skills' }
             ]
@@ -190,6 +195,7 @@
             labelKey: 'nav.dataGroup',
             icon: '💾',
             order: 4,
+            requiresProject: false,
             items: [
               { id: 'sync-status', labelKey: 'nav.syncStatus', icon: '🔄', path: '/system/sync' },
               { id: 'sync-conflicts', labelKey: 'nav.syncConflicts', icon: '⚠️', path: '/system/conflicts' },
@@ -203,6 +209,7 @@
             labelKey: 'nav.monitorGroup',
             icon: '📊',
             order: 5,
+            requiresProject: false,
             items: [
               { id: 'sys-health', labelKey: 'nav.sysHealth', icon: '💓', path: '/system/health' },
               { id: 'sys-cache', labelKey: 'nav.sysCache', icon: '🗄️', path: '/system/cache' },
@@ -215,6 +222,7 @@
             labelKey: 'nav.systemInfo',
             icon: 'ℹ️',
             order: 6,
+            requiresProject: false,
             items: [
               { id: 'system-connection', labelKey: 'nav.connection', icon: '🌐', path: '/system/connection' },
               { id: 'system-account', labelKey: 'nav.account', icon: '👤', path: '/system/account' },
