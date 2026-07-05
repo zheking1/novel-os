@@ -563,21 +563,29 @@
   </div>
 
   <!-- Scripts -->
-  <!-- Core Modules - Load synchronously first -->
+  <!-- 1. Prevent Alpine auto-start -->
+  <script>
+    window.Alpine = { start: false };
+  </script>
+
+  <!-- 2. Load Alpine.js first (but it won't start yet) -->
+  <script src="js/alpine.min.js?v=2"></script>
+
+  <!-- 3. Load other modules -->
   <script src="js/app.js?v=2"></script>
   <script src="js/core/api-wrapper.js?v=2"></script>
   <script src="js/core/store.js?v=2"></script>
   <script src="js/core/router.js?v=2"></script>
   <script src="js/core/i18n.js?v=2"></script>
 
-  <!-- Components -->
+  <!-- 4. Components -->
   <script src="js/components/toast-container.js?v=2"></script>
   <script src="js/components/data-table.js?v=2"></script>
   <script src="js/components/modal-dialog.js?v=2"></script>
   <script src="js/components/form-builder.js?v=2"></script>
   <script src="js/components/loading-overlay.js?v=2"></script>
 
-  <!-- Page Components - Register before Alpine starts -->
+  <!-- 5. Page Components - Register before starting Alpine -->
   <script>
     // Helper to safely access apiClient
     function getApiClient() {
@@ -1004,12 +1012,17 @@
 
     }
 
-    // Register components immediately (before Alpine loads)
+    // Register components
     registerComponents();
-  </script>
 
-  <!-- Alpine.js - Load last after all components are registered -->
-  <script src="js/alpine.min.js?v=2"></script>
+    // Initialize i18n
+    window.i18n.init('zh').then(() => {
+      // Start Alpine after everything is ready
+      if (window.Alpine && window.Alpine.start) {
+        window.Alpine.start();
+      }
+    });
+  </script>
 
 </body>
 </html>
