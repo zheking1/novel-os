@@ -15,7 +15,6 @@
 
     "projectMgmtGroup": "Project Management",
     "projectManage": "Project List",
-    "templateList": "Templates",
 
     "settingsGroup": "Settings",
     "canonList": "Canon Documents",
@@ -62,7 +61,7 @@
     "costReport": "Cost Report",
 
     "templateGroup": "Templates",
-    "templateList": "Template List",
+    "templateList": "My Templates",
     "marketBrowse": "Market Browse",
 
     "skillGroup": "Skill",

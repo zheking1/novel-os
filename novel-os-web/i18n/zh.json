@@ -15,7 +15,6 @@
 
     "projectMgmtGroup": "项目管理",
     "projectManage": "项目列表",
-    "templateList": "模板管理",
 
     "settingsGroup": "设定管理",
     "canonList": "Canon文档",
@@ -62,7 +61,7 @@
     "costReport": "费用报表",
 
     "templateGroup": "模板管理",
-    "templateList": "模板列表",
+    "templateList": "我的模板",
     "marketBrowse": "市场浏览",
 
     "skillGroup": "Skill管理",
