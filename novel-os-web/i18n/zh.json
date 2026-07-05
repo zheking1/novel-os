@@ -4,33 +4,89 @@
     "slogan": "智能小说创作平台"
   },
 
-  "nav": {
-    "home": "首页",
-    "worldbuilding": "世界设定",
-    "knowledge": "知识管理",
-    "story": "故事设定",
-    "generation": "生成管理",
-    "review": "审核管理",
+  "section": {
+    "project": "项目管理",
+    "knowledge": "知识库",
     "system": "系统管理"
   },
 
+  "nav": {
+    "home": "首页",
+
+    "settingsGroup": "设定管理",
+    "canonList": "Canon文档",
+    "entityList": "实体管理",
+    "rulesList": "创作规则",
+    "graphView": "关系图谱",
+
+    "plotGroup": "剧情管理",
+    "volumes": "卷管理",
+    "threads": "情节线",
+    "foreshadowList": "伏笔管理",
+
+    "generationGroup": "生成与审查",
+    "contextPreview": "上下文预览",
+    "reviewTasks": "审核任务",
+    "compliance": "合规检查",
+    "pipeline": "流水线",
+    "chapters": "章节管理",
+
+    "projectKnowledgeGroup": "项目知识",
+    "worldRules": "世界规则",
+    "characters": "角色管理",
+    "factions": "势力管理",
+    "worldState": "世界状态",
+
+    "localGroup": "本地项目",
+    "knowledgePack": "知识包",
+    "localProjects": "本地项目",
+    "localChapters": "本地章节",
+    "localPipeline": "本地流水线",
+
+    "knowledgeMgmtGroup": "知识管理",
+    "ukManage": "知识条目",
+    "autoSearch": "自动搜索",
+    "knowledgeGraph": "知识图谱",
+    "knowledgeStats": "知识统计",
+
+    "knowledgeReviewGroup": "知识审查",
+    "knowledgeReview": "审核列表",
+    "knowledgeExpiry": "过期监控",
+
+    "modelGroup": "模型配置",
+    "modelProfiles": "模型配置",
+    "costReport": "费用报表",
+
+    "templateGroup": "模板管理",
+    "templateList": "模板列表",
+    "marketBrowse": "市场浏览",
+
+    "skillGroup": "Skill管理",
+    "skillManage": "Skill管理",
+
+    "dataGroup": "数据管理",
+    "syncStatus": "同步状态",
+    "syncConflicts": "同步冲突",
+    "auditLogs": "操作审计",
+    "offlineStatus": "离线状态",
+
+    "monitorGroup": "系统监控",
+    "sysHealth": "系统健康",
+    "sysCache": "缓存管理",
+    "sysBackup": "数据备份",
+
+    "systemInfo": "系统信息",
+    "connection": "连接测试",
+    "account": "账户信息",
+    "users": "用户管理",
+    "debug": "调试工具"
+  },
+
   "level": {
-    "item": {
-      "title": "物品等级",
-      "description": "管理物品的品质等级体系"
-    },
-    "character": {
-      "title": "人物等级",
-      "description": "管理角色的实力等级体系"
-    },
-    "skill": {
-      "title": "技能等级",
-      "description": "管理技能功法的等级体系"
-    },
-    "tech": {
-      "title": "科技等级",
-      "description": "管理科技/文明的等级体系"
-    },
+    "item": { "title": "物品等级", "description": "管理物品的品质等级体系" },
+    "character": { "title": "人物等级", "description": "管理角色的实力等级体系" },
+    "skill": { "title": "技能等级", "description": "管理技能功法的等级体系" },
+    "tech": { "title": "科技等级", "description": "管理科技/文明的等级体系" },
     "name": "等级名称",
     "desc": "等级描述",
     "order": "排序",
@@ -39,31 +95,13 @@
     "edit": "编辑等级",
     "delete": "删除等级",
     "save": "保存等级",
-    "cancel": "取消",
     "confirmDelete": "确定删除此等级吗？此操作不可恢复。",
     "empty": "暂无等级数据，点击上方按钮创建"
   },
 
   "catalog": {
-    "item": {
-      "title": "物品图鉴",
-      "description": "管理世界中的物品数据"
-    },
-    "skill": {
-      "title": "技能图鉴",
-      "description": "管理技能功法的数据"
-    }
-  },
-
-  "world": {
-    "location": {
-      "title": "地图地点",
-      "description": "管理世界地图和地点信息"
-    },
-    "creature": {
-      "title": "生物图鉴",
-      "description": "管理生物和怪物数据"
-    }
+    "item": { "title": "物品图鉴", "description": "管理世界中的物品数据" },
+    "skill": { "title": "技能图鉴", "description": "管理技能功法的数据" }
   },
 
   "genre": {
@@ -87,7 +125,6 @@
     "slug": "分类标识",
     "icon": "图标",
     "desc": "分类描述",
-    "typeDesc": "类型描述",
     "isStandard": "系统分类",
     "new": "新建分类",
     "edit": "编辑分类",
@@ -108,52 +145,13 @@
   },
 
   "knowledge": {
-    "pack": {
-      "title": "知识包",
-      "description": "配置项目使用的知识分类"
-    }
-  },
-
-  "story": {
-    "canon": {
-      "title": "Canon文档",
-      "description": "管理世界观设定文档"
-    },
-    "entities": {
-      "title": "实体管理",
-      "description": "管理角色、地点、势力等实体"
-    },
-    "rules": {
-      "title": "创作规则",
-      "description": "管理创作约束和规则"
-    },
-    "volumes": {
-      "title": "卷管理",
-      "description": "管理小说卷章结构"
-    },
-    "threads": {
-      "title": "情节线",
-      "description": "管理情节线索和进度"
-    },
-    "foreshadowing": {
-      "title": "伏笔管理",
-      "description": "管理伏笔的埋设和回收"
-    }
+    "pack": { "title": "知识包", "description": "配置项目使用的知识分类" }
   },
 
   "system": {
-    "health": {
-      "title": "系统健康",
-      "description": "查看系统运行状态"
-    },
-    "models": {
-      "title": "模型配置",
-      "description": "配置AI模型和路由"
-    },
-    "users": {
-      "title": "用户管理",
-      "description": "管理系统用户和权限"
-    }
+    "health": { "title": "系统健康", "description": "查看系统运行状态" },
+    "models": { "title": "模型配置", "description": "配置AI模型和路由" },
+    "users": { "title": "用户管理", "description": "管理系统用户和权限" }
   },
 
   "common": {
@@ -170,23 +168,16 @@
     "refresh": "刷新",
     "loading": "加载中...",
     "saving": "保存中...",
-    "deleting": "删除中...",
     "success": "操作成功",
     "error": "操作失败",
-    "warning": "警告",
-    "info": "提示",
     "confirmDelete": "确定要删除吗？此操作不可恢复。",
     "noData": "暂无数据",
-    "loadMore": "加载更多",
-    "viewAll": "查看全部",
     "actions": "操作",
     "status": "状态",
     "name": "名称",
     "description": "描述",
     "createdAt": "创建时间",
-    "updatedAt": "更新时间",
-    "required": "必填",
-    "optional": "可选"
+    "updatedAt": "更新时间"
   },
 
   "workspace": {
@@ -202,21 +193,10 @@
     "none": "未选择项目"
   },
 
-  "validation": {
-    "required": "此项为必填",
-    "minLength": "长度不能少于{min}个字符",
-    "maxLength": "长度不能超过{max}个字符",
-    "pattern": "格式不正确",
-    "unique": "此值已存在"
-  },
-
   "error": {
     "loadFailed": "加载失败",
     "saveFailed": "保存失败",
     "deleteFailed": "删除失败",
-    "networkError": "网络错误，请检查连接",
-    "unauthorized": "未授权，请重新登录",
-    "forbidden": "无权限执行此操作",
-    "notFound": "请求的资源不存在"
+    "networkError": "网络错误，请检查连接"
   }
 }

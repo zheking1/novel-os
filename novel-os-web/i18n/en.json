@@ -1,159 +1,157 @@
 {
   "app": {
     "name": "Novel OS",
-    "slogan": "Intelligent Novel Creation Platform"
+    "slogan": "Intelligent Novel Writing Platform"
+  },
+
+  "section": {
+    "project": "Project",
+    "knowledge": "Knowledge",
+    "system": "System"
   },
 
   "nav": {
     "home": "Home",
-    "worldbuilding": "Worldbuilding",
-    "knowledge": "Knowledge",
-    "story": "Story",
-    "generation": "Generation",
-    "review": "Review",
-    "system": "System"
+
+    "settingsGroup": "Settings",
+    "canonList": "Canon Documents",
+    "entityList": "Entity Manager",
+    "rulesList": "Writing Rules",
+    "graphView": "Graph View",
+
+    "plotGroup": "Plot",
+    "volumes": "Volumes",
+    "threads": "Plot Threads",
+    "foreshadowList": "Foreshadowing",
+
+    "generationGroup": "Generation",
+    "contextPreview": "Context Preview",
+    "reviewTasks": "Review Tasks",
+    "compliance": "Compliance",
+    "pipeline": "Pipeline",
+    "chapters": "Chapters",
+
+    "projectKnowledgeGroup": "Project Knowledge",
+    "worldRules": "World Rules",
+    "characters": "Characters",
+    "factions": "Factions",
+    "worldState": "World State",
+
+    "localGroup": "Local Project",
+    "knowledgePack": "Knowledge Pack",
+    "localProjects": "Local Projects",
+    "localChapters": "Local Chapters",
+    "localPipeline": "Local Pipeline",
+
+    "knowledgeMgmtGroup": "Knowledge Management",
+    "ukManage": "Knowledge Entries",
+    "autoSearch": "Auto Search",
+    "knowledgeGraph": "Knowledge Graph",
+    "knowledgeStats": "Statistics",
+
+    "knowledgeReviewGroup": "Knowledge Review",
+    "knowledgeReview": "Review List",
+    "knowledgeExpiry": "Expiry Monitor",
+
+    "modelGroup": "Model Config",
+    "modelProfiles": "Model Profiles",
+    "costReport": "Cost Report",
+
+    "templateGroup": "Templates",
+    "templateList": "Template List",
+    "marketBrowse": "Market Browse",
+
+    "skillGroup": "Skill",
+    "skillManage": "Skill Manager",
+
+    "dataGroup": "Data",
+    "syncStatus": "Sync Status",
+    "syncConflicts": "Sync Conflicts",
+    "auditLogs": "Audit Logs",
+    "offlineStatus": "Offline Status",
+
+    "monitorGroup": "Monitoring",
+    "sysHealth": "System Health",
+    "sysCache": "Cache",
+    "sysBackup": "Backup",
+
+    "systemInfo": "System Info",
+    "connection": "Connection",
+    "account": "Account",
+    "users": "Users",
+    "debug": "Debug"
   },
 
   "level": {
-    "item": {
-      "title": "Item Levels",
-      "description": "Manage item quality level system"
-    },
-    "character": {
-      "title": "Character Levels",
-      "description": "Manage character power level system"
-    },
-    "skill": {
-      "title": "Skill Levels",
-      "description": "Manage skill/technique level system"
-    },
-    "tech": {
-      "title": "Tech Levels",
-      "description": "Manage technology/civilization level system"
-    },
+    "item": { "title": "Item Level", "description": "Manage item quality levels" },
+    "character": { "title": "Character Level", "description": "Manage character power levels" },
+    "skill": { "title": "Skill Level", "description": "Manage skill levels" },
+    "tech": { "title": "Tech Level", "description": "Manage technology levels" },
     "name": "Level Name",
     "desc": "Description",
     "order": "Order",
-    "range": "Numeric Range",
+    "range": "Range",
     "new": "New Level",
     "edit": "Edit Level",
     "delete": "Delete Level",
-    "save": "Save Level",
-    "cancel": "Cancel",
-    "confirmDelete": "Are you sure you want to delete this level? This action cannot be undone.",
-    "empty": "No level data yet. Click the button above to create"
+    "save": "Save",
+    "confirmDelete": "Delete this level? This cannot be undone.",
+    "empty": "No levels yet. Click button to create."
   },
 
   "catalog": {
-    "item": {
-      "title": "Item Catalog",
-      "description": "Manage items in the world"
-    },
-    "skill": {
-      "title": "Skill Catalog",
-      "description": "Manage skills and techniques"
-    }
-  },
-
-  "world": {
-    "location": {
-      "title": "Locations",
-      "description": "Manage world map and locations"
-    },
-    "creature": {
-      "title": "Bestiary",
-      "description": "Manage creatures and monsters"
-    }
+    "item": { "title": "Item Catalog", "description": "Manage world items" },
+    "skill": { "title": "Skill Catalog", "description": "Manage skills" }
   },
 
   "genre": {
-    "title": "Genre Management",
-    "description": "Manage supported novel genres",
+    "title": "Genre",
+    "description": "Manage supported genres",
     "name": "Genre Name",
-    "slug": "Genre Slug",
+    "slug": "Slug",
     "desc": "Description",
     "aliases": "Aliases",
     "elements": "Typical Elements",
     "new": "New Genre",
     "edit": "Edit Genre",
     "delete": "Delete Genre",
-    "empty": "No genre data yet"
+    "empty": "No genres yet"
   },
 
   "category": {
-    "title": "Category Management",
-    "description": "Manage worldbuilding category system",
+    "title": "Category",
+    "description": "Manage setting categories",
     "name": "Category Name",
-    "slug": "Category Slug",
+    "slug": "Slug",
     "icon": "Icon",
     "desc": "Description",
-    "typeDesc": "Type Description",
     "isStandard": "System Category",
     "new": "New Category",
     "edit": "Edit Category",
     "delete": "Delete Category",
-    "cannotDeleteStandard": "System categories cannot be deleted",
-    "empty": "No category data yet"
+    "cannotDeleteStandard": "Cannot delete system category",
+    "empty": "No categories yet"
   },
 
   "binding": {
-    "title": "Genre Binding",
-    "description": "Configure genre-category binding relationships",
+    "title": "Binding",
+    "description": "Configure genre-category bindings",
     "genre": "Genre",
     "category": "Category",
     "isRequired": "Required",
     "priority": "Priority",
-    "save": "Save Bindings",
+    "save": "Save",
     "matrix": "Binding Matrix"
   },
 
   "knowledge": {
-    "pack": {
-      "title": "Knowledge Pack",
-      "description": "Configure knowledge categories for project"
-    }
-  },
-
-  "story": {
-    "canon": {
-      "title": "Canon Documents",
-      "description": "Manage world setting documents"
-    },
-    "entities": {
-      "title": "Entity Management",
-      "description": "Manage characters, locations, factions, etc."
-    },
-    "rules": {
-      "title": "Writing Rules",
-      "description": "Manage writing constraints and rules"
-    },
-    "volumes": {
-      "title": "Volume Management",
-      "description": "Manage novel volume and chapter structure"
-    },
-    "threads": {
-      "title": "Plot Threads",
-      "description": "Manage plot threads and progress"
-    },
-    "foreshadowing": {
-      "title": "Foreshadowing",
-      "description": "Manage foreshadowing planting and payoff"
-    }
+    "pack": { "title": "Knowledge Pack", "description": "Configure knowledge categories for project" }
   },
 
   "system": {
-    "health": {
-      "title": "System Health",
-      "description": "View system running status"
-    },
-    "models": {
-      "title": "Model Config",
-      "description": "Configure AI models and routing"
-    },
-    "users": {
-      "title": "User Management",
-      "description": "Manage system users and permissions"
-    }
+    "health": { "title": "System Health", "description": "View system status" },
+    "models": { "title": "Model Config", "description": "Configure AI models" },
+    "users": { "title": "Users", "description": "Manage users" }
   },
 
   "common": {
@@ -170,23 +168,16 @@
     "refresh": "Refresh",
     "loading": "Loading...",
     "saving": "Saving...",
-    "deleting": "Deleting...",
     "success": "Success",
     "error": "Error",
-    "warning": "Warning",
-    "info": "Info",
-    "confirmDelete": "Are you sure you want to delete? This action cannot be undone.",
+    "confirmDelete": "Delete? This cannot be undone.",
     "noData": "No data",
-    "loadMore": "Load More",
-    "viewAll": "View All",
     "actions": "Actions",
     "status": "Status",
     "name": "Name",
     "description": "Description",
-    "createdAt": "Created At",
-    "updatedAt": "Updated At",
-    "required": "Required",
-    "optional": "Optional"
+    "createdAt": "Created",
+    "updatedAt": "Updated"
   },
 
   "workspace": {
@@ -202,21 +193,10 @@
     "none": "No Project Selected"
   },
 
-  "validation": {
-    "required": "This field is required",
-    "minLength": "Length must be at least {min} characters",
-    "maxLength": "Length must not exceed {max} characters",
-    "pattern": "Invalid format",
-    "unique": "This value already exists"
-  },
-
   "error": {
-    "loadFailed": "Failed to load",
-    "saveFailed": "Failed to save",
-    "deleteFailed": "Failed to delete",
-    "networkError": "Network error, please check connection",
-    "unauthorized": "Unauthorized, please login again",
-    "forbidden": "No permission to perform this action",
-    "notFound": "Requested resource not found"
+    "loadFailed": "Load failed",
+    "saveFailed": "Save failed",
+    "deleteFailed": "Delete failed",
+    "networkError": "Network error"
   }
 }

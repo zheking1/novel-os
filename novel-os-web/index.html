@@ -59,11 +59,11 @@
         </div>
         
         <div class="flex items-center gap-4">
-          <select id="workspace-select" class="text-sm border border-gray-300 rounded px-3 py-1.5">
-            <option>加载中...</option>
+          <select id="workspace-select" onchange="handleWorkspaceChange(this.value)" class="text-sm border border-gray-300 rounded px-3 py-1.5">
+            <option value="">加载中...</option>
           </select>
-          <select id="project-select" class="text-sm border border-gray-300 rounded px-3 py-1.5">
-            <option>选择项目</option>
+          <select id="project-select" onchange="handleProjectChange(this.value)" class="text-sm border border-gray-300 rounded px-3 py-1.5">
+            <option value="">选择项目</option>
           </select>
           
           <!-- 语言切换按钮 -->
@@ -200,26 +200,40 @@
     // 使用全局t()函数渲染菜单
     function renderMenu() {
       const menu = window.MenuManager.getMenu({
-        t: window.t // 使用i18n的翻译函数
+        project: window.AppState.currentProject,
+        t: window.t
       });
       
-      const menuHtml = menu.map(group => `
-        <div class="mb-2">
-          <div class="px-3 py-2 text-xs font-semibold text-gray-500 uppercase">${group.label}</div>
-          ${group.items.map(item => `
-            <a href="#${item.path}" 
-               class="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-gray-600 hover:bg-gray-100 transition-colors"
-               onclick="handleMenuClick('${item.id}', '${item.path}')">
-              <span>${item.icon}</span>
-              <span>${item.label}</span>
-            </a>
-          `).join('')}
+      const menuHtml = menu.map(section => `
+        <div class="mb-1">
+          <div class="flex items-center gap-2 px-3 py-2 cursor-pointer hover:bg-gray-100 rounded-lg transition-colors"
+               onclick="MenuManager.toggleSection('${section.id}')">
+            <span>${section.icon}</span>
+            <span class="font-semibold text-gray-700 text-sm">${section.label}</span>
+            <span class="ml-auto text-xs text-gray-400">${section.isExpanded ? '▼' : '▶'}</span>
+          </div>
+          ${section.isExpanded ? section.groups.map(group => `
+            <div class="ml-2 mb-1">
+              <div class="flex items-center gap-2 px-3 py-1.5 cursor-pointer hover:bg-gray-50 rounded transition-colors"
+                   onclick="MenuManager.toggleGroup('${group.id}')">
+                <span class="text-xs">${group.icon}</span>
+                <span class="text-xs font-medium text-gray-500">${group.label}</span>
+                <span class="ml-auto text-xs text-gray-300">${group.isExpanded ? '▾' : '▸'}</span>
+              </div>
+              ${group.isExpanded ? group.items.map(item => `
+                <a href="#${item.path}"
+                   class="flex items-center gap-2 pl-8 pr-3 py-1.5 rounded text-sm transition-colors ${item.isActive ? 'bg-blue-50 text-blue-600 font-medium' : 'text-gray-600 hover:bg-gray-50'}"
+                   onclick="handleMenuClick('${item.id}', '${item.path}')">
+                  <span class="text-xs">${item.icon}</span>
+                  <span>${item.label}</span>
+                </a>
+              `).join('') : ''}
+            </div>
+          `).join('') : ''}
         </div>
       `).join('');
       
       document.getElementById('main-menu').innerHTML = menuHtml;
-      
-      // 更新页面标题
       document.querySelector('title').textContent = t('app.name');
     }
 
@@ -232,6 +246,55 @@
         `;
       } else {
         wsSelect.innerHTML = `<option value="">${t('workspace.select')}</option>`;
+      }
+    }
+
+    async function handleWorkspaceChange(workspaceSlug) {
+      console.log('[App] Workspace changed:', workspaceSlug);
+      window.AppState.currentWorkspace = workspaceSlug;
+      window.AppState.currentProject = null;
+      
+      // 清空项目选择器
+      const projectSelect = document.getElementById('project-select');
+      projectSelect.innerHTML = `<option value="">${t('common.loading')}</option>`;
+      
+      if (!workspaceSlug) {
+        projectSelect.innerHTML = `<option value="">${t('project.select')}</option>`;
+        return;
+      }
+      
+      try {
+        const projects = await window.ApiClient.project.list(workspaceSlug, { showLoading: false });
+        console.log('[App] Projects loaded:', projects?.length || 0);
+        
+        if (projects && projects.length > 0) {
+          projectSelect.innerHTML = `
+            <option value="">${t('project.select')}</option>
+            ${projects.map(p => `<option value="${p.slug}">${p.title || p.name || p.slug}</option>`).join('')}
+          `;
+        } else {
+          projectSelect.innerHTML = `<option value="">${t('project.none')}</option>`;
+        }
+      } catch (error) {
+        console.error('[App] Failed to load projects:', error);
+        projectSelect.innerHTML = `<option value="">${t('error.loadFailed')}</option>`;
+      }
+      
+      // 重新渲染菜单（可能需要显示/隐藏需要项目的菜单项）
+      renderMenu();
+    }
+
+    function handleProjectChange(projectSlug) {
+      console.log('[App] Project changed:', projectSlug);
+      window.AppState.currentProject = projectSlug;
+      
+      // 重新渲染菜单
+      renderMenu();
+      
+      // 如果当前有打开的页面，重新加载
+      const currentPage = window.MenuManager.state.currentPage;
+      if (currentPage) {
+        navigateToPage(currentPage);
       }
     }
 
@@ -273,6 +336,10 @@
         breadcrumb.innerHTML = `
           <a href="/" class="hover:text-primary-600">${t('nav.home')}</a>
           <span class="mx-2">/</span>
+          <span class="text-gray-500">${t(pageInfo.sectionLabel)}</span>
+          <span class="mx-2">/</span>
+          <span class="text-gray-500">${t(pageInfo.groupLabel)}</span>
+          <span class="mx-2">/</span>
           <span class="text-gray-800">${t(pageInfo.labelKey)}</span>
         `;
       }
@@ -290,65 +357,170 @@
     function navigateToPage(pageId) {
       const contentArea = document.getElementById('content-area');
       
-      // 根据页面ID初始化对应组件
       switch (pageId) {
-        case 'level-item':
-          window.LevelManager.init({
-            type: 'item-level',
-            title: t('level.item.title'),
-            description: t('level.item.description')
-          });
+        // ===== 项目管理 - 设定 =====
+        case 'canon-list':
+          window.CanonListPage?.init() || showPlaceholder(t('nav.canonList'));
+          break;
+        case 'entities-list':
+          window.EntitiesListPage?.init() || showPlaceholder(t('nav.entityList'));
+          break;
+        case 'rules-list':
+          window.RulesListPage?.init() || showPlaceholder(t('nav.rulesList'));
+          break;
+        case 'graph-view':
+          window.GraphViewPage?.init() || showPlaceholder(t('nav.graphView'));
           break;
           
-        case 'level-character':
-          window.LevelManager.init({
-            type: 'character-level',
-            title: t('level.character.title'),
-            description: t('level.character.description')
-          });
+        // ===== 项目管理 - 剧情 =====
+        case 'plot-volumes':
+          window.PlotVolumesPage?.init() || showPlaceholder(t('nav.volumes'));
+          break;
+        case 'plot-threads':
+          window.PlotThreadsPage?.init() || showPlaceholder(t('nav.threads'));
+          break;
+        case 'foreshadowing-list':
+          window.ForeshadowingListPage?.init() || showPlaceholder(t('nav.foreshadowList'));
           break;
           
-        case 'level-skill':
-          window.LevelManager.init({
-            type: 'skill-level',
-            title: t('level.skill.title'),
-            description: t('level.skill.description')
-          });
+        // ===== 项目管理 - 生成 =====
+        case 'context-preview':
+          window.ContextPreviewPage?.init() || showPlaceholder(t('nav.contextPreview'));
+          break;
+        case 'review-tasks':
+          window.ReviewTasksPage?.init() || showPlaceholder(t('nav.reviewTasks'));
+          break;
+        case 'compliance':
+          window.CompliancePage?.init() || showPlaceholder(t('nav.compliance'));
+          break;
+        case 'pipeline':
+          window.PipelinePage?.init() || showPlaceholder(t('nav.pipeline'));
+          break;
+        case 'chapters':
+          window.ChaptersPage?.init() || showPlaceholder(t('nav.chapters'));
           break;
           
-        case 'level-tech':
-          window.LevelManager.init({
-            type: 'tech-level',
-            title: t('level.tech.title'),
-            description: t('level.tech.description')
-          });
+        // ===== 项目管理 - 项目知识 =====
+        case 'project-world-rules':
+          window.ProjectWorldRulesPage?.init() || showPlaceholder(t('nav.worldRules'));
+          break;
+        case 'project-characters':
+          window.ProjectCharactersPage?.init() || showPlaceholder(t('nav.characters'));
+          break;
+        case 'project-factions':
+          window.ProjectFactionsPage?.init() || showPlaceholder(t('nav.factions'));
+          break;
+        case 'project-world-state':
+          window.ProjectWorldStatePage?.init() || showPlaceholder(t('nav.worldState'));
           break;
           
+        // ===== 项目管理 - 本地 =====
+        case 'knowledge-pack':
+          window.KnowledgePackPage?.init() || showPlaceholder(t('nav.knowledgePack'));
+          break;
+        case 'local-projects':
+          window.LocalProjectsPage?.init() || showPlaceholder(t('nav.localProjects'));
+          break;
+        case 'local-chapters':
+          window.LocalChaptersPage?.init() || showPlaceholder(t('nav.localChapters'));
+          break;
+        case 'local-pipeline':
+          window.LocalPipelinePage?.init() || showPlaceholder(t('nav.localPipeline'));
+          break;
+          
+        // ===== 知识库 =====
+        case 'uk-manage':
+          window.UkManagePage?.init() || showPlaceholder(t('nav.ukManage'));
+          break;
+        case 'auto-search':
+          window.AutoSearchPage?.init() || showPlaceholder(t('nav.autoSearch'));
+          break;
+        case 'knowledge-graph':
+          window.KnowledgeGraphPage?.init() || showPlaceholder(t('nav.knowledgeGraph'));
+          break;
+        case 'knowledge-stats':
+          window.KnowledgeStatsPage?.init() || showPlaceholder(t('nav.knowledgeStats'));
+          break;
         case 'genre-manage':
           window.GenreManager.init();
           break;
-          
         case 'category-manage':
           window.CategoryManager.init();
           break;
-          
         case 'binding-matrix':
           window.BindingMatrixManager.init();
           break;
+        case 'knowledge-review':
+          window.KnowledgeReviewPage?.init() || showPlaceholder(t('nav.knowledgeReview'));
+          break;
+        case 'knowledge-expiry':
+          window.KnowledgeExpiryPage?.init() || showPlaceholder(t('nav.knowledgeExpiry'));
+          break;
           
-        case 'system-health':
+        // ===== 系统管理 =====
+        case 'model-profiles':
+          window.ModelProfilesPage?.init() || showPlaceholder(t('nav.modelProfiles'));
+          break;
+        case 'model-cost':
+          window.ModelCostPage?.init() || showPlaceholder(t('nav.costReport'));
+          break;
+        case 'template-list':
+          window.TemplateListPage?.init() || showPlaceholder(t('nav.templateList'));
+          break;
+        case 'market-browse':
+          window.MarketBrowsePage?.init() || showPlaceholder(t('nav.marketBrowse'));
+          break;
+        case 'skill-manage':
+          window.SkillManagePage?.init() || showPlaceholder(t('nav.skillManage'));
+          break;
+        case 'sync-status':
+          window.SyncStatusPage?.init() || showPlaceholder(t('nav.syncStatus'));
+          break;
+        case 'sync-conflicts':
+          window.SyncConflictsPage?.init() || showPlaceholder(t('nav.syncConflicts'));
+          break;
+        case 'audit-logs':
+          window.AuditLogsPage?.init() || showPlaceholder(t('nav.auditLogs'));
+          break;
+        case 'offline-status':
+          window.OfflineStatusPage?.init() || showPlaceholder(t('nav.offlineStatus'));
+          break;
+        case 'sys-health':
           window.HealthPage.init();
+          break;
+        case 'sys-cache':
+          window.SysCachePage?.init() || showPlaceholder(t('nav.sysCache'));
+          break;
+        case 'sys-backup':
+          window.SysBackupPage?.init() || showPlaceholder(t('nav.sysBackup'));
+          break;
+        case 'system-connection':
+          window.ConnectionPage?.init() || showPlaceholder(t('nav.connection'));
+          break;
+        case 'system-account':
+          window.AccountPage?.init() || showPlaceholder(t('nav.account'));
+          break;
+        case 'system-users':
+          window.UsersPage?.init() || showPlaceholder(t('nav.users'));
+          break;
+        case 'system-debug':
+          window.DebugPage?.init() || showPlaceholder(t('nav.debug'));
           break;
           
         default:
-          // 默认首页
-          contentArea.innerHTML = `
-            <div class="bg-white rounded-lg shadow p-8 text-center">
-              <h1 class="text-2xl font-bold text-gray-800 mb-4">欢迎使用 Novel OS</h1>
-              <p class="text-gray-600">基础框架已搭建完成</p>
-            </div>
-          `;
+          showPlaceholder(t('nav.home'));
       }
+    }
+
+    function showPlaceholder(title) {
+      const contentArea = document.getElementById('content-area');
+      contentArea.innerHTML = `
+        <div class="bg-white rounded-lg shadow p-8 text-center">
+          <div class="text-4xl mb-4">🚧</div>
+          <h1 class="text-2xl font-bold text-gray-800 mb-2">${title}</h1>
+          <p class="text-gray-500">此页面正在开发中...</p>
+        </div>
+      `;
     }
 
     async function testApi() {
