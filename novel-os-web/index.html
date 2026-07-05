@@ -563,8 +563,11 @@
   </div>
 
   <!-- Scripts -->
-  <!-- Alpine.js with manual start -->
-  <script defer src="js/alpine.min.js" data-alpine-wait></script>
+  <!-- Prevent Alpine.js from auto-starting -->
+  <script>
+    window.Alpine = { start: false };
+  </script>
+  <script defer src="js/alpine.min.js"></script>
 
   <!-- Core Modules -->
   <script defer src="js/app.js"></script>
