@@ -361,10 +361,7 @@
         this.state.expandedSections.add(sectionId);
       }
       this.saveState();
-
-      window.dispatchEvent(new CustomEvent('menu:section-toggled', {
-        detail: { sectionId, expanded: this.state.expandedSections.has(sectionId) }
-      }));
+      this.render();
     },
 
     /**
@@ -377,10 +374,14 @@
         this.state.expandedGroups.add(groupId);
       }
       this.saveState();
+      this.render();
+    },
 
-      window.dispatchEvent(new CustomEvent('menu:group-toggled', {
-        detail: { groupId, expanded: this.state.expandedGroups.has(groupId) }
-      }));
+    /**
+     * 重新渲染菜单
+     */
+    render() {
+      window.dispatchEvent(new CustomEvent('menu:changed'));
     },
 
     /**

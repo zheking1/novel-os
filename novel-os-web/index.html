@@ -657,6 +657,11 @@
       }
     });
 
+    // 监听菜单变更事件
+    window.addEventListener('menu:changed', () => {
+      renderMenu();
+    });
+
     // 监听语言变更事件
     window.addEventListener('i18n:changed', (e) => {
       renderMenu();
