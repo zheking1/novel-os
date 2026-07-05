@@ -376,7 +376,7 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_GET(self) -> None:
         # Static file serving
-        if self.path.startswith(("/js/", "/css/")):
+        if self.path.startswith(("/js/", "/css/", "/i18n/")):
             self.serve_static()
             return
         if self.path == "/spa":
