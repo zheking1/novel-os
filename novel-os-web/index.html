@@ -563,32 +563,33 @@
   </div>
 
   <!-- Scripts -->
-  <script defer src="js/alpine.min.js"></script>
+  <!-- Alpine.js with manual start -->
+  <script defer src="js/alpine.min.js" data-alpine-wait></script>
 
-  <!-- Core Modules (defer to ensure Alpine loads first) -->
+  <!-- Core Modules -->
   <script defer src="js/app.js"></script>
   <script defer src="js/core/api-wrapper.js"></script>
   <script defer src="js/core/store.js"></script>
   <script defer src="js/core/router.js"></script>
   <script defer src="js/core/i18n.js"></script>
 
-  <!-- Components (defer) -->
+  <!-- Components -->
   <script defer src="js/components/toast-container.js"></script>
   <script defer src="js/components/data-table.js"></script>
   <script defer src="js/components/modal-dialog.js"></script>
   <script defer src="js/components/form-builder.js"></script>
   <script defer src="js/components/loading-overlay.js"></script>
 
-  <!-- Page Components -->
-  <script defer>
+  <!-- Page Components - Load synchronously before Alpine starts -->
+  <script>
     // Wait for all deferred scripts to load
     function waitForModules() {
       return new Promise((resolve) => {
         const check = () => {
-          if (window.apiClient && window.i18n && window.router && Alpine) {
+          if (window.apiClient && window.i18n && window.router && window.Alpine) {
             resolve();
           } else {
-            setTimeout(check, 100);
+            setTimeout(check, 50);
           }
         };
         check();
@@ -603,17 +604,29 @@
       return window.apiClient;
     }
 
-    // Initialize after DOM and scripts are ready
-    document.addEventListener('DOMContentLoaded', async () => {
-      // Wait for all modules to be available
+    // Register all components and start Alpine
+    async function initApp() {
+      // Wait for all modules
       await waitForModules();
 
       // Initialize i18n
       await window.i18n.init('zh');
 
-      // Register Alpine components
+      // Register all Alpine components
       registerComponents();
-    });
+
+      // Manually start Alpine after components are registered
+      if (window.Alpine && window.Alpine.start) {
+        window.Alpine.start();
+      }
+    }
+
+    // Start initialization when DOM is ready
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', initApp);
+    } else {
+      initApp();
+    }
 
     function registerComponents() {
 
