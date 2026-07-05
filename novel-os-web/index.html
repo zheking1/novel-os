@@ -565,22 +565,30 @@
   <!-- Scripts -->
   <script defer src="js/alpine.min.js"></script>
 
-  <!-- Core Modules -->
-  <script src="js/app.js"></script>
-  <script src="js/core/api-wrapper.js"></script>
-  <script src="js/core/store.js"></script>
-  <script src="js/core/router.js"></script>
-  <script src="js/core/i18n.js"></script>
+  <!-- Core Modules (defer to ensure Alpine loads first) -->
+  <script defer src="js/app.js"></script>
+  <script defer src="js/core/api-wrapper.js"></script>
+  <script defer src="js/core/store.js"></script>
+  <script defer src="js/core/router.js"></script>
+  <script defer src="js/core/i18n.js"></script>
 
-  <!-- Components -->
-  <script src="js/components/toast-container.js"></script>
-  <script src="js/components/data-table.js"></script>
-  <script src="js/components/modal-dialog.js"></script>
-  <script src="js/components/form-builder.js"></script>
-  <script src="js/components/loading-overlay.js"></script>
+  <!-- Components (defer) -->
+  <script defer src="js/components/toast-container.js"></script>
+  <script defer src="js/components/data-table.js"></script>
+  <script defer src="js/components/modal-dialog.js"></script>
+  <script defer src="js/components/form-builder.js"></script>
+  <script defer src="js/components/loading-overlay.js"></script>
 
   <!-- Page Components -->
   <script>
+    // Helper to safely access apiClient
+    function getApiClient() {
+      if (!window.apiClient) {
+        throw new Error('apiClient not initialized. Please wait for scripts to load.');
+      }
+      return window.apiClient;
+    }
+
     // App Shell
     document.addEventListener('alpine:init', () => {
 
@@ -608,6 +616,17 @@
          * 初始化
          */
         async init() {
+          // 等待apiClient就绪
+          let retries = 0;
+          while (!window.apiClient && retries < 50) {
+            await new Promise(r => setTimeout(r, 100));
+            retries++;
+          }
+          if (!window.apiClient) {
+            console.error('apiClient failed to load after 5 seconds');
+            return;
+          }
+
           // 初始化i18n
           await window.i18n.init('zh');
           this.currentLang = window.i18n.getCurrentLang();
@@ -640,7 +659,7 @@
          */
         async loadWorkspaces() {
           try {
-            this.workspaces = await window.apiClient.workspace.list({ showLoading: false });
+            this.workspaces = await getApiClient().workspace.list({ showLoading: false });
             if (this.workspaces.length > 0) {
               this.workspace = this.workspaces[0].slug;
               await this.loadProjects();
@@ -656,7 +675,7 @@
         async loadProjects() {
           if (!this.workspace) return;
           try {
-            this.projects = await window.apiClient.project.list(this.workspace, { showLoading: false });
+            this.projects = await getApiClient().project.list(this.workspace, { showLoading: false });
             if (this.projects.length > 0 && !this.project) {
               this.project = this.projects[0].slug;
             }
@@ -752,7 +771,7 @@
         async loadCategory() {
           const ws = Alpine.store('app')?.workspace || 'default';
           try {
-            const cat = await window.apiClient.setting.get(ws, 'item-level', { showLoading: false });
+            const cat = await getApiClient().setting.get(ws, 'item-level', { showLoading: false });
             this.categoryId = cat?.id || cat?.result?.id;
           } catch (error) {
             console.error('Failed to load category:', error);
@@ -763,7 +782,7 @@
           if (!this.categoryId) return;
           const ws = Alpine.store('app')?.workspace || 'default';
           try {
-            this.levels = await window.apiClient.item.list(ws, this.categoryId, { showLoading: false });
+            this.levels = await getApiClient().item.list(ws, this.categoryId, { showLoading: false });
           } catch (error) {
             console.error('Failed to load levels:', error);
             window.showToast('error', '加载失败', error.message);
@@ -799,7 +818,7 @@
 
           const ws = Alpine.store('app')?.workspace || 'default';
           try {
-            await window.apiClient.item.upsert(ws, {
+            await getApiClient().item.upsert(ws, {
               category_id: this.categoryId,
               core_summary: this.form.name,
               detailed_expansion: this.form.desc,
@@ -823,7 +842,7 @@
 
           const ws = Alpine.store('app')?.workspace || 'default';
           try {
-            await window.apiClient.item.delete(ws, level.id);
+            await getApiClient().item.delete(ws, level.id);
             window.showToast('success', '删除成功');
             await this.load();
           } catch (error) {
@@ -840,12 +859,22 @@
         form: { slug: '', name: '', description: '', aliases: '', elements: '' },
 
         async init() {
+          // 等待apiClient就绪
+          let retries = 0;
+          while (!window.apiClient && retries < 50) {
+            await new Promise(r => setTimeout(r, 100));
+            retries++;
+          }
+          if (!window.apiClient) {
+            console.error('apiClient failed to load after 5 seconds');
+            return;
+          }
           await this.load();
         },
 
         async load() {
           try {
-            this.genres = await window.apiClient.genre.list({ showLoading: false });
+            this.genres = await getApiClient().genre.list({ showLoading: false });
           } catch (error) {
             console.error('Failed to load genres:', error);
             window.showToast('error', '加载失败', error.message);
@@ -880,7 +909,7 @@
           }
 
           try {
-            await window.apiClient.genre.upsert({
+            await getApiClient().genre.upsert({
               slug: this.form.slug,
               name: this.form.name,
               description: this.form.description,
@@ -902,7 +931,7 @@
           if (!confirm(`确定删除 "${slug}" 吗？`)) return;
 
           try {
-            await window.apiClient.genre.delete(slug);
+            await getApiClient().genre.delete(slug);
             window.showToast('success', '删除成功');
             await this.load();
           } catch (error) {
@@ -919,13 +948,23 @@
         form: { slug: '', name: '', icon: '📁', description: '', typeDesc: '' },
 
         async init() {
+          // 等待apiClient就绪
+          let retries = 0;
+          while (!window.apiClient && retries < 50) {
+            await new Promise(r => setTimeout(r, 100));
+            retries++;
+          }
+          if (!window.apiClient) {
+            console.error('apiClient failed to load after 5 seconds');
+            return;
+          }
           await this.load();
         },
 
         async load() {
           const ws = Alpine.store('app')?.workspace || 'default';
           try {
-            this.categories = await window.apiClient.setting.list(ws, { showLoading: false });
+            this.categories = await getApiClient().setting.list(ws, { showLoading: false });
           } catch (error) {
             console.error('Failed to load categories:', error);
             window.showToast('error', '加载失败', error.message);
@@ -961,7 +1000,7 @@
 
           const ws = Alpine.store('app')?.workspace || 'default';
           try {
-            await window.apiClient.setting.upsert(ws, {
+            await getApiClient().setting.upsert(ws, {
               slug: this.form.slug,
               name: this.form.name,
               icon: this.form.icon,
@@ -988,7 +1027,7 @@
 
           const ws = Alpine.store('app')?.workspace || 'default';
           try {
-            await window.apiClient.setting.delete(ws, cat.id);
+            await getApiClient().setting.delete(ws, cat.id);
             window.showToast('success', '删除成功');
             await this.load();
           } catch (error) {
