@@ -1,0 +1,222 @@
+{
+  "app": {
+    "name": "Novel OS",
+    "slogan": "智能小说创作平台"
+  },
+
+  "nav": {
+    "home": "首页",
+    "worldbuilding": "世界设定",
+    "knowledge": "知识管理",
+    "story": "故事设定",
+    "generation": "生成管理",
+    "review": "审核管理",
+    "system": "系统管理"
+  },
+
+  "level": {
+    "item": {
+      "title": "物品等级",
+      "description": "管理物品的品质等级体系"
+    },
+    "character": {
+      "title": "人物等级",
+      "description": "管理角色的实力等级体系"
+    },
+    "skill": {
+      "title": "技能等级",
+      "description": "管理技能功法的等级体系"
+    },
+    "tech": {
+      "title": "科技等级",
+      "description": "管理科技/文明的等级体系"
+    },
+    "name": "等级名称",
+    "desc": "等级描述",
+    "order": "排序",
+    "range": "数值范围",
+    "new": "新建等级",
+    "edit": "编辑等级",
+    "delete": "删除等级",
+    "save": "保存等级",
+    "cancel": "取消",
+    "confirmDelete": "确定删除此等级吗？此操作不可恢复。",
+    "empty": "暂无等级数据，点击上方按钮创建"
+  },
+
+  "catalog": {
+    "item": {
+      "title": "物品图鉴",
+      "description": "管理世界中的物品数据"
+    },
+    "skill": {
+      "title": "技能图鉴",
+      "description": "管理技能功法的数据"
+    }
+  },
+
+  "world": {
+    "location": {
+      "title": "地图地点",
+      "description": "管理世界地图和地点信息"
+    },
+    "creature": {
+      "title": "生物图鉴",
+      "description": "管理生物和怪物数据"
+    }
+  },
+
+  "genre": {
+    "title": "小说类型",
+    "description": "管理系统支持的小说类型",
+    "name": "类型名称",
+    "slug": "类型标识",
+    "desc": "类型描述",
+    "aliases": "别名",
+    "elements": "典型元素",
+    "new": "新建类型",
+    "edit": "编辑类型",
+    "delete": "删除类型",
+    "empty": "暂无类型数据"
+  },
+
+  "category": {
+    "title": "分类管理",
+    "description": "管理世界设定的分类体系",
+    "name": "分类名称",
+    "slug": "分类标识",
+    "icon": "图标",
+    "desc": "分类描述",
+    "typeDesc": "类型描述",
+    "isStandard": "系统分类",
+    "new": "新建分类",
+    "edit": "编辑分类",
+    "delete": "删除分类",
+    "cannotDeleteStandard": "系统分类不可删除",
+    "empty": "暂无分类数据"
+  },
+
+  "binding": {
+    "title": "类型绑定",
+    "description": "配置小说类型与分类的绑定关系",
+    "genre": "小说类型",
+    "category": "分类",
+    "isRequired": "必需",
+    "priority": "优先级",
+    "save": "保存绑定",
+    "matrix": "绑定矩阵"
+  },
+
+  "knowledge": {
+    "pack": {
+      "title": "知识包",
+      "description": "配置项目使用的知识分类"
+    }
+  },
+
+  "story": {
+    "canon": {
+      "title": "Canon文档",
+      "description": "管理世界观设定文档"
+    },
+    "entities": {
+      "title": "实体管理",
+      "description": "管理角色、地点、势力等实体"
+    },
+    "rules": {
+      "title": "创作规则",
+      "description": "管理创作约束和规则"
+    },
+    "volumes": {
+      "title": "卷管理",
+      "description": "管理小说卷章结构"
+    },
+    "threads": {
+      "title": "情节线",
+      "description": "管理情节线索和进度"
+    },
+    "foreshadowing": {
+      "title": "伏笔管理",
+      "description": "管理伏笔的埋设和回收"
+    }
+  },
+
+  "system": {
+    "health": {
+      "title": "系统健康",
+      "description": "查看系统运行状态"
+    },
+    "models": {
+      "title": "模型配置",
+      "description": "配置AI模型和路由"
+    },
+    "users": {
+      "title": "用户管理",
+      "description": "管理系统用户和权限"
+    }
+  },
+
+  "common": {
+    "save": "保存",
+    "cancel": "取消",
+    "confirm": "确认",
+    "delete": "删除",
+    "edit": "编辑",
+    "create": "创建",
+    "new": "新建",
+    "close": "关闭",
+    "search": "搜索",
+    "filter": "筛选",
+    "refresh": "刷新",
+    "loading": "加载中...",
+    "saving": "保存中...",
+    "deleting": "删除中...",
+    "success": "操作成功",
+    "error": "操作失败",
+    "warning": "警告",
+    "info": "提示",
+    "confirmDelete": "确定要删除吗？此操作不可恢复。",
+    "noData": "暂无数据",
+    "loadMore": "加载更多",
+    "viewAll": "查看全部",
+    "actions": "操作",
+    "status": "状态",
+    "name": "名称",
+    "description": "描述",
+    "createdAt": "创建时间",
+    "updatedAt": "更新时间",
+    "required": "必填",
+    "optional": "可选"
+  },
+
+  "workspace": {
+    "select": "选择工作区",
+    "current": "当前工作区",
+    "switch": "切换工作区"
+  },
+
+  "project": {
+    "select": "选择项目",
+    "current": "当前项目",
+    "switch": "切换项目",
+    "none": "未选择项目"
+  },
+
+  "validation": {
+    "required": "此项为必填",
+    "minLength": "长度不能少于{min}个字符",
+    "maxLength": "长度不能超过{max}个字符",
+    "pattern": "格式不正确",
+    "unique": "此值已存在"
+  },
+
+  "error": {
+    "loadFailed": "加载失败",
+    "saveFailed": "保存失败",
+    "deleteFailed": "删除失败",
+    "networkError": "网络错误，请检查连接",
+    "unauthorized": "未授权，请重新登录",
+    "forbidden": "无权限执行此操作",
+    "notFound": "请求的资源不存在"
+  }
+}

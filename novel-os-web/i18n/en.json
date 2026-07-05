@@ -1,0 +1,222 @@
+{
+  "app": {
+    "name": "Novel OS",
+    "slogan": "Intelligent Novel Creation Platform"
+  },
+
+  "nav": {
+    "home": "Home",
+    "worldbuilding": "Worldbuilding",
+    "knowledge": "Knowledge",
+    "story": "Story",
+    "generation": "Generation",
+    "review": "Review",
+    "system": "System"
+  },
+
+  "level": {
+    "item": {
+      "title": "Item Levels",
+      "description": "Manage item quality level system"
+    },
+    "character": {
+      "title": "Character Levels",
+      "description": "Manage character power level system"
+    },
+    "skill": {
+      "title": "Skill Levels",
+      "description": "Manage skill/technique level system"
+    },
+    "tech": {
+      "title": "Tech Levels",
+      "description": "Manage technology/civilization level system"
+    },
+    "name": "Level Name",
+    "desc": "Description",
+    "order": "Order",
+    "range": "Numeric Range",
+    "new": "New Level",
+    "edit": "Edit Level",
+    "delete": "Delete Level",
+    "save": "Save Level",
+    "cancel": "Cancel",
+    "confirmDelete": "Are you sure you want to delete this level? This action cannot be undone.",
+    "empty": "No level data yet. Click the button above to create"
+  },
+
+  "catalog": {
+    "item": {
+      "title": "Item Catalog",
+      "description": "Manage items in the world"
+    },
+    "skill": {
+      "title": "Skill Catalog",
+      "description": "Manage skills and techniques"
+    }
+  },
+
+  "world": {
+    "location": {
+      "title": "Locations",
+      "description": "Manage world map and locations"
+    },
+    "creature": {
+      "title": "Bestiary",
+      "description": "Manage creatures and monsters"
+    }
+  },
+
+  "genre": {
+    "title": "Genre Management",
+    "description": "Manage supported novel genres",
+    "name": "Genre Name",
+    "slug": "Genre Slug",
+    "desc": "Description",
+    "aliases": "Aliases",
+    "elements": "Typical Elements",
+    "new": "New Genre",
+    "edit": "Edit Genre",
+    "delete": "Delete Genre",
+    "empty": "No genre data yet"
+  },
+
+  "category": {
+    "title": "Category Management",
+    "description": "Manage worldbuilding category system",
+    "name": "Category Name",
+    "slug": "Category Slug",
+    "icon": "Icon",
+    "desc": "Description",
+    "typeDesc": "Type Description",
+    "isStandard": "System Category",
+    "new": "New Category",
+    "edit": "Edit Category",
+    "delete": "Delete Category",
+    "cannotDeleteStandard": "System categories cannot be deleted",
+    "empty": "No category data yet"
+  },
+
+  "binding": {
+    "title": "Genre Binding",
+    "description": "Configure genre-category binding relationships",
+    "genre": "Genre",
+    "category": "Category",
+    "isRequired": "Required",
+    "priority": "Priority",
+    "save": "Save Bindings",
+    "matrix": "Binding Matrix"
+  },
+
+  "knowledge": {
+    "pack": {
+      "title": "Knowledge Pack",
+      "description": "Configure knowledge categories for project"
+    }
+  },
+
+  "story": {
+    "canon": {
+      "title": "Canon Documents",
+      "description": "Manage world setting documents"
+    },
+    "entities": {
+      "title": "Entity Management",
+      "description": "Manage characters, locations, factions, etc."
+    },
+    "rules": {
+      "title": "Writing Rules",
+      "description": "Manage writing constraints and rules"
+    },
+    "volumes": {
+      "title": "Volume Management",
+      "description": "Manage novel volume and chapter structure"
+    },
+    "threads": {
+      "title": "Plot Threads",
+      "description": "Manage plot threads and progress"
+    },
+    "foreshadowing": {
+      "title": "Foreshadowing",
+      "description": "Manage foreshadowing planting and payoff"
+    }
+  },
+
+  "system": {
+    "health": {
+      "title": "System Health",
+      "description": "View system running status"
+    },
+    "models": {
+      "title": "Model Config",
+      "description": "Configure AI models and routing"
+    },
+    "users": {
+      "title": "User Management",
+      "description": "Manage system users and permissions"
+    }
+  },
+
+  "common": {
+    "save": "Save",
+    "cancel": "Cancel",
+    "confirm": "Confirm",
+    "delete": "Delete",
+    "edit": "Edit",
+    "create": "Create",
+    "new": "New",
+    "close": "Close",
+    "search": "Search",
+    "filter": "Filter",
+    "refresh": "Refresh",
+    "loading": "Loading...",
+    "saving": "Saving...",
+    "deleting": "Deleting...",
+    "success": "Success",
+    "error": "Error",
+    "warning": "Warning",
+    "info": "Info",
+    "confirmDelete": "Are you sure you want to delete? This action cannot be undone.",
+    "noData": "No data",
+    "loadMore": "Load More",
+    "viewAll": "View All",
+    "actions": "Actions",
+    "status": "Status",
+    "name": "Name",
+    "description": "Description",
+    "createdAt": "Created At",
+    "updatedAt": "Updated At",
+    "required": "Required",
+    "optional": "Optional"
+  },
+
+  "workspace": {
+    "select": "Select Workspace",
+    "current": "Current Workspace",
+    "switch": "Switch Workspace"
+  },
+
+  "project": {
+    "select": "Select Project",
+    "current": "Current Project",
+    "switch": "Switch Project",
+    "none": "No Project Selected"
+  },
+
+  "validation": {
+    "required": "This field is required",
+    "minLength": "Length must be at least {min} characters",
+    "maxLength": "Length must not exceed {max} characters",
+    "pattern": "Invalid format",
+    "unique": "This value already exists"
+  },
+
+  "error": {
+    "loadFailed": "Failed to load",
+    "saveFailed": "Failed to save",
+    "deleteFailed": "Failed to delete",
+    "networkError": "Network error, please check connection",
+    "unauthorized": "Unauthorized, please login again",
+    "forbidden": "No permission to perform this action",
+    "notFound": "Requested resource not found"
+  }
+}
