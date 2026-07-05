@@ -559,7 +559,8 @@ class Handler(BaseHTTPRequestHandler):
         self.send_json(200, {"ok": True, "result": result})
 
     def serve_static(self) -> None:
-        path = self.path.lstrip("/")
+        # Remove query string if present
+        path = self.path.split("?")[0].lstrip("/")
         filepath = Path(os.environ.get("NOVEL_OS_WEB_ROOT", Path(__file__).parent)) / path
         filepath = filepath.resolve()
         if not str(filepath).startswith(str(Path(__file__).parent.resolve())):
