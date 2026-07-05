@@ -315,6 +315,28 @@
       async delete(slug, options = {}) {
         return ApiClient.callTool('setting.genre.delete', { slug }, options);
       }
+    },
+
+    promptTemplate: {
+      async list(workspace, filters = {}, options = {}) {
+        return ApiClient.callTool('prompt_template.list', { workspace, ...filters }, options);
+      },
+      
+      async get(workspace, templateKey, options = {}) {
+        return ApiClient.callTool('prompt_template.get', { workspace, template_key: templateKey }, options);
+      },
+      
+      async create(workspace, data, options = {}) {
+        return ApiClient.callTool('prompt_template.upsert', { workspace, ...data }, options);
+      },
+      
+      async update(workspace, templateKey, data, options = {}) {
+        return ApiClient.callTool('prompt_template.upsert', { workspace, template_key: templateKey, ...data }, options);
+      },
+      
+      async delete(workspace, templateKey, options = {}) {
+        return ApiClient.callTool('prompt_template.delete', { workspace, template_key: templateKey }, options);
+      }
     }
   };
 
