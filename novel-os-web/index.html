@@ -169,6 +169,24 @@
   <script src="js/pages/project-factions-page.js?v=1"></script>
   <script src="js/pages/project-world-state-page.js?v=1"></script>
   <script src="js/pages/model-profiles-page.js?v=1"></script>
+  <script src="js/pages/kb-pk-list-page.js?v=1"></script>
+  <script src="js/pages/kb-uk-list-page.js?v=1"></script>
+  <script src="js/pages/kb-categories-page.js?v=1"></script>
+  <script src="js/pages/knowledge-graph-page.js?v=1"></script>
+  <script src="js/pages/knowledge-stats-page.js?v=1"></script>
+  <script src="js/pages/knowledge-review-page.js?v=1"></script>
+  <script src="js/pages/knowledge-expiry-page.js?v=1"></script>
+  <script src="js/pages/skill-manage-page.js?v=1"></script>
+  <script src="js/pages/sync-status-page.js?v=1"></script>
+  <script src="js/pages/sync-conflicts-page.js?v=1"></script>
+  <script src="js/pages/audit-logs-page.js?v=1"></script>
+  <script src="js/pages/offline-status-page.js?v=1"></script>
+  <script src="js/pages/sys-cache-page.js?v=1"></script>
+  <script src="js/pages/sys-backup-page.js?v=1"></script>
+  <script src="js/pages/connection-page.js?v=1"></script>
+  <script src="js/pages/account-page.js?v=1"></script>
+  <script src="js/pages/users-page.js?v=1"></script>
+  <script src="js/pages/debug-page.js?v=1"></script>
 
   <!-- 应用初始化 -->
   <script>
@@ -630,6 +648,15 @@
           break;
         case 'knowledge-expiry':
           window.KnowledgeExpiryPage?.init() || showPlaceholder(t('nav.knowledgeExpiry'));
+          break;
+        case 'kb-categories':
+          window.KbCategoriesPage?.init() || showPlaceholder(t('nav.knowledgeCategories'));
+          break;
+        case 'kb-pk':
+          window.KbPkListPage?.init() || showPlaceholder(t('nav.projectKnowledge'));
+          break;
+        case 'kb-uk':
+          window.KbUkListPage?.init() || showPlaceholder(t('nav.ukManage'));
           break;
           
         // ===== 系统管理 =====
