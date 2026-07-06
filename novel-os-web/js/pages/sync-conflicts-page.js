@@ -21,7 +21,7 @@
     async loadData() {
       const container = document.getElementById('conflicts-content');
       try {
-        const conflicts = await window.ApiClient.request('GET', '/api/sync/conflicts').catch(() => []);
+        const conflicts = await window.ApiClient.request('GET', '/sync/conflicts').catch(() => []);
         if (!conflicts || conflicts.length === 0) {
           container.innerHTML = `<div class="p-8 text-center text-gray-500">暂无冲突 🎉</div>`;
           return;
@@ -51,7 +51,7 @@
 
     async resolve(id, action) {
       try {
-        await window.ApiClient.request('POST', `/api/sync/conflicts/${id}/resolve`, { action });
+        await window.ApiClient.request('POST', `/sync/conflicts/${id}/resolve`, { action });
         await this.loadData();
       } catch (e) { alert('解决失败: ' + e.message); }
     }

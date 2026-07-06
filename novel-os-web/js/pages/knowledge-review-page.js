@@ -21,7 +21,7 @@
     async loadData() {
       const container = document.getElementById('review-content');
       try {
-        const reviews = await window.ApiClient.request('GET', '/api/kb/reviews').catch(() => []);
+        const reviews = await window.ApiClient.request('GET', '/kb/reviews').catch(() => []);
         if (!reviews || reviews.length === 0) {
           container.innerHTML = `<div class="p-8 text-center text-gray-500">暂无待审核内容</div>`;
           return;
@@ -51,7 +51,7 @@
 
     async approve(id) {
       try {
-        await window.ApiClient.request('POST', `/api/kb/reviews/${id}/approve`);
+        await window.ApiClient.request('POST', `/kb/reviews/${id}/approve`);
         await this.loadData();
       } catch (e) { alert('操作失败: ' + e.message); }
     },
@@ -60,7 +60,7 @@
       const comment = prompt('拒绝原因:');
       if (comment === null) return;
       try {
-        await window.ApiClient.request('POST', `/api/kb/reviews/${id}/reject`, { comment });
+        await window.ApiClient.request('POST', `/kb/reviews/${id}/reject`, { comment });
         await this.loadData();
       } catch (e) { alert('操作失败: ' + e.message); }
     }

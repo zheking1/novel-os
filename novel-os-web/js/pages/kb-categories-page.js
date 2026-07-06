@@ -77,7 +77,7 @@
     async deleteCategory(id) {
       if (!confirm('确定删除此分类？')) return;
       try {
-        await window.ApiClient.request('DELETE', `/api/kb/categories/${id}`);
+        await window.ApiClient.request('DELETE', `/kb/categories/${id}`);
         await this.loadData();
       } catch (e) {
         alert('删除失败: ' + e.message);
@@ -98,7 +98,7 @@
           const slug = document.getElementById('cat-slug').value;
           const description = document.getElementById('cat-desc').value;
           if (!name) { alert('名称不能为空'); return false; }
-          await window.ApiClient.request('POST', '/api/kb/categories', { name, slug, description });
+          await window.ApiClient.request('POST', '/kb/categories', { name, slug, description });
           await this.loadData();
         }
       });
@@ -110,7 +110,7 @@
         content: `<div><label class="block text-sm font-medium mb-1">名称</label><input id="cat-name-edit" class="w-full border rounded px-3 py-2" /></div>`,
         onConfirm: async () => {
           const name = document.getElementById('cat-name-edit').value;
-          await window.ApiClient.request('PUT', `/api/kb/categories/${id}`, { name });
+          await window.ApiClient.request('PUT', `/kb/categories/${id}`, { name });
           await this.loadData();
         }
       });

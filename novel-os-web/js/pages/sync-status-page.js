@@ -19,7 +19,7 @@
     async loadData() {
       const container = document.getElementById('sync-content');
       try {
-        const status = await window.ApiClient.request('GET', '/api/sync/status').catch(() => ({}));
+        const status = await window.ApiClient.request('GET', '/sync/status').catch(() => ({}));
         container.innerHTML = `
           <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div class="bg-white rounded-lg shadow p-6">
