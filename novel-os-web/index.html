@@ -320,6 +320,18 @@
         // 5. 标记初始化完成
         window.AppState.initialized = true;
         
+        // 6. 读取URL hash并导航到对应页面
+        const hash = window.location.hash.slice(1);
+        if (hash && hash !== '/') {
+          const pageId = pathToPageId(hash);
+          if (pageId) {
+            console.log('[App] Navigating to page from hash:', pageId);
+            window.MenuManager.setCurrentPage(pageId);
+            navigateToPage(pageId);
+            updateBreadcrumb();
+          }
+        }
+        
         console.log('[App] Initialization complete!');
         
       } catch (error) {
@@ -485,10 +497,29 @@
       }
     }
 
+    // 路径 -> 页面ID 映射
+    function pathToPageId(path) {
+      if (!path) return null;
+      const menu = window.MenuManager.getMenu({ project: window.AppState?.currentProject, t: window.t });
+      for (const section of menu) {
+        for (const group of section.groups) {
+          for (const item of group.items) {
+            if (item.path === path) return item.id;
+          }
+        }
+      }
+      return null;
+    }
+
     function handleMenuClick(pageId, path) {
       console.log('[Menu] Clicked:', pageId, path);
       window.MenuManager.setCurrentPage(pageId);
       updateBreadcrumb();
+      
+      // 更新URL hash（不触发hashchange）
+      if (path && window.location.hash !== '#' + path) {
+        history.pushState(null, '', '#' + path);
+      }
       
       // 路由到对应页面
       navigateToPage(pageId);
@@ -692,6 +723,20 @@
         mask.classList.remove('hidden');
       } else {
         mask.classList.add('hidden');
+      }
+    });
+
+    // 监听浏览器前进/后退
+    window.addEventListener('popstate', () => {
+      if (!window.AppState?.initialized) return;
+      const hash = window.location.hash.slice(1);
+      if (hash && hash !== '/') {
+        const pageId = pathToPageId(hash);
+        if (pageId) {
+          window.MenuManager.setCurrentPage(pageId);
+          navigateToPage(pageId);
+          updateBreadcrumb();
+        }
       }
     });
 
