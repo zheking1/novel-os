@@ -70,7 +70,7 @@
 
     async showEntity(id) {
       try {
-        const entity = await window.ApiClient.request(`/api/kb/entities/${id}`);
+        const entity = await window.ApiClient.request('GET', `/api/kb/entities/${id}`);
         window.ModalDialog.show({
           title: entity.name || '实体详情',
           content: `<pre class="text-sm bg-gray-50 p-4 rounded overflow-auto max-h-96">${JSON.stringify(entity, null, 2)}</pre>`,

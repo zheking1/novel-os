@@ -21,7 +21,7 @@
     async loadData() {
       const container = document.getElementById('users-content');
       try {
-        const users = await window.ApiClient.request('/api/users').catch(() => []);
+        const users = await window.ApiClient.request('GET', '/api/users').catch(() => []);
         if (!users || users.length === 0) {
           container.innerHTML = `<div class="p-8 text-center text-gray-500">暂无用户</div>`;
           return;
@@ -68,7 +68,7 @@
           const display_name = document.getElementById('new-displayname').value;
           const password = document.getElementById('new-password').value;
           if (!username) { alert('用户名不能为空'); return false; }
-          await window.ApiClient.request('/api/users', { method: 'POST', body: { username, display_name, password } });
+          await window.ApiClient.request('POST', '/api/users', { username, display_name, password });
           await this.loadData();
         }
       });

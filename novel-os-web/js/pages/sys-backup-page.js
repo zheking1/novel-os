@@ -23,8 +23,8 @@
       const container = document.getElementById('backup-content');
       try {
         const [backups, schedules] = await Promise.all([
-          window.ApiClient.request('/api/backups').catch(() => []),
-          window.ApiClient.request('/api/backups/schedules').catch(() => [])
+          window.ApiClient.request('GET', '/api/backups').catch(() => []),
+          window.ApiClient.request('GET', '/api/backups/schedules').catch(() => [])
         ]);
         container.innerHTML = `
           <div class="bg-white rounded-lg shadow p-6">
@@ -78,7 +78,7 @@
     async createBackup() {
       if (!confirm('确定创建备份？')) return;
       try {
-        await window.ApiClient.request('/api/backups', { method: 'POST', body: { backup_type: 'manual' } });
+        await window.ApiClient.request('POST', '/api/backups', { backup_type: 'manual' });
         alert('备份已创建');
         await this.loadData();
       } catch (e) { alert('创建失败: ' + e.message); }

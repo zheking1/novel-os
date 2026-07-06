@@ -19,7 +19,7 @@
     async loadData() {
       const container = document.getElementById('conn-content');
       try {
-        const health = await window.ApiClient.request('/api/health').catch(() => ({}));
+        const health = await window.ApiClient.request('GET', '/api/health').catch(() => ({}));
         container.innerHTML = `
           <div class="bg-white rounded-lg shadow p-6">
             <div class="flex items-center gap-4 mb-6">

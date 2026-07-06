@@ -21,7 +21,7 @@
     async loadData() {
       const container = document.getElementById('skill-content');
       try {
-        const skills = await window.ApiClient.request('/api/skills').catch(() => []);
+        const skills = await window.ApiClient.request('GET', '/api/skills').catch(() => []);
         if (!skills || skills.length === 0) {
           container.innerHTML = `<div class="p-8 text-center text-gray-500">暂无技能</div>`;
           return;
@@ -49,7 +49,7 @@
 
     async viewSkill(id) {
       try {
-        const skill = await window.ApiClient.request(`/api/skills/${id}`);
+        const skill = await window.ApiClient.request('GET', `/api/skills/${id}`);
         window.ModalDialog.show({
           title: skill.name,
           content: `<pre class="text-sm bg-gray-50 p-4 rounded overflow-auto max-h-96">${JSON.stringify(skill, null, 2)}</pre>`,
@@ -61,7 +61,7 @@
     async deleteSkill(id) {
       if (!confirm('确定删除此技能？')) return;
       try {
-        await window.ApiClient.request(`/api/skills/${id}`, { method: 'DELETE' });
+        await window.ApiClient.request('DELETE', `/api/skills/${id}`);
         await this.loadData();
       } catch (e) { alert('删除失败: ' + e.message); }
     },
@@ -80,7 +80,7 @@
           const description = document.getElementById('skill-desc').value;
           const trigger_words = document.getElementById('skill-triggers').value.split(',').map(s => s.trim()).filter(Boolean);
           if (!name) { alert('名称不能为空'); return false; }
-          await window.ApiClient.request('/api/skills', { method: 'POST', body: { name, description, trigger_words } });
+          await window.ApiClient.request('POST', '/api/skills', { name, description, trigger_words });
           await this.loadData();
         }
       });

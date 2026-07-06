@@ -21,7 +21,7 @@
     async loadData() {
       const container = document.getElementById('expiry-content');
       try {
-        const items = await window.ApiClient.request('/api/kb/expiring').catch(() => []);
+        const items = await window.ApiClient.request('GET', '/api/kb/expiring').catch(() => []);
         if (!items || items.length === 0) {
           container.innerHTML = `<div class="p-8 text-center text-gray-500">暂无即将过期的知识条目</div>`;
           return;
@@ -58,7 +58,7 @@
 
     async renew(id) {
       try {
-        await window.ApiClient.request(`/api/kb/items/${id}/renew`, { method: 'POST' });
+        await window.ApiClient.request('POST', `/api/kb/items/${id}/renew`);
         await this.loadData();
       } catch (e) { alert('续期失败: ' + e.message); }
     }

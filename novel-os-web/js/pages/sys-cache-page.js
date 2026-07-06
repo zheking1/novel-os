@@ -23,8 +23,8 @@
       const container = document.getElementById('cache-content');
       try {
         const [health, stats] = await Promise.all([
-          window.ApiClient.request('/api/cache/health').catch(() => ({})),
-          window.ApiClient.request('/api/cache/stats').catch(() => ({}))
+          window.ApiClient.request('GET', '/api/cache/health').catch(() => ({})),
+          window.ApiClient.request('GET', '/api/cache/stats').catch(() => ({}))
         ]);
         container.innerHTML = `
           <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -51,7 +51,7 @@
 
     async warmCache() {
       try {
-        await window.ApiClient.request('/api/cache/warm', { method: 'POST' });
+        await window.ApiClient.request('POST', '/api/cache/warm');
         alert('缓存预热已启动');
       } catch (e) { alert('操作失败: ' + e.message); }
     }
