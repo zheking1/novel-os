@@ -1509,146 +1509,66 @@ async def novel_wizard_build_world(
     existing_entities = await db.fetchval("SELECT COUNT(*) FROM state_entities WHERE project_id = $1", project_id) or 0
     existing_chapters = await db.fetchval("SELECT COUNT(*) FROM chapters WHERE project_id = $1", project_id) or 0
     existing_kb = await db.fetchval("SELECT COUNT(*) FROM project_knowledge WHERE project_id = $1", project_id) or 0
+    existing_foreshadowing = await db.fetchval("SELECT COUNT(*) FROM foreshadowing WHERE project_id = $1", project_id) or 0
 
     phase = 1
     if existing_volumes > 0:
         phase = 2
     if existing_kb > 3:
         phase = 3
-    if existing_entities > 3 and existing_chapters > 0:
+    if existing_entities > 3 and existing_foreshadowing > 2 and existing_chapters == 0:
         phase = 4
     if existing_chapters > 0:
         phase = 5
 
-    workflow = f"""
-# 🌏 小说世界构建流程 —「{title}」({genre_raw})
+    # 查询卷列表（用于阶段3确定当前卷）
+    vol_rows = await db.fetch(
+        "SELECT volume_no, title, start_chapter_no, end_chapter_no FROM volumes WHERE project_id=$1 ORDER BY volume_no",
+        project_id,
+    )
+    volume_count = len(vol_rows) or existing_volumes
 
-## 核心原则
-- **先生成再确认**：每批生成 5-10 个要素，展示给用户决定保留/调整/补充
-- **不限数量**：故事需要多少就创建多少，直到双方确认完备
-- **自动推进**：完成一批自动进入下一批，不询问"要继续吗"
-- **完成条件**：一个阶段完成后 agent 输出完成报告，用户确认后进入下阶段
+    # 阶段3：确定当前处理到第几卷
+    current_volume = 1
+    if phase == 3 and volume_count > 0:
+        # 简单启发式：实体数 / 每卷最低实体数(4) = 大致完成的卷数
+        entities_per_volume = max(existing_entities // volume_count, 1) if volume_count > 0 else 0
+        completed_volumes = min(existing_entities // max(entities_per_volume or 4, 4), volume_count - 1)
+        current_volume = completed_volumes + 1
 
-## 当前进度：阶段 {phase}/5
+    # 构建结构化 workflow_guide
+    guide = {
+        "mode": "strict",
+        "phase": phase,
+        "total_phases": 5,
+        "stats": {
+            "volumes": existing_volumes,
+            "entities": existing_entities,
+            "chapters": existing_chapters,
+            "knowledge_entries": existing_kb,
+            "foreshadowing": existing_foreshadowing,
+        },
+        "steps": [],
+    }
 
----
-
-### 阶段 1：卷纲框架
-
-**目的**：先确定故事的整体骨架
-
-1. 用 LLM 生成整个故事的卷纲结构（3-5 卷）
-2. 每卷包含：标题、主题、章节范围(每卷20-40章)、核心冲突、主角状态变化
-3. 展示全部卷纲给用户确认
-4. 调 volume.upsert 创建所有卷
-
-**完成标准**：所有卷创建完毕，用户确认卷数、标题、章节范围
-
----
-
-### 阶段 2：知识库预热
-
-**目的**：卷纲确定后，针对故事题材补充知识，为后续创建提供参考
-
-1. 调 kb.pack.create(workspace="{ws_slug}", project="{prj_slug}", project_id="{project_id}", genre="{genre_raw}")
-   → 创建项目专属知识包，自动绑定题材分类
-2. 调 kb.gap.analyze(genre="{genre_raw}")
-   → 返回知识缺口报告（should_fill=true 的分类清单）
-3. 调 discussion_room.create_session(
-     workspace="{ws_slug}", project="{prj_slug}",
-     topic="为'{title}'({genre_raw})生成背景知识，补齐以下缺口：[列出should_fill分类]",
-     data_source="knowledge-entries",
-     output_type="knowledge"
-   )
-   → 启动讨论室，多模型协作生成系统化知识
-4. 讨论完成后调 discussion_room.apply_results(session_id=...)
-   → 将讨论室生成的知识批量写入项目知识库
-5. 调 kb.genre.preheat(workspace="{ws_slug}", project="{prj_slug}", project_id="{project_id}", genre="{genre_raw}")
-   → 预加载 UK 已有知识到项目
-
-**禁止行为**：
-- 禁止跳过步骤3（讨论室），必须由讨论室生成知识，不允许 Agent 手写
-- 禁止在讨论室完成前跳到步骤5
-
-**完成标准**：讨论室确认所有缺口已补，展示知识条目统计
-
----
-
-### 阶段 3：逐卷深挖（自行诊断 + 讨论室把关）
-
-**对每一卷依次执行，不可跳过**：
-
-```
-第 N 卷（从第 1 卷开始）：
-
-┌─────────────────────────────────────────────────────────┐
-│ 步骤1: 输出「要素需求清单」                               │
-│   卷号=N, 章节=XX-YY章, 核心冲突=ZZZ                      │
-│   最低数量：新地点≥2 新角色≥3 新势力≥1 新伏笔≥2           │
-│   用户确认清单                                            │
-├─────────────────────────────────────────────────────────┤
-│ 步骤2: 批量生成要素                                       │
-│   5-10个/批 → 调tool写入 → 展示单行报告                   │
-│   循环直到清单全部勾选                                     │
-├─────────────────────────────────────────────────────────┤
-│ 步骤3: Agent自行逐章诊断（✗/✓ 格式输出）                  │
-│   "第X章 场景[...] → 地点[YY] ✓ / ✗ 需创建"              │
-│   "第X章 出场[...] → 角色[ZZ] ✓ / ✗ 需创建"              │
-│   有✗ → 回步骤2（仅补缺）                                 │
-│   全部✓ → 步骤4                                           │
-├─────────────────────────────────────────────────────────┤
-│ 步骤4: 讨论室最终把关（每卷只调一次！）                    │
-│   → discussion_room.create_session(                       │
-│        workspace="{ws_slug}", project="{prj_slug}",        │
-│        topic="审查第N卷'{{卷标题}}'设定完备性",               │
-│        data_source="entities",                           │
-│        output_type="review"                                │
-│      )                                                    │
-│   → 读取 summary 字段获取审查结论                           │
-│   → 「结论：不完备」→ 回步骤2                              │
-│   → 「结论：完备」→ 步骤5                                  │
-├─────────────────────────────────────────────────────────┤
-│ 步骤5: 用户最终确认                                       │
-│   "第N卷完成：地点X个 角色Y个 势力Z个 伏笔W个              │
-│    Agent诊断✓ / 讨论室✓确认"                               │
-│   用户说「继续」或「进入下一卷」→ 步骤6                     │
-├─────────────────────────────────────────────────────────┤
-│ 步骤6: 进入第N+1卷                                        │
-└─────────────────────────────────────────────────────────┘
-```
-
-**禁止行为**：
-- 禁止跳过步骤3（自行诊断），必须先产出 ✗/✓ 报告
-- 禁止跳过步骤4（讨论室），每卷必须经过讨论室验证
-- 禁止只生成 1-2 个要素就自行判定"完成"
-- 禁止在 Agent 诊断出具前让用户判断
-
-**数量标准**：每卷至少 地点2+ 角色3+ 势力1+ 伏笔2+，复杂卷翻倍
-
----
-
-### 阶段 4：全局检查
-
-**跨卷一致性验证**：
-- 逐个检查角色：成长弧线是否完整？每个角色都有合理的出场和发展吗？
-- 逐个检查伏笔：都有回收计划吗？有没有遗漏的？
-- 逐个检查世界规则：跨卷有没有矛盾？
-- 补全遗漏(如有)
-- agent 输出全局完成报告 → 用户最终确认
-
----
-
-### 阶段 5：逐章大纲
-
-对每卷逐章生成大纲(chapter_no从1到最后)：
-- 每章: 标题、场景(2-4个)、出场人物、剧情推进要点、节奏控制
-- 调 plot.create_chapter_plan 创建
-- 全部卷的全部章完成后 → ✅ 世界构建完毕
-
----
-
-**用户交互模式**：每批生成后展示单行报告，用户说「通过/调整/补充」。
-"""
+    if phase <= 5:
+        guide["steps"] = _build_world_steps(
+            phase=phase,
+            ws_slug=ws_slug,
+            prj_slug=prj_slug,
+            project_id=project_id,
+            title=title,
+            genre=genre_raw,
+            vol_rows=vol_rows,
+            current_volume=current_volume,
+            volume_count=volume_count,
+            existing_volumes=existing_volumes,
+            existing_kb=existing_kb,
+            existing_entities=existing_entities,
+        )
+    else:
+        guide["mode"] = "done"
+        guide["message"] = "所有阶段已完成，世界构建结束。可进入章节生成。"
 
     return {
         "project_id": project_id,
@@ -1657,24 +1577,225 @@ async def novel_wizard_build_world(
         "title": title,
         "genre": genre_raw,
         "phase": phase,
-        "phases": {
-            "current": phase,
-            "total": 5,
-            "phase_1": "卷纲框架" if phase == 1 else ("✅ 已完成" if phase > 1 else "⏳ 待处理"),
-            "phase_2": "知识库预热" if phase == 2 else ("✅ 已完成" if phase > 2 else "⏳ 待处理"),
-            "phase_3": "逐卷深挖" if phase == 3 else ("✅ 已完成" if phase > 3 else "⏳ 待处理"),
-            "phase_4": "全局检查" if phase == 4 else ("✅ 已完成" if phase > 4 else "⏳ 待处理"),
-            "phase_5": "章节大纲" if phase == 5 else "⏳ 待处理",
-        },
-        "stats": {
-            "volumes": existing_volumes,
-            "entities": existing_entities,
-            "chapters": existing_chapters,
-            "knowledge_entries": existing_kb,
-        },
-        "workflow_guide": workflow,
-        "next_step": "阶段1：生成卷纲",
+        "phases": {str(i): "completed" if i < phase else ("current" if i == phase else "pending") for i in range(1, 6)},
+        "stats": {"volumes": existing_volumes, "entities": existing_entities, "chapters": existing_chapters, "knowledge_entries": existing_kb},
+        "workflow_guide": guide,
     }
+
+def _build_world_steps(
+    phase: int, ws_slug: str, prj_slug: str, project_id: str,
+    title: str, genre: str, vol_rows: list, current_volume: int,
+    volume_count: int, existing_volumes: int, existing_kb: int,
+    existing_entities: int,
+) -> list[dict]:
+    """根据当前阶段生成结构化步骤列表。"""
+    steps = []
+
+    if phase == 1:
+        steps.extend([
+            {
+                "step_no": 1, "name": "生成卷纲结构",
+                "tool": "_agent_display",
+                "params": {
+                    "instruction": f"为「{title}」({genre})生成卷纲结构。每卷包含：标题、主题、章节范围(每卷20-40章)、核心冲突、主角状态变化。生成后展示给用户。"
+                },
+                "expected_format": "卷号 | 标题 | 章节范围 | 核心冲突",
+                "next": "wait_user_confirm",
+            },
+            {
+                "step_no": 2, "name": "创建卷",
+                "tool": "volume.upsert",
+                "batch": True,
+                "params": {"workspace": ws_slug, "project": prj_slug},
+                "params_from": "step_1_result",
+                "next": "repeat_until_done",
+            },
+            {
+                "step_no": 3, "name": "重新调用 build_world 推进到下一阶段",
+                "tool": "novel.wizard.build_world",
+                "params": {"workspace": ws_slug, "project": prj_slug},
+                "next": "next_step",
+            },
+        ])
+
+    elif phase == 2:
+        steps.extend([
+            {
+                "step_no": 1, "name": "创建项目知识包",
+                "tool": "kb.pack.create",
+                "params": {"workspace": ws_slug, "project": prj_slug, "project_id": project_id, "genre": genre},
+                "next": "next_step",
+            },
+            {
+                "step_no": 2, "name": "分析知识缺口",
+                "tool": "kb.gap.analyze",
+                "params": {"genre": genre},
+                "next": "next_step",
+            },
+            {
+                "step_no": 3, "name": "启动讨论室生成知识",
+                "tool": "discussion_room.create_session",
+                "params": {
+                    "workspace": ws_slug, "project": prj_slug,
+                    "topic": f"为'{title}'({genre})生成背景知识，补齐以下缺口：[用步骤2返回的 should_fill 列表]",
+                    "data_source": "knowledge-entries",
+                    "output_type": "knowledge",
+                },
+                "post_action": "read_summary",
+                "next": "next_step",
+            },
+            {
+                "step_no": 4, "name": "应用讨论室结果",
+                "tool": "discussion_room.apply_results",
+                "params": {"session_id": "$from_step_3"},
+                "next": "next_step",
+            },
+            {
+                "step_no": 5, "name": "预加载通用知识",
+                "tool": "kb.genre.preheat",
+                "params": {"workspace": ws_slug, "project": prj_slug, "project_id": project_id, "genre": genre},
+                "next": "next_step",
+            },
+            {
+                "step_no": 6, "name": "重新调用 build_world 推进到下一阶段",
+                "tool": "novel.wizard.build_world",
+                "params": {"workspace": ws_slug, "project": prj_slug},
+                "next": "next_step",
+            },
+        ])
+
+    elif phase == 3:
+        # 获取当前卷信息
+        vol_info = {}
+        if vol_rows and current_volume <= len(vol_rows):
+            v = vol_rows[current_volume - 1]
+            vol_info = {
+                "volume_no": v["volume_no"],
+                "title": v["title"],
+                "start_chapter": v["start_chapter_no"],
+                "end_chapter": v["end_chapter_no"],
+            }
+
+        steps.extend([
+            {
+                "step_no": 1, "name": "展示要素需求清单",
+                "tool": "_agent_display",
+                "params": {
+                    "instruction": f"第{current_volume}卷「{vol_info.get('title','')}」(第{vol_info.get('start_chapter','?')}-{vol_info.get('end_chapter','?')}章)。根据卷纲生成要素需求清单。最低：新地点≥2、新角色≥3、新势力≥1、新伏笔≥2。列出具体要素名称和说明。"
+                },
+                "volume_no": current_volume,
+                "volume_title": vol_info.get("title", ""),
+                "next": "wait_user_confirm",
+            },
+            {
+                "step_no": 2, "name": "批量创建角色",
+                "tool": "state.entity.upsert",
+                "batch": True,
+                "params": {"entity_type": "character", "workspace": ws_slug, "project": prj_slug, "project_id": project_id},
+                "params_from": "step_1_confirmed",
+                "next": "repeat_until_done",
+            },
+            {
+                "step_no": 3, "name": "批量创建地点",
+                "tool": "state.entity.upsert",
+                "batch": True,
+                "params": {"entity_type": "location", "workspace": ws_slug, "project": prj_slug, "project_id": project_id},
+                "params_from": "step_1_confirmed",
+                "next": "repeat_until_done",
+            },
+            {
+                "step_no": 4, "name": "批量创建势力",
+                "tool": "state.entity.upsert",
+                "batch": True,
+                "params": {"entity_type": "faction", "workspace": ws_slug, "project": prj_slug, "project_id": project_id},
+                "params_from": "step_1_confirmed",
+                "next": "repeat_until_done",
+            },
+            {
+                "step_no": 5, "name": "批量创建伏笔",
+                "tool": "plot.upsert_foreshadowing",
+                "batch": True,
+                "params": {"workspace": ws_slug, "project": prj_slug},
+                "params_from": "step_1_confirmed",
+                "next": "repeat_until_done",
+            },
+            {
+                "step_no": 6, "name": "逐章自诊报告",
+                "tool": "_agent_evaluate",
+                "params": {
+                    "instruction": f"逐章(第{vol_info.get('start_chapter','?')}-{vol_info.get('end_chapter','?')}章)检查：每个场景所需的地点、角色、势力、伏笔是否都已创建。用 ✓/✗ 格式列出。有✗则回到步骤2补缺，全部✓则进入下一步。"
+                },
+                "on_fail": "goto_step_2",
+                "next": "next_step",
+            },
+            {
+                "step_no": 7, "name": "讨论室把关",
+                "tool": "discussion_room.create_session",
+                "params": {
+                    "workspace": ws_slug, "project": prj_slug,
+                    "topic": f"审查第{current_volume}卷'{vol_info.get('title','')}'设定完备性",
+                    "data_source": "entities",
+                    "output_type": "review",
+                },
+                "post_action": "read_summary",
+                "condition": "summary 包含'不完备' → 回步骤2；包含'完备' → 下一步",
+                "next": "next_step",
+            },
+            {
+                "step_no": 8, "name": "重新调用 build_world 推进到下一卷或下一阶段",
+                "tool": "novel.wizard.build_world",
+                "params": {"workspace": ws_slug, "project": prj_slug},
+                "display_before": f"第{current_volume}卷完成：地点X个 角色Y个 势力Z个 伏笔W个（统计后填入实际数字）\nAgent诊断 ✓ / 讨论室 ✓",
+                "next": "wait_user_confirm",
+            },
+        ])
+
+    elif phase == 4:
+        steps.extend([
+            {
+                "step_no": 1, "name": "跨卷全局检查",
+                "tool": "_agent_evaluate",
+                "params": {
+                    "instruction": f"对「{title}」的 {existing_volumes} 卷进行全局一致性检查：\n1. 逐个角色检查成长弧线是否完整\n2. 逐个伏笔检查是否有回收计划\n3. 逐卷检查世界规则是否有矛盾\n4. 列出所有遗漏和矛盾\n5. 补全后输出完成报告"
+                },
+                "next": "wait_user_confirm",
+            },
+            {
+                "step_no": 2, "name": "重新调用 build_world 推进到下一阶段",
+                "tool": "novel.wizard.build_world",
+                "params": {"workspace": ws_slug, "project": prj_slug},
+                "next": "next_step",
+            },
+        ])
+
+    elif phase == 5:
+        steps.extend([
+            {
+                "step_no": 1, "name": "逐章生成大纲",
+                "tool": "_agent_display",
+                "params": {
+                    "instruction": f"为「{title}」的全部 {existing_volumes} 卷逐章生成大纲。每章包含：标题、场景(2-4个)、出场人物、剧情推进要点、节奏控制。生成后展示。"
+                },
+                "next": "wait_user_confirm",
+            },
+            {
+                "step_no": 2, "name": "批量创建章节大纲",
+                "tool": "plot.create_chapter_plan",
+                "batch": True,
+                "params": {"workspace": ws_slug, "project": prj_slug},
+                "params_from": "step_1_confirmed",
+                "next": "repeat_until_done",
+            },
+            {
+                "step_no": 3, "name": "检查完成状态",
+                "tool": "novel.wizard.build_world",
+                "params": {"workspace": ws_slug, "project": prj_slug},
+                "display_before": "全部卷、全部章大纲创建完毕。世界构建完成！",
+                "next": "next_step",
+            },
+        ])
+
+    return steps
 
 async def _create_world_state(
     project_id: str, project_profile: dict, canon_docs: list[dict]) -> None:

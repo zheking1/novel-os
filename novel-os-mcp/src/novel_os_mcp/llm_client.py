@@ -135,18 +135,21 @@ class LLMClient:
 
     async def chat_with_profile(
         self,
-        project_id: str,
+        user_id: str | None,
         profile_key: str,
         messages: list[dict[str, str]],
         temperature: float = 0.7,
         max_tokens: int = 4096,
     ) -> dict[str, Any]:
         """Call a specific model profile by profile_key (for multi-model audit/debate)."""
+        where = "profile_key = $1 AND status = 'active'"
+        params: list = [profile_key]
+        if user_id:
+            where = "profile_key = $1 AND user_id = $2 AND status = 'active'"
+            params = [profile_key, user_id]
         config = await self._db.fetchrow(
-            """SELECT profile_key, provider, model_name, default_params
-               FROM model_profiles
-               WHERE profile_key = $1 AND status = 'active'""",
-            profile_key,
+            f"SELECT profile_key, provider, model_name, default_params FROM model_profiles WHERE {where}",
+            *params,
         )
         if not config:
             raise ValueError(f"Model profile '{profile_key}' not found or inactive")

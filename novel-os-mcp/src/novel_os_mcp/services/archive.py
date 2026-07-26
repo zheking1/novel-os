@@ -110,7 +110,7 @@ class ArchiveService:
         older_than_days: int | None = None,
         status_filter: str | None = None,
     ) -> dict[str, Any]:
-        conditions = ["project_id = $1", "archived = false"]
+        conditions = ["project_id = $1", "is_deleted = false"]
         params: list[Any] = [project_id]
         idx = 2
 
@@ -144,7 +144,7 @@ class ArchiveService:
                 chapter_id,
             )
             await self._db.execute(
-                "UPDATE chapters SET archived = true WHERE id = $1",
+                "UPDATE chapters SET is_deleted = true WHERE id = $1",
                 chapter_id,
             )
             archived_count += 1
@@ -193,7 +193,7 @@ class ArchiveService:
                 data = json.loads(item["original_data"]) if isinstance(item["original_data"], str) else item["original_data"]
                 await self._db.execute(
                     """
-                    UPDATE chapters SET archived = false WHERE id = $1
+                    UPDATE chapters SET is_deleted = false WHERE id = $1
                     """,
                     item["item_id"],
                 )

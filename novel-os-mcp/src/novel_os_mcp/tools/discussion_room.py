@@ -14,44 +14,38 @@ from ..utils import json_dumps
 logger = logging.getLogger("novel_os_mcp.tools.discussion_room")
 
 MODEL_POOL = [
-    "baidubce-deepseek-v4-flash", "baidubce-deepseek-v3.2", "baidubce-glm-5",
-    "baidubce-deepseek-v4-pro", "baidubce-glm-5.1",
+    "ds-v4-flash", "ds-v32", "glm-5",
+    "ds-v4-pro", "glm-51",
 ]
 
 ROTATION = [
-    ["baidubce-deepseek-v4-flash", "baidubce-deepseek-v3.2", "baidubce-glm-5"],
-    ["baidubce-deepseek-v4-pro", "baidubce-glm-5.1", "baidubce-deepseek-v4-flash"],
-    ["baidubce-deepseek-v3.2", "baidubce-glm-5", "baidubce-deepseek-v4-pro"],
+    ["ds-v4-flash", "ds-v32", "glm-5"],
+    ["ds-v4-pro", "glm-51", "ds-v4-flash"],
+    ["ds-v32", "glm-5", "ds-v4-pro"],
 ]
 
-async def _pick_contributed_models(db, project_id: str) -> list[str]:
+async def _pick_contributed_models(db, user_id: str) -> list[str]:
     rows = await db.fetch(
-        """SELECT mp.profile_key, mp.model_name, mp.provider, mp.project_id,
+        """SELECT mp.profile_key, mp.model_name, mp.provider,
                   COALESCE(SUM(CASE WHEN el.id IS NOT NULL THEN 1 ELSE 0 END), 0) as use_count
            FROM model_profiles mp
            LEFT JOIN evolution_logs el ON el.source_id LIKE '%%' || mp.profile_key || '%%'
               AND el.source_type = 'discussion_room' AND el.created_at > NOW() - INTERVAL '7 days'
-           WHERE 'discussion' = ANY(mp.task_types) AND mp.status = 'active'
-             AND (mp.is_contributed = true OR mp.project_id IS NULL OR mp.project_id = $1)
-           GROUP BY mp.profile_key, mp.model_name, mp.provider, mp.project_id
-           ORDER BY mp.project_id DESC NULLS LAST, use_count ASC""",
-        project_id,
+           WHERE (mp.task_types && ARRAY['review','analysis','draft','outline','polish','context'] OR mp.is_contributed = true)
+             AND mp.status = 'active'
+           GROUP BY mp.profile_key, mp.model_name, mp.provider
+           ORDER BY use_count ASC""",
     )
     if not rows:
         return []
     picked = []
     seen_cores = set()
-    seen_projects = set()
     for r in rows:
         core = r["model_name"].rpartition("/")[2] or r["model_name"]
-        proj = str(r["project_id"] or "__global")
         if core in seen_cores:
-            continue
-        if proj in seen_projects and len(seen_projects) >= 2:
             continue
         picked.append(r["profile_key"])
         seen_cores.add(core)
-        seen_projects.add(proj)
         if len(picked) >= 3:
             break
     return picked
@@ -93,7 +87,7 @@ async def discussion_room_create_session(
     pid = await auth.resolve_project_id(workspace, project, principal, access="write")
 
     if not model_keys:
-        model_keys = await _pick_contributed_models(db, pid)
+        model_keys = await _pick_contributed_models(db, principal.username)
 
     if not model_keys or len(model_keys) < 2:
         return {"ok": False, "error": "讨论模型不足。请至少贡献2个模型到讨论池（模型配置页中勾选'贡献给讨论室'），或联系管理员配置全局讨论模型。"}
@@ -121,7 +115,7 @@ async def discussion_room_create_session(
     # Start background discussion
     import asyncio
     asyncio.ensure_future(_run_discussion(
-        session_id, pid, topic, model_keys, rate_limit_delay, rate_limit_retries, data_source, data_category, output_type,
+        session_id, pid, principal.username, topic, model_keys, rate_limit_delay, rate_limit_retries, data_source, data_category, output_type,
     ))
 
     return {
@@ -258,7 +252,7 @@ async def discussion_room_resume_session(
 
     import asyncio
     asyncio.ensure_future(_continue_discussion(
-        session_id, pid, topic, model_keys, rate_limit_delay, rate_limit_retries,
+        session_id, pid, principal.username, topic, model_keys, rate_limit_delay, rate_limit_retries,
     ))
 
     return {"ok": True, "message": "讨论已继续"}
@@ -533,7 +527,7 @@ async def discussion_room_apply_results(
 
     # Audit log
     await db.execute(
-        """INSERT INTO audit_logs (user_id, action, resource_type, resource_id, new_values)
+        """INSERT INTO audit_logs (user_id, action, resource_type, resource_id, payload)
            VALUES ((SELECT id FROM users WHERE username=$1), 'discussion_apply', 'discussion_session', $2, $3::jsonb)""",
         principal.username if hasattr(principal, 'username') else "admin",
         session_id,
@@ -775,7 +769,7 @@ async def _data_plan_to_queries(project_id: str, plan_text: str) -> str:
 
 
 async def _run_discussion(
-    session_id: str, project_id: str, topic: str, model_keys: list[str],
+    session_id: str, project_id: str, user_id: str, topic: str, model_keys: list[str],
     delay: float, retries: int, data_source: str = "knowledge-entries",
     data_category: str | None = None,
     output_type: str = "knowledge",
@@ -825,7 +819,7 @@ async def _run_discussion(
         "请根据上方的数据来源说明输出对应的 NEED 行。查表结构时务必使用上面列出的确切表名，不要自己编造表名："
     )
     # Phase -1: Topic analysis
-    topic_analysis = await _call(project_id, control, [
+    topic_analysis = await _call(user_id, control, [
         {"role": "system", "content": "你是 Novel OS 讨论室的话题分析模型。你的任务是在用户发起话题后，先理解意图，不要查询数据，不要输出 NEED 行。\n\n分析以下三个方面：\n1. 用户的核心意图是什么？（完善设定/审查知识/规划情节/补充知识/解决创作问题）\n2. 话题是否涉及分类或结构问题？如果涉及，需要查看分类树；否则直接关注数据内容。\n3. 后续讨论的重点方向是什么？"},
         {"role": "user", "content": topic},
     ], delay, retries)
@@ -833,7 +827,7 @@ async def _run_discussion(
     await _append_response(session_id, "control", control, "topic_analysis", analysis_text)
 
     # Phase 0: Control model requests data
-    plan_resp = await _call(project_id, control, [
+    plan_resp = await _call(user_id, control, [
         {"role": "system", "content": system_context},
         {"role": "user", "content": topic},
     ], delay, retries)
@@ -844,7 +838,7 @@ async def _run_discussion(
     queried_data = await _data_plan_to_queries(project_id, plan_text)
 
     # Phase 1: Control model analyzes with data
-    analysis = await _call(project_id, control, [
+    analysis = await _call(user_id, control, [
         {"role": "system", "content": "你是讨论控制模型。以下是系统根据你的数据需求查询到的结果：" + (f"\n\n{queried_data}" if queried_data else "\n\n(未找到相关数据)") + "\n\n基于这些数据直接输出分析结论和讨论议题。你的输出给其他 AI 模型看，不要提问。"},
         {"role": "user", "content": topic},
     ], delay, retries)
@@ -868,7 +862,7 @@ async def _run_discussion(
         # Phase 2: Proposals (skip on subsequent rounds, only discuss disputes)
         if main_round == 0:
             for mk in discuss_models:
-                r = await _call(project_id, mk, [
+                r = await _call(user_id, mk, [
                     {"role": "system", "content": proposal_system},
                     {"role": "user", "content": prompt},
                 ], delay, retries)
@@ -878,7 +872,7 @@ async def _run_discussion(
             # Re-propose: only discuss remaining disputes
             dispute_ctx = "\n\n".join([f"争议 {i+1}: {d}" for i, d in enumerate(objections_history[-1])])
             for mk in discuss_models:
-                r = await _call(project_id, mk, [
+                r = await _call(user_id, mk, [
                     {"role": "system", "content": proposal_system},
                     {"role": "user", "content": f"话题：{topic}\n\n待解决的争议：\n{dispute_ctx}\n\n请针对每个争议点给出你的意见。"},
                 ], delay, retries)
@@ -931,7 +925,7 @@ async def _run_discussion(
                 '```'
             )
 
-        interim_summary = await _call(project_id, control, [
+        interim_summary = await _call(user_id, control, [
             {"role": "system", "content": summary_system},
             {"role": "user", "content": f"话题：{topic}\n\n各模型提议：\n{merged_recent}\n\n请输出纯共识草案，必须解决上一轮审阅中提出的所有异议。"},
         ], delay, retries)
@@ -943,7 +937,7 @@ async def _run_discussion(
         objection_texts = []
         review_models = ROTATION[main_round % len(ROTATION)]
         for mk in review_models:
-            r = await _call(project_id, mk, [
+            r = await _call(user_id, mk, [
                 {"role": "system", "content": "审阅讨论归纳。如果完全同意回复「无异议」，否则逐条指出你不同意的具体内容和理由。讨论会继续直到所有异议解决，请务必诚实地指出所有你不同意的地方。"},
                 {"role": "user", "content": f"审阅以下关于「{topic}」的讨论归纳：\n\n{interim_text}"},
             ], delay, retries)
@@ -980,7 +974,7 @@ async def _run_discussion(
 
 
 async def _continue_discussion(
-    session_id: str, project_id: str, topic: str, model_keys: list[str],
+    session_id: str, project_id: str, user_id: str, topic: str, model_keys: list[str],
     delay: float, retries: int,
 ) -> None:
     """续传讨论（从当前 phase 继续）。"""
@@ -1014,7 +1008,7 @@ async def _continue_discussion(
         for mk in discuss_models:
             if mk not in existing_models:
                 res_proposal_system = "你是小说创作审查专家。请审查设定完备性，逐条指出遗漏。" if output_type == "review" else "你是小说创作知识库专家。"
-                r = await _call(project_id, mk, [
+                r = await _call(user_id, mk, [
                     {"role": "system", "content": res_proposal_system},
                     {"role": "user", "content": f"话题：{topic}\n请提出你的完整建议。"},
                 ], delay, retries)
@@ -1027,18 +1021,18 @@ async def _continue_discussion(
     # 后续跑 review rounds + summary（同 _run_discussion）
     # 为简化实现，直接调用完整流程的分析+提议阶段（已有 responses 会被追加但无影响）
     # 更优方案：检测断点精确恢复
-    await _run_discussion(session_id, project_id, topic, model_keys, delay, retries, data_source, None, output_type)
+    await _run_discussion(session_id, project_id, user_id, topic, model_keys, delay, retries, data_source, None, output_type)
 
 
 async def _call(
-    project_id: str, model: str, messages: list[dict], delay: float, max_retries: int,
+    user_id: str, model: str, messages: list[dict], delay: float, max_retries: int,
 ) -> dict:
     """调用模型，带限流和重试。"""
     import asyncio
     for attempt in range(max_retries + 1):
         try:
             return await llm_client.chat_with_profile(
-                project_id, model, messages, temperature=0.3, max_tokens=4096,
+                user_id, model, messages, temperature=0.3, max_tokens=4096,
             )
         except Exception as e:
             err = str(e)

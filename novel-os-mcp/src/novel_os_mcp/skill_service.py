@@ -16,13 +16,13 @@ class SkillService:
     async def list_skills(self, active_only: bool = True) -> list[dict]:
         if active_only:
             rows = await self._db.fetch(
-                "SELECT id::text, name, description, tags, scope, is_active, "
+                "SELECT id::text, name, description, trigger_words, is_active, "
                 "created_at, updated_at "
                 "FROM skills WHERE is_active = true ORDER BY name"
             )
         else:
             rows = await self._db.fetch(
-                "SELECT id::text, name, description, tags, scope, is_active, "
+                "SELECT id::text, name, description, trigger_words, is_active, "
                 "created_at, updated_at "
                 "FROM skills ORDER BY name"
             )
@@ -30,7 +30,7 @@ class SkillService:
 
     async def get_skill(self, skill_id: str) -> dict | None:
         row = await self._db.fetchrow(
-            "SELECT id::text, name, description, content, instruction, tags, scope, "
+            "SELECT id::text, name, description, content, trigger_words, tool_hints, "
             "is_active, created_at, updated_at "
             "FROM skills WHERE id = $1", skill_id
         )
@@ -38,8 +38,6 @@ class SkillService:
             return None
         skill = dict(row)
         skill["steps"] = await self.list_steps(skill_id)
-        # Map tags to trigger_words for compatibility
-        skill["trigger_words"] = skill.get("tags") or []
         return skill
 
     async def create_skill(
@@ -47,18 +45,11 @@ class SkillService:
         trigger_words: list[str] | None = None, tool_hints: list[str] | None = None,
         sort_order: int = 0,
     ) -> dict:
-        # Get a default user_id (use the first user or a system user)
-        user_row = await self._db.fetchrow("SELECT id FROM users LIMIT 1")
-        user_id = user_row["id"] if user_row else None
-        
-        if not user_id:
-            raise ValueError("No user found in database")
-        
         row = await self._db.fetchrow(
-            "INSERT INTO skills (name, description, content, instruction, tags, scope, is_active, user_id) "
-            "VALUES ($1, $2, $3, $4, $5, 'public', true, $6) "
-            "RETURNING id::text, name, description, tags, scope, is_active, created_at",
-            name, description, content, content, trigger_words or [], user_id,
+            "INSERT INTO skills (name, description, content, trigger_words, tool_hints, is_active, sort_order) "
+            "VALUES ($1, $2, $3, $4, $5, true, $6) "
+            "RETURNING id::text, name, description, trigger_words, is_active, created_at",
+            name, description, content, trigger_words or [], tool_hints or [], sort_order,
         )
         return dict(row) if row else {}
 
@@ -75,9 +66,8 @@ class SkillService:
             sets.append(f"description = ${idx}"); params.append(description); idx += 1
         if content is not None:
             sets.append(f"content = ${idx}"); params.append(content); idx += 1
-            sets.append(f"instruction = ${idx}"); params.append(content); idx += 1
         if trigger_words is not None:
-            sets.append(f"tags = ${idx}"); params.append(trigger_words); idx += 1
+            sets.append(f"trigger_words = ${idx}"); params.append(trigger_words); idx += 1
         if is_active is not None:
             sets.append(f"is_active = ${idx}"); params.append(is_active); idx += 1
         if not sets:
@@ -86,7 +76,7 @@ class SkillService:
         params.append(skill_id)
         row = await self._db.fetchrow(
             f"UPDATE skills SET {', '.join(sets)} WHERE id = ${idx} "
-            "RETURNING id::text, name, description, tags, scope, is_active, created_at, updated_at",
+            "RETURNING id::text, name, description, trigger_words, is_active, created_at, updated_at",
             *params,
         )
         return dict(row) if row else {}

@@ -26,12 +26,12 @@ class ModelCostService:
     ) -> dict[str, Any]:
         row = await self._db.fetchrow(
             """
-            INSERT INTO model_usage
-              (project_id, model_name, operation_type, input_tokens, output_tokens,
-               cost_usd, chapter_id, metadata)
+            INSERT INTO model_usage_records
+              (project_id, model_name, task_type, input_tokens, output_tokens,
+               cost_amount, source_id, metadata)
             VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-            RETURNING id::text, project_id::text, model_name, operation_type,
-                      input_tokens, output_tokens, cost_usd, chapter_id::text,
+            RETURNING id::text, project_id::text, model_name, task_type,
+                      input_tokens, output_tokens, cost_amount, source_id::text,
                       metadata, created_at
             """,
             project_id,
@@ -73,11 +73,11 @@ class ModelCostService:
               COUNT(*)::int AS total_requests,
               SUM(input_tokens)::bigint AS total_input_tokens,
               SUM(output_tokens)::bigint AS total_output_tokens,
-              SUM(cost_usd)::float AS total_cost_usd,
-              AVG(cost_usd)::float AS avg_cost_per_request,
+              SUM(cost_amount)::float AS total_cost_usd_usd,
+              AVG(cost_amount)::float AS avg_cost_per_request,
               AVG(input_tokens)::float AS avg_input_tokens,
               AVG(output_tokens)::float AS avg_output_tokens
-            FROM model_usage
+            FROM model_usage_records
             WHERE {' AND '.join(conditions)}
             """,
             *params,
@@ -96,12 +96,12 @@ class ModelCostService:
               COUNT(*)::int AS requests,
               SUM(input_tokens)::bigint AS input_tokens,
               SUM(output_tokens)::bigint AS output_tokens,
-              SUM(cost_usd)::float AS total_cost,
-              AVG(cost_usd)::float AS avg_cost
-            FROM model_usage
+              SUM(cost_amount)::float AS total_cost_usd,
+              AVG(cost_amount)::float AS avg_cost
+            FROM model_usage_records
             WHERE project_id = $1 AND created_at > NOW() - INTERVAL '1 day' * $2
             GROUP BY model_name
-            ORDER BY total_cost DESC
+            ORDER BY total_cost_usd DESC
             """,
             project_id,
             days,
@@ -120,8 +120,8 @@ class ModelCostService:
               COUNT(*)::int AS requests,
               SUM(input_tokens)::bigint AS input_tokens,
               SUM(output_tokens)::bigint AS output_tokens,
-              SUM(cost_usd)::float AS total_cost
-            FROM model_usage
+              SUM(cost_amount)::float AS total_cost_usd
+            FROM model_usage_records
             WHERE project_id = $1 AND created_at > NOW() - INTERVAL '1 day' * $2
             GROUP BY DATE(created_at)
             ORDER BY date DESC
@@ -159,7 +159,7 @@ class ModelCostService:
         project_id: str,
     ) -> list[dict[str, Any]]:
         summary = await self.get_usage_summary(project_id, days=30)
-        total_cost = summary.get("total_cost_usd") or 0
+        total_cost_usd = summary.get("total_cost_usd_usd") or 0
 
         rows = await self._db.fetch(
             """
@@ -173,8 +173,8 @@ class ModelCostService:
         triggered = []
         for row in rows:
             alert = row_to_dict(row)
-            if total_cost >= alert["threshold_usd"]:
-                alert["current_cost"] = total_cost
+            if total_cost_usd >= alert["threshold_usd"]:
+                alert["current_cost"] = total_cost_usd
                 triggered.append(alert)
 
         return triggered
@@ -188,9 +188,9 @@ class ModelCostService:
         if not daily:
             return {"forecast_cost": 0, "daily_average": 0, "forecast_days": forecast_days}
 
-        total_cost = sum(d.get("total_cost") or 0 for d in daily)
+        total_cost_usd = sum(d.get("total_cost_usd") or 0 for d in daily)
         days_with_data = len(daily)
-        daily_avg = total_cost / days_with_data if days_with_data > 0 else 0
+        daily_avg = total_cost_usd / days_with_data if days_with_data > 0 else 0
 
         return {
             "forecast_cost": round(daily_avg * forecast_days, 4),
@@ -489,7 +489,7 @@ class ModelCostService:
             params.append(to_date + " 23:59:59")
             idx += 1
         if task_types:
-            conditions.append(f"operation_type = ANY(${'{idx}'})")
+            conditions.append(f"task_type = ANY(${'{idx}'})")
             params.append(task_types)
             idx += 1
         if profile_keys:
@@ -506,8 +506,8 @@ class ModelCostService:
                 COUNT(*)::int AS total_requests,
                 SUM(input_tokens)::bigint AS total_input_tokens,
                 SUM(output_tokens)::bigint AS total_output_tokens,
-                SUM(cost_usd)::float AS total_cost
-            FROM model_usage
+                SUM(cost_amount)::float AS total_cost_usd
+            FROM model_usage_records
             WHERE {where_clause}
             """,
             *params,
@@ -530,8 +530,8 @@ class ModelCostService:
                 COUNT(*)::int AS request_count,
                 SUM(input_tokens)::bigint AS input_tokens,
                 SUM(output_tokens)::bigint AS output_tokens,
-                SUM(cost_usd)::float AS cost
-            FROM model_usage
+                SUM(cost_amount)::float AS cost
+            FROM model_usage_records
             WHERE {where_clause}
             GROUP BY {group_sql}
             ORDER BY key DESC
@@ -541,7 +541,7 @@ class ModelCostService:
         )
 
         return {
-            "total_cost": stats_row["total_cost"] if stats_row else 0,
+            "total_cost_usd": stats_row["total_cost_usd"] if stats_row else 0,
             "total_requests": stats_row["total_requests"] if stats_row else 0,
             "total_input_tokens": stats_row["total_input_tokens"] if stats_row else 0,
             "total_output_tokens": stats_row["total_output_tokens"] if stats_row else 0,

@@ -325,7 +325,7 @@ async def _apply_proposal(proposal_id: str) -> dict[str, Any]:
         elif etype == "style_profile":
             profile_key = ekey or content.get("profile_key", f"evolved_{proposal_id[:8]}")
             await db.execute(
-                """INSERT INTO system_style_profiles (profile_key, name, description, narrative_pov, tense, tone, sample_paragraphs)
+                """INSERT INTO system_style_profiles (profile_key, display_name, description, narrative_pov, tense, tone, sample_paragraphs)
                    VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb)
                    ON CONFLICT (profile_key) DO UPDATE SET
                    description = EXCLUDED.description, tone = EXCLUDED.tone""",

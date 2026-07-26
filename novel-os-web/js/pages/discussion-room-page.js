@@ -433,28 +433,32 @@ A: 「设定管理」面向普通用户的 Canon 文档/实体/规则；「知�
     async loadModelList() {
       try {
         const res = await window.ApiClient.callTool('model.profile.list');
-        const models = res?.profiles || res?.data || res || [];
+        const profiles = res?.profiles || res?.data || res || [];
         const container = document.getElementById('disc-models');
         const controlSelect = document.getElementById('disc-control');
         container.innerHTML = '';
         controlSelect.innerHTML = '';
 
-        const pool = ['baidubce-deepseek-v4-flash', 'baidubce-deepseek-v3.2', 'baidubce-glm-5',
-                      'baidubce-deepseek-v4-pro', 'baidubce-glm-5.1'];
+        const pool = [];
 
-        pool.forEach((key, idx) => {
+        (Array.isArray(profiles) ? profiles : []).forEach((p, idx) => {
+          const key = p.profile_key || p.key || '';
+          if (!key) return;
+          pool.push(key);
           const div = document.createElement('label');
           div.className = 'flex items-center gap-2 cursor-pointer text-sm';
           const checked = idx < 3 ? 'checked' : '';
           div.innerHTML = `<input type="checkbox" class="disc-model-cb" value="${key}" ${checked}>
-            <span>${key.replace('baidubce-', '')}</span>`;
+            <span>${p.display_name || key}</span>`;
           container.appendChild(div);
 
           const opt = document.createElement('option');
           opt.value = key;
-          opt.textContent = key.replace('baidubce-', '');
+          opt.textContent = p.display_name || key;
           controlSelect.appendChild(opt);
         });
+
+        this._modelPool = pool;
       } catch (e) {
         console.error('Failed to load models:', e);
       }

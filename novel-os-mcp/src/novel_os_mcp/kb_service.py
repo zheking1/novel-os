@@ -243,15 +243,14 @@ class KBService:
     ) -> dict:
         row = await self._db.fetchrow(
             """
-            INSERT INTO knowledge_relations (from_entity_id, to_entity_id, relation_type, relation_detail, strength, metadata)
-            VALUES ($1,$2,$3,$4,$5,$6::jsonb)
-            ON CONFLICT (from_entity_id, to_entity_id, relation_type) DO UPDATE SET
-                relation_detail = EXCLUDED.relation_detail, strength = EXCLUDED.strength
-            RETURNING id::text, from_entity_id::text, to_entity_id::text,
-                      relation_type, relation_detail, strength, created_at
+            INSERT INTO knowledge_relations (source_entity_id, target_entity_id, relation_type, weight)
+            VALUES ($1,$2,$3,$4)
+            ON CONFLICT (source_entity_id, target_entity_id, relation_type) DO UPDATE SET
+                weight = EXCLUDED.weight
+            RETURNING id::text, source_entity_id::text, target_entity_id::text,
+                      relation_type, weight, created_at
             """,
-            from_entity_id, to_entity_id, relation_type, detail, strength,
-            json_dumps(metadata or {}),
+            from_entity_id, to_entity_id, relation_type, strength,
         )
         return row_to_dict(row)
 
@@ -259,31 +258,31 @@ class KBService:
         if relation_type:
             rows = await self._db.fetch(
                 """
-                SELECT kr.id::text, kr.relation_type, kr.relation_detail, kr.strength,
+                SELECT kr.id::text, kr.relation_type, kr.weight,
                        e.id::text as related_id, e.name as related_name, e.entity_type as related_type
                 FROM knowledge_relations kr
-                JOIN knowledge_entities e ON e.id = kr.to_entity_id
-                WHERE kr.from_entity_id = $1 AND kr.relation_type = $2
+                JOIN knowledge_entities e ON e.id = kr.target_entity_id
+                WHERE kr.source_entity_id = $1 AND kr.relation_type = $2
                 UNION
-                SELECT kr.id::text, kr.relation_type, kr.relation_detail, kr.strength,
+                SELECT kr.id::text, kr.relation_type, kr.weight,
                        e.id::text as related_id, e.name as related_name, e.entity_type as related_type
                 FROM knowledge_relations kr
-                JOIN knowledge_entities e ON e.id = kr.from_entity_id
-                WHERE kr.to_entity_id = $1 AND kr.relation_type = $2
+                JOIN knowledge_entities e ON e.id = kr.source_entity_id
+                WHERE kr.target_entity_id = $1 AND kr.relation_type = $2
                 """,
                 entity_id, relation_type,
             )
         else:
             rows = await self._db.fetch(
                 """
-                SELECT kr.id::text, kr.relation_type, kr.relation_detail, kr.strength,
+                SELECT kr.id::text, kr.relation_type, kr.weight,
                        e.id::text as related_id, e.name as related_name, e.entity_type as related_type,
-                       CASE WHEN kr.from_entity_id = $1 THEN 'out' ELSE 'in' END as direction
+                       CASE WHEN kr.source_entity_id = $1 THEN 'out' ELSE 'in' END as direction
                 FROM knowledge_relations kr
                 JOIN knowledge_entities e ON (
-                    e.id = kr.to_entity_id AND kr.from_entity_id = $1
+                    e.id = kr.target_entity_id AND kr.source_entity_id = $1
                 ) OR (
-                    e.id = kr.from_entity_id AND kr.to_entity_id = $1
+                    e.id = kr.source_entity_id AND kr.target_entity_id = $1
                 )
                 """,
                 entity_id,
