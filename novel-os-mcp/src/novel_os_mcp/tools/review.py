@@ -16,8 +16,9 @@ async def review_start_job(
     chapter_no: int,
     dimensions: list[str],
     local_files: list[dict[str, Any]] | None = None,
+    chapter_content: str | None = None,
 ) -> dict[str, Any]:
-    """启动审核任务。指定章节文件和审核维度，创建多模型并行审核任务。local_files 为空时自动从 local chapter 获取。"""
+    """启动审核任务。必须传入 chapter_content（章节全文），系统不存全文，需 agent 从 pipeline.generate 结果中提取传入。"""
     principal = await get_principal("write")
     logger.info("review_start_job called")
     validate_required(locals(), "workspace", "project", "chapter_no", "dimensions")
@@ -37,9 +38,15 @@ async def review_start_job(
     if not models or len(models) < 2:
         raise ValueError("审核委员会模型不足（至少2个），请先在系统信息→审核委员会页面配置")
 
-    # 3. 构建审核话题
+    # 3. 构建审核话题 — 优先使用传入的全文
+    full_text = chapter_content or context.get('chapter_content', '')
+    if not full_text or full_text == '（无内容）':
+        raise ValueError(
+            "未找到本章正文。请传入 chapter_content 参数（agent 从 pipeline.generate 结果中提取完整正文）。"
+        )
+
     topic = f"审核第{chapter_no}章章节内容。从以下维度评估：{', '.join(dimensions)}。\n\n"
-    topic += f"【本章正文】\n{context.get('chapter_content', '（无内容）')[:8000]}\n\n"
+    topic += f"【本章正文】\n{full_text[:8000]}\n\n"
     topic += f"【前情摘要】\n{context.get('previous_summaries', '（无）')}\n\n"
     topic += f"【角色状态】\n{context.get('character_states', '（无）')}\n\n"
     topic += f"【活跃伏笔】\n{context.get('foreshadowings', '（无）')}\n\n"
