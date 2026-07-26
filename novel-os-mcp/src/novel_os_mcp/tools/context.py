@@ -28,12 +28,17 @@ async def workflow_prepare_chapter_context(
     pass_number: int | None = None,
     previous_context: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
-    """准备章节上下文。pass_number: 1=大纲 2=初稿 3=润色 4=验证。previous_context 用于增量加载。"""
+    """准备章节上下文并返回完整生成流水线步骤。
+
+    pass_number: 1=大纲 2=初稿 3=润色 4=验证。previous_context 用于增量加载。
+
+    返回 workflow_guide.steps 严格执行：草稿→润色→审核→提交→角色弧光。
+    """
     principal = await get_principal("read")
     logger.info("workflow_prepare_chapter_context called")
     validate_required(locals(), "chapter_no")
     project_id = await auth.resolve_project_id(workspace, project, principal)
-    return await context_service.prepare_chapter_context(
+    ctx = await context_service.prepare_chapter_context(
         project_id=project_id,
         chapter_no=chapter_no,
         purpose=purpose,
@@ -47,6 +52,63 @@ async def workflow_prepare_chapter_context(
         pass_number=pass_number,
         previous_context=previous_context,
     )
+    ctx["workflow_guide"] = {
+        "mode": "strict",
+        "steps": [
+            {
+                "step_no": 1, "name": "生成初稿",
+                "tool": "pipeline.generate",
+                "params": {"workspace": workspace, "project": project, "chapter_no": chapter_no, "task_type": "draft", "content": "$draft_content"},
+                "next": "next_step",
+                "note": "AI 自行生成正文内容填入 content 字段"
+            },
+            {
+                "step_no": 2, "name": "润色章节",
+                "tool": "pipeline.generate",
+                "params": {"workspace": workspace, "project": project, "chapter_no": chapter_no, "task_type": "polish", "content": "$from_step_1.text"},
+                "next": "next_step",
+            },
+            {
+                "step_no": 3, "name": "启动审核",
+                "tool": "review.start_job",
+                "params": {"workspace": workspace, "project": project, "chapter_no": chapter_no, "chapter_id": "$chapter_id"},
+                "next": "next_step",
+                "post_action": "read_summary",
+            },
+            {
+                "step_no": 4, "name": "修订并重新生成（如审核未通过则循环此步）",
+                "tool": "pipeline.generate",
+                "params": {"workspace": workspace, "project": project, "chapter_no": chapter_no, "task_type": "draft", "content": "$revised_content"},
+                "condition": "步骤3 返回需修订时执行，最多循环3次",
+                "next": "wait_user_confirm",
+            },
+            {
+                "step_no": 5, "name": "提交章节",
+                "tool": "workflow.submit_chapter_commit",
+                "params": {"workspace": workspace, "project": project, "chapter_no": chapter_no, "title": "$title", "local_files": "$local_files", "commit": "$commit"},
+                "next": "next_step",
+            },
+            {
+                "step_no": 6, "name": "记录情绪节奏",
+                "tool": "pacing.record_emotion",
+                "params": {"workspace": workspace, "project": project, "project_id": project_id, "chapter_no": chapter_no, "tension": "$tension", "emotion": "$emotion", "emotion_intensity": "$intensity", "pacing_type": "$pacing_type"},
+                "next": "next_step",
+            },
+            {
+                "step_no": 7, "name": "记录角色关系变化",
+                "tool": "pacing.record_relationship",
+                "params": {"workspace": workspace, "project": project, "chapter_no": chapter_no},
+                "next": "next_step",
+            },
+            {
+                "step_no": 8, "name": "记录角色性格/实力演变",
+                "tool": "pacing.record_personality",
+                "params": {"workspace": workspace, "project": project, "chapter_no": chapter_no},
+                "next": "wait_user_confirm",
+            },
+        ],
+    }
+    return ctx
 
 
 @mcp.tool(name="workflow.validate_context_pack")
@@ -184,9 +246,8 @@ async def workflow_submit_chapter_commit(
     title: str | None,
     local_files: list[dict[str, Any]],
     commit: dict[str, Any],
-    accept: bool = True,
 ) -> dict[str, Any]:
-    """提交章节完成确认。将本地文件变更同步到远程项目，标记章节进度。"""
+    """提交章节完成确认。必须先完成审核（review.start_job）。"""
     principal = await get_principal("write")
     logger.info("workflow_submit_chapter_commit called")
     validate_required(locals(), "workspace", "project")
@@ -197,7 +258,6 @@ async def workflow_submit_chapter_commit(
         title=title,
         local_files=local_files,
         commit=commit,
-        accept=accept,
         username=principal.username,
     )
 
@@ -581,8 +641,7 @@ workflow.submit_chapter_commit(
   chapter_no: {chapter_no},
   title: "{ch_title}",
   local_files: [{{"path": "{folder_name}/{file_name}"}}],
-  commit: {{"pass_number": {pass_number}}},
-  accept: true
+  commit: {{"pass_number": {pass_number}}}
 )
 ```
 
@@ -741,7 +800,7 @@ def _step_text(ws: str, proj: str, ch: int, step: int) -> str:
         5: f"调 workflow.validate_content(workspace={ws}, project={proj}, chapter_no={ch}, content=摘要)",
         6: f"保存正文到本地 第{ch:02d}章/ch{ch:02d}_draft.md",
         7: f"审核-修订循环: auto-config→review.start_job→submit→aggregate→有意见则修订→再审核，直到无意见",
-        8: f"调 workflow.submit_chapter_commit(workspace={ws}, project={proj}, chapter_no={ch}, title='第{ch}章', local_files=[{{'path': '第{ch:02d}章/ch{ch:02d}_draft.md'}}], commit={{'pass_number': 2}}, accept=true)",
+        8: f"调 workflow.submit_chapter_commit(workspace={ws}, project={proj}, chapter_no={ch}, title='第{ch}章', local_files=[{{'path': '第{ch:02d}章/ch{ch:02d}_draft.md'}}], commit={{'pass_number': 2}})",
         9: "维护: arc/kb.world/plot.thread/foreshadowing",
         10: "调 workflow.learn_from_review",
         11: f"调 context_compression.auto_compress(chapter_no={ch})",

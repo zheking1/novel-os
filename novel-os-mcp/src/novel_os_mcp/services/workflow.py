@@ -407,7 +407,6 @@ class WorkflowService:
         title: str | None,
         local_files: list[dict[str, Any]],
         commit: dict[str, Any],
-        accept: bool,
         username: str,
     ) -> dict[str, Any]:
         """提交章节完成确认，写入 chapter_commits + audit_logs。"""
@@ -431,19 +430,17 @@ class WorkflowService:
             chapter_id = ch_row["id"]
 
         # 强制审核：检查是否有已完成（含已汇总）的审核任务
-        if accept:
-            review_count = await self._db.fetchval(
-                """
-                SELECT COUNT(*) FROM review_jobs
-                WHERE project_id = $1 AND chapter_id = $2 AND status IN ('completed', 'aggregated')
-                """,
-                project_id, chapter_id,
+        review_count = await self._db.fetchval(
+            """
+            SELECT COUNT(*) FROM review_jobs
+            WHERE project_id = $1 AND chapter_id = $2 AND status IN ('completed', 'aggregated')
+            """,
+            project_id, chapter_id,
+        )
+        if review_count == 0:
+            raise PermissionError(
+                f"章节 {chapter_no} 尚未完成审核。请先调用 review.start_job 启动审核，等待审核完成后再提交。"
             )
-            if review_count == 0:
-                raise PermissionError(
-                    f"章节 {chapter_no} 尚未完成审核，请先调用 review.start_job 启动审核并等待审核完成后再提交。"
-                    f"如需跳过审核，请传入 accept=false 仅保存记录。"
-                )
 
         async with self._db.acquire() as conn:
             async with conn.transaction():
@@ -454,17 +451,16 @@ class WorkflowService:
                       (project_id, chapter_id, commit_no, payload, accepted, accepted_at)
                     VALUES ($1, $2, COALESCE(
                         (SELECT MAX(commit_no) + 1 FROM chapter_commits WHERE chapter_id = $2), 1
-                    ), $3::jsonb, $4, CASE WHEN $4 THEN NOW() ELSE NULL END)
+                    ), $3::jsonb, true, NOW())
                     RETURNING id::text, commit_no, accepted, accepted_at, created_at
                     """,
                     project_id,
                     chapter_id,
                     json_dumps({"title": title, "local_files": local_files, **commit}),
-                    accept,
                 )
 
-                # Update chapter status if accept
-                if accept and chapter_id:
+                # Update chapter status
+                if chapter_id:
                     await conn.execute(
                         """
                         UPDATE chapters SET status = 'completed', title = COALESCE($3, title), updated_at = NOW()
@@ -482,7 +478,7 @@ class WorkflowService:
                     WHERE users.username = $3
                     """,
                     chapter_id,
-                    json_dumps({"chapter_no": chapter_no, "commit_no": commit_row["commit_no"], "accept": accept}),
+                    json_dumps({"chapter_no": chapter_no, "commit_no": commit_row["commit_no"], "accept": True}),
                     username,
                 )
 
