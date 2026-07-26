@@ -1,3 +1,4 @@
+import json
 import logging
 from datetime import datetime
 from typing import Any
@@ -289,58 +290,43 @@ class ContextService:
         """
         results: list[dict[str, Any]] = []
         seen_ids: set[str] = set()
+
         # Search by character names (扩大候选集)
         for name in chapter_characters[:10]:
             rows = await self._db.fetch(
                 """
-                SELECT id::text, kb_type, title, content, tags, relevance_score
+                SELECT id::text, title, content
                 FROM knowledge_base
-                WHERE project_id = $1
-                  AND status = 'active'
-                  AND (title ILIKE '%' || $2 || '%' OR $2 = ANY(tags))
-                ORDER BY relevance_score DESC
+                WHERE status = 'active'
+                  AND (title ILIKE '%' || $1 || '%' OR content ILIKE '%' || $1 || '%')
                 LIMIT 5
                 """,
-                project_id, name,
+                name,
             )
             for r in rows:
                 rid = r["id"]
                 if rid not in seen_ids:
                     seen_ids.add(rid)
-                    results.append({
-                        "id": rid,
-                        "kb_type": r["kb_type"],
-                        "title": r["title"],
-                        "content": r["content"],
-                        "tags": ensure_json_value(r.get("tags") or []),
-                        "relevance_score": float(r.get("relevance_score") or 0),
-                    })
+                    results.append({"id": rid, "kb_type": "knowledge_base", "title": r["title"], "content": r["content"], "tags": [], "relevance_score": 0})
+
         # Search by focus terms
         for term in focus[:5]:
             rows = await self._db.fetch(
                 """
-                SELECT id::text, kb_type, title, content, tags, relevance_score
+                SELECT id::text, title, content
                 FROM knowledge_base
-                WHERE project_id = $1
-                  AND status = 'active'
-                  AND (title ILIKE '%' || $2 || '%' OR $2 = ANY(tags))
-                ORDER BY relevance_score DESC
+                WHERE status = 'active'
+                  AND (title ILIKE '%' || $1 || '%' OR content ILIKE '%' || $1 || '%')
                 LIMIT 4
                 """,
-                project_id, term,
+                term,
             )
             for r in rows:
                 rid = r["id"]
                 if rid not in seen_ids:
                     seen_ids.add(rid)
-                    results.append({
-                        "id": rid,
-                        "kb_type": r["kb_type"],
-                        "title": r["title"],
-                        "content": r["content"],
-                        "tags": ensure_json_value(r.get("tags") or []),
-                        "relevance_score": float(r.get("relevance_score") or 0),
-                    })
+                    results.append({"id": rid, "kb_type": "knowledge_base", "title": r["title"], "content": r["content"], "tags": [], "relevance_score": 0})
+
         # Also search UK with genre filtering for richer context
         if genre:
             try:
@@ -453,7 +439,7 @@ class ContextService:
         self, project_id: str, chapter_no: int, volume_no: int | None,
         scope_refs: list[str], scope_types: list[str] | None,
         active_event_keys: list[str] | None, chapter_characters: list[str],
-        token_budget: int,
+        token_budget: int, genre: str | None = None, chapter_plan: dict | None = None,
     ) -> tuple[list[dict], dict[str, Any]]:
         effective_rules = await self._rules.list_effective_rules(
             project_id=project_id,
@@ -462,8 +448,105 @@ class ContextService:
             scope_refs=scope_refs or chapter_characters,
             scope_types=scope_types, active_event_keys=active_event_keys,
         )
-        rules = self._trim_section("active_rules", effective_rules["rules"], token_budget)
+        global_rules = await self._rules.list_active_global()
+        all_rules = global_rules + effective_rules["rules"]
+        if len(all_rules) > 30 and chapter_plan:
+            plan_text = json_dumps(chapter_plan) if isinstance(chapter_plan, dict) else str(chapter_plan)
+            scene_type = self._infer_scene_type(plan_text)
+            filtered = [
+                r for r in all_rules
+                if r.get("severity") == "critical"
+                or self._rule_matches_context(r, genre, scene_type)
+            ]
+            critical = [r for r in filtered if r.get("severity") == "critical"]
+            rest = [r for r in filtered if r.get("severity") != "critical"]
+            rest = await self._rank_rules_by_embedding(rest, plan_text, project_id)
+            all_rules = critical + rest
+        if len(all_rules) > 30:
+            all_rules = await self._summarize_rules_if_needed(all_rules, genre)
+        rules = self._trim_section("active_rules", all_rules, token_budget)
         return rules, effective_rules
+
+    def _infer_scene_type(self, plan_text: str) -> list[str]:
+        SCENE_KW = {
+            "battle": ["战斗", "对决", "交锋", "大战", "围剿", "击杀"],
+            "cultivation": ["修炼", "突破", "闭关", "悟道", "渡劫", "炼丹"],
+            "trade": ["拍卖", "交易", "兑换", "购买", "出售"],
+            "social": ["宴会", "宗门", "朝堂", "比武", "会面"],
+            "exploration": ["探索", "秘境", "遗迹", "寻宝", "古墓"],
+            "dialogue": ["对话", "谈判", "商议", "密谈", "盘问"],
+        }
+        matches = [s for s, kws in SCENE_KW.items() if any(k in plan_text for k in kws)]
+        return matches or ["general"]
+
+    def _rule_matches_context(self, rule: dict, genre: str | None, scene_types: list[str]) -> bool:
+        meta = rule.get("metadata") or {}
+        if isinstance(meta, str):
+            try:
+                meta = json.loads(meta)
+            except Exception:
+                meta = {}
+        rule_genres = meta.get("genres") or []
+        rule_scenes = meta.get("scene_types") or []
+        if rule_genres and genre and genre not in rule_genres:
+            return False
+        if rule_scenes and not any(s in rule_scenes for s in scene_types):
+            return False
+        return True
+
+    async def _rank_rules_by_embedding(
+        self, rules: list[dict], query_text: str, project_id: str,
+    ) -> list[dict]:
+        if not self._embedding or not rules:
+            return rules
+        try:
+            query_vec = await self._embedding.embed_single(project_id, query_text)
+            if not query_vec:
+                return rules
+            rule_texts = [f"{r.get('title', '')} {r.get('content', '')[:300]}" for r in rules]
+            rule_vecs = await self._embedding.embed(project_id, rule_texts)
+            for i, vec in enumerate(rule_vecs):
+                if vec:
+                    dot = sum(x * y for x, y in zip(query_vec, vec))
+                    na = (sum(x * x for x in query_vec) ** 0.5)
+                    nb = (sum(y * y for y in vec) ** 0.5)
+                    rules[i]["_score"] = dot / (na * nb) if na and nb else 0
+            rules.sort(key=lambda x: x.get("_score", 0), reverse=True)
+            for r in rules:
+                r.pop("_score", None)
+        except Exception:
+            logger.debug("Rule embedding ranking skipped", exc_info=True)
+        return rules
+
+    async def _summarize_rules_if_needed(
+        self, rules: list[dict], genre: str | None,
+    ) -> list[dict]:
+        groups: dict[str, list[dict]] = {}
+        for r in rules:
+            meta = r.get("metadata") or {}
+            if isinstance(meta, str):
+                try:
+                    meta = json.loads(meta)
+                except Exception:
+                    meta = {}
+            g = meta.get("rule_group", "general")
+            groups.setdefault(g, []).append(r)
+        summarized = []
+        for group, items in groups.items():
+            if len(items) > 5:
+                titles = "; ".join([r.get("title", "") for r in items[:10]])
+                summarized.append({
+                    "id": f"summary_{group}",
+                    "rule_key": f"summary_{group}",
+                    "rule_type": "creative",
+                    "title": f"[归纳] {group}",
+                    "content": f"涵盖以下规则要点: {titles}",
+                    "severity": "warning",
+                    "metadata": {"summarized": True, "source_rule_count": len(items)},
+                })
+            else:
+                summarized.extend(items)
+        return summarized
 
     async def _load_state_section(
         self, project_id: str, chapter_no: int, volume_no: int | None,
@@ -812,7 +895,8 @@ class ContextService:
         if not wanted or "active_rules" in wanted:
             rules, effective_rules = await self._load_rules_section(
                 project_id, chapter_no, resolved_volume_no, scope_refs or [],
-                scope_types, active_event_keys, chapter_characters, section_budgets["active_rules"])
+                scope_types, active_event_keys, chapter_characters, section_budgets["active_rules"],
+                genre=budget.get("genre"), chapter_plan=budget.get("chapter_plan"))
 
         kb_items = []
         if not wanted or "knowledge_base" in wanted:

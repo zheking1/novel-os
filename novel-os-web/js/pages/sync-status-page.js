@@ -14,25 +14,27 @@
         <div id="sync-content" class="space-y-6"></div>
       `;
       await this.loadData();
+      return true;
     },
 
     async loadData() {
       const container = document.getElementById('sync-content');
       try {
-        const status = await window.ApiClient.request('GET', '/sync/status').catch(() => ({}));
+        const [conflicts, queueStats] = await Promise.all([
+          window.ApiClient.callTool('sync.list_conflicts').catch(() => []),
+          window.ApiClient.callTool('vector_index.queue_stats').catch(() => ({}))
+        ]);
+        const conflictList = Array.isArray(conflicts) ? conflicts : [];
         container.innerHTML = `
           <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div class="bg-white rounded-lg shadow p-6">
-              <h3 class="font-semibold text-gray-700 mb-4">客户端绑定</h3>
-              <div class="text-sm text-gray-600">状态: <span class="font-medium ${status.bound ? 'text-green-600' : 'text-orange-600'}">${status.bound ? '已绑定' : '未绑定'}</span></div>
-              <div class="text-sm text-gray-600 mt-2">客户端ID: ${status.client_id || '未知'}</div>
-              <div class="text-sm text-gray-600 mt-2">最后同步: ${status.last_sync || '从未'}</div>
+              <h3 class="font-semibold text-gray-700 mb-4">同步冲突</h3>
+              <div class="text-sm text-gray-600">待解决冲突: <span class="font-medium ${conflictList.length > 0 ? 'text-orange-600' : 'text-green-600'}">${conflictList.length}</span></div>
             </div>
             <div class="bg-white rounded-lg shadow p-6">
-              <h3 class="font-semibold text-gray-700 mb-4">同步统计</h3>
-              <div class="text-sm text-gray-600">待同步文件: ${status.pending_files || 0}</div>
-              <div class="text-sm text-gray-600 mt-2">冲突数: ${status.conflicts || 0}</div>
-              <div class="text-sm text-gray-600 mt-2">同步方向: ${status.direction || '双向'}</div>
+              <h3 class="font-semibold text-gray-700 mb-4">向量索引队列</h3>
+              <div class="text-sm text-gray-600">待处理: <span class="font-medium">${queueStats.pending || 0}</span></div>
+              <div class="text-sm text-gray-600 mt-1">处理中: <span class="font-medium">${queueStats.processing || 0}</span></div>
             </div>
           </div>`;
       } catch (e) {

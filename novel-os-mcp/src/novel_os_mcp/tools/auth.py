@@ -40,8 +40,8 @@ async def auth_whoami() -> dict[str, Any]:
 
 @mcp.tool(name="workspace.create")
 async def workspace_create(slug: str, name: str) -> dict[str, Any]:
-    """创建新工作空间。需要管理员权限，slug 为唯一标识符，name 为显示名称。"""
-    principal = await get_principal("admin")
+    """创建新工作空间。slug 为唯一标识符，name 为显示名称。"""
+    principal = await get_principal("write")
     logger.info("workspace_create called")
     return await workspace_service.create_workspace(slug=slug, name=name, owner_username=principal.username)
 
@@ -49,15 +49,18 @@ async def workspace_create(slug: str, name: str) -> dict[str, Any]:
 @mcp.tool(name="workspace.list")
 async def workspace_list(username: str | None = None) -> list[dict[str, Any]]:
     """列出工作空间。可按用户名过滤，返回用户所属或管理的所有工作空间。"""
-    principal = await get_principal("admin")
+    principal = await get_principal("read")
     logger.info("workspace_list called")
+    # Non-admin users can only see their own workspaces
+    if "admin" not in principal.scopes:
+        username = principal.username
     return await workspace_service.list_workspaces(username=username)
 
 
 @mcp.tool(name="workspace.add_member")
 async def workspace_add_member(workspace: str, username: str, role: str = "writer") -> dict[str, Any]:
     """添加工作空间成员。role 支持 admin/writer/reader，默认 writer。"""
-    principal = await get_principal("admin")
+    principal = await get_principal("write")
     logger.info("workspace_add_member called")
     validate_required(locals(), "workspace", "username")
     return await workspace_service.add_workspace_member(workspace_slug=workspace, username=username, role=role)
@@ -172,6 +175,44 @@ async def user_list(status: str | None = None, limit: int = 100) -> list[dict[st
     principal = await get_principal("admin")
     logger.info("user_list called")
     return await workspace_service.list_users(status=status, limit=limit)
+
+
+@mcp.tool(name="user.delete")
+async def user_delete(username: str) -> dict[str, Any]:
+    """删除用户。需要管理员权限。"""
+    principal = await get_principal("admin")
+    logger.info("user_delete called")
+    validate_required(locals(), "username")
+    return await workspace_service.delete_user(username=username)
+
+
+@mcp.tool(name="project.delete")
+async def project_delete(workspace: str, slug: str) -> dict[str, Any]:
+    """删除项目。需要 write 权限和工作空间访问权。"""
+    principal = await get_principal("write")
+    logger.info("project_delete called")
+    validate_required(locals(), "workspace", "slug")
+    await auth.require_workspace_access(principal, workspace)
+    return await workspace_service.delete_project(workspace_slug=workspace, project_slug=slug)
+
+
+@mcp.tool(name="workspace.delete")
+async def workspace_delete(slug: str) -> dict[str, Any]:
+    """删除工作空间。"""
+    principal = await get_principal("write")
+    logger.info("workspace_delete called")
+    validate_required(locals(), "slug")
+    await auth.require_workspace_access(principal, slug, access="write")
+    return await workspace_service.delete_workspace(slug=slug)
+
+
+@mcp.tool(name="workspace.remove_member")
+async def workspace_remove_member(workspace: str, username: str) -> dict[str, Any]:
+    """移除工作空间成员。"""
+    principal = await get_principal("write")
+    logger.info("workspace_remove_member called")
+    validate_required(locals(), "workspace", "username")
+    return await workspace_service.remove_workspace_member(workspace_slug=workspace, username=username)
 
 
 @mcp.tool(name="auth.list_api_tokens")

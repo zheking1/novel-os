@@ -1,8 +1,15 @@
 """Shared MCP instance for all tool modules."""
+import os
 from fastmcp import FastMCP
+
+# Tool filter: if set, only tools matching these prefixes are exposed
+# Set via env NOVEL_OS_MCP_TOOL_WHITELIST (comma-separated prefixes)
+_TOOL_WHITELIST = os.environ.get("NOVEL_OS_MCP_TOOL_WHITELIST", "").strip()
+_TOOL_FILTER = [p.strip() for p in _TOOL_WHITELIST.split(",") if p.strip()] if _TOOL_WHITELIST else None
 
 mcp = FastMCP(
     "novel-os-mcp",
+    mask_error_details=False,
     instructions="""# Novel OS Agent 工作协议
 
 ## 铁律
@@ -40,3 +47,13 @@ review.start_job → review.aggregate → review.list_revision_tasks
 auth.whoami | workspace.list | project.list(workspace)
 """,
 )
+
+
+def apply_tool_filter():
+    """Apply tool whitelist filter after all tools are registered."""
+    if not _TOOL_FILTER:
+        return
+    tools = getattr(mcp._tool_manager, '_tools', mcp._tool_manager.tools) if hasattr(mcp, '_tool_manager') else {}
+    for name in list(tools.keys()):
+        if not any(name.startswith(prefix) for prefix in _TOOL_FILTER):
+            del tools[name]

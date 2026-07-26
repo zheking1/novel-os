@@ -1,4 +1,5 @@
 import logging
+import re
 from typing import Any
 
 from ..mcp_core import mcp
@@ -10,71 +11,58 @@ logger = logging.getLogger("novel_os_mcp.tools.model")
 
 @mcp.tool(name="model.profile.upsert")
 async def model_profile_upsert(
-    workspace: str,
-    project: str,
     profile_key: str,
-    display_name: str,
-    provider: str,
-    model_name: str,
+    display_name: str | None = None,
+    provider: str | None = None,
+    model_name: str | None = None,
     task_types: list[str] | None = None,
-    tier: str = "standard",
+    tier: str | None = None,
     default_params: dict[str, Any] | None = None,
     cost_config: dict[str, Any] | None = None,
     rate_limit_config: dict[str, Any] | None = None,
-    is_default: bool = False,
-    status: str = "active",
+    is_default: bool | None = None,
+    status: str | None = None,
     metadata: dict[str, Any] | None = None,
+    is_contributed: bool | None = None,
 ) -> dict[str, Any]:
-    """创建或更新模型配置文件。定义 provider、模型名、费用和速率限制参数。"""
+    """创建或更新模型配置文件。用户级别，定义 provider、模型名、费用和速率限制参数。
+
+    如需删除（软删除），传入相应 profile_key + status='inactive' 即可。
+    更新时只需传入需要修改的字段。"""
     principal = await get_principal("write")
     logger.info("model_profile_upsert called")
-    validate_required(locals(), "provider", "model_name")
-    project_id = await auth.resolve_project_id(workspace, project, principal, access="write")
     return await model_cost_service.upsert_profile(
-        project_id=project_id,
         profile_key=profile_key,
         display_name=display_name,
         provider=provider,
         model_name=model_name,
-        task_types=task_types or [],
+        task_types=task_types,
         tier=tier,
-        default_params=default_params or {},
-        cost_config=cost_config or {},
-        rate_limit_config=rate_limit_config or {},
+        default_params=default_params,
+        cost_config=cost_config,
+        rate_limit_config=rate_limit_config,
         is_default=is_default,
         status=status,
-        metadata=metadata or {},
+        metadata=metadata,
         username=principal.username,
     )
 
 
 @mcp.tool(name="model.profile.list")
 async def model_profile_list(
-    workspace: str,
-    project: str | None = None,
     task_type: str | None = None,
     status: str | None = "active",
     tier: str | None = None,
 ) -> list[dict[str, Any]]:
-    """列出模型配置文件。支持按任务类型、状态、层级过滤。project 为 null 时返回当前用户所有配置。"""
+    """列出模型配置文件。支持按任务类型、状态、层级过滤。返回当前用户所有配置。模型是用户级别的。"""
     principal = await get_principal("read")
-    logger.info("model_profile_list called")
-    if project:
-        project_id = await auth.resolve_project_id(workspace, project, principal)
-        return await model_cost_service.list_profiles(
-            project_id=project_id,
-            task_type=task_type,
-            status=status,
-            tier=tier,
-        )
-    else:
-        # Return all profiles for current user (cross-project, user-scoped)
-        return await model_cost_service.list_profiles_by_user(
-            username=principal.username,
-            task_type=task_type,
-            status=status,
-            tier=tier,
-        )
+    logger.info("model_profile_list called, username=%s", principal.username)
+    return await model_cost_service.list_profiles_by_user(
+        username=principal.username,
+        task_type=task_type,
+        status=status,
+        tier=tier,
+    )
 
 
 @mcp.tool(name="model.route")
@@ -214,3 +202,66 @@ async def cost_report(
         from_date=from_date,
         to_date=to_date,
     )
+
+
+@mcp.tool(name="model.auto_assign")
+async def model_auto_assign(
+    workspace: str,
+    project: str,
+) -> dict[str, Any]:
+    """自动分析所有模型的能力并分配任务类型。AI 工具可调用此工具获取建议，确认后调用 model.profile.upsert 更新。"""
+    principal = await get_principal("write")
+    logger.info("model_auto_assign called")
+    validate_required(locals(), "workspace", "project")
+
+    models = await model_cost_service.list_profiles_by_user(
+        username=principal.username, status=None,
+    )
+
+    assignments = []
+    for m in models:
+        name = (m.get("model_name") or "").lower()
+        pk = m.get("profile_key", "")
+        tasks = []
+
+        # Analyze model name to determine capabilities
+        # Embedding models: small params, specific embedding models
+        if any(kw in name for kw in ("embed", "e5", "bge", "gte", "text-embedding")):
+            tasks.append("embedding")
+        elif any(kw in name for kw in ("rerank", "bge-rerank")):
+            tasks.append("rerank")
+
+        # Analysis models: good for style/pacing/arc analysis
+        if any(kw in name for kw in ("deepseek", "glm-z1", "qwen3", "qwen2.5", "glm4")):
+            if "embed" not in name and "rerank" not in name:
+                tasks.append("analysis")
+
+        # Review models: most general instruct models can review
+        if any(kw in name for kw in ("instruct", "chat", "deepseek", "qwen", "glm")):
+            if "embed" not in name and "rerank" not in name:
+                tasks.append("review")
+
+        # Context models: good for context compression/summarization
+        if any(kw in name for kw in ("qwen2.5", "qwen3", "deepseek")):
+            if "embed" not in name and "rerank" not in name:
+                tasks.append("context")
+
+        # Deduplicate
+        tasks = list(dict.fromkeys(tasks))
+
+        # If no tasks assigned but model is active, give generic ones
+        if not tasks and m.get("status") == "active":
+            tasks = ["review"]
+
+        assignments.append({
+            "profile_key": pk,
+            "model_name": m.get("model_name"),
+            "current_tasks": m.get("task_types") or [],
+            "suggested_tasks": tasks,
+        })
+
+    return {
+        "total_models": len(models),
+        "assignments": assignments,
+        "instruction": "请 review 上述建议，确认后依次调用 model.profile.upsert(workspace, project, profile_key=key, task_types=[...]) 更新",
+    }

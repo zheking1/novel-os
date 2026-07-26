@@ -158,6 +158,8 @@ async def archive_tier_config_get(
 
 @mcp.tool(name="context.compression.compress_chapters")
 async def context_compression_compress_chapters(
+    workspace: str,
+    project: str,
     project_id: str,
     chapter_no_start: int,
     chapter_no_end: int,
@@ -165,8 +167,9 @@ async def context_compression_compress_chapters(
 ) -> dict[str, Any]:
     """压缩章节摘要。将指定范围的章节摘要合并为单一批次摘要，控制token数量。"""
     principal = await get_principal("write")
+    project_id = await auth.resolve_project_id(workspace, project, principal, access="write")
     logger.info("context.compression.compress_chapters called")
-    validate_required(locals(), "project_id", "chapter_no_start", "chapter_no_end")
+    validate_required(locals(), "workspace", "project", "project_id", "chapter_no_start", "chapter_no_end")
     return await context_compression_service.compress_chapter_summaries(
         project_id=project_id,
         chapter_no_start=chapter_no_start,
@@ -177,6 +180,8 @@ async def context_compression_compress_chapters(
 
 @mcp.tool(name="context.compression.compress_arc")
 async def context_compression_compress_arc(
+    workspace: str,
+    project: str,
     project_id: str,
     arc_key: str,
     chapter_no_start: int,
@@ -185,8 +190,9 @@ async def context_compression_compress_arc(
 ) -> dict[str, Any]:
     """压缩弧光摘要。将弧光的章节摘要合并为弧光级别的摘要。"""
     principal = await get_principal("write")
+    project_id = await auth.resolve_project_id(workspace, project, principal, access="write")
     logger.info("context.compression.compress_arc called")
-    validate_required(locals(), "project_id", "arc_key", "chapter_no_start", "chapter_no_end")
+    validate_required(locals(), "workspace", "project", "project_id", "arc_key", "chapter_no_start", "chapter_no_end")
     return await context_compression_service.compress_arc(
         project_id=project_id,
         arc_key=arc_key,
@@ -198,13 +204,16 @@ async def context_compression_compress_arc(
 
 @mcp.tool(name="context.compression.compress_volume")
 async def context_compression_compress_volume(
+    workspace: str,
+    project: str,
     project_id: str,
     volume_no: int,
 ) -> dict[str, Any]:
     """压缩卷内容摘要。将整卷内容压缩为卷级别的精炼摘要。"""
     principal = await get_principal("write")
+    project_id = await auth.resolve_project_id(workspace, project, principal, access="write")
     logger.info("context.compression.compress_volume called")
-    validate_required(locals(), "project_id", "volume_no")
+    validate_required(locals(), "workspace", "project", "project_id", "volume_no")
     return await context_compression_service.compress_volume(
         project_id=project_id,
         volume_no=volume_no,
@@ -213,26 +222,31 @@ async def context_compression_compress_volume(
 
 @mcp.tool(name="context.compression.compress_series")
 async def context_compression_compress_series(
+    workspace: str,
+    project: str,
     project_id: str,
 ) -> dict[str, Any]:
     """压缩系列摘要。将所有卷摘要合并为系列级别的全局摘要。"""
     principal = await get_principal("write")
+    project_id = await auth.resolve_project_id(workspace, project, principal, access="write")
     logger.info("context.compression.compress_series called")
-    validate_required(locals(), "project_id")
+    validate_required(locals(), "workspace", "project", "project_id")
     return await context_compression_service.compress_series(project_id=project_id)
 
 
 @mcp.tool(name="context.compression.get_compressed")
 async def context_compression_get_compressed(
-    project_id: str,
+    workspace: str,
+    project: str,
     chapter_no: int,
     volume_no: int | None = None,
     budget_tokens: int = 4000,
 ) -> dict[str, Any]:
     """获取压缩上下文。在token预算内返回章节生成所需的压缩上下文数据。"""
     principal = await get_principal("read")
+    project_id = await auth.resolve_project_id(workspace, project, principal, access="read")
     logger.info("context.compression.get_compressed called")
-    validate_required(locals(), "project_id", "chapter_no")
+    validate_required(locals(), "workspace", "project", "chapter_no")
     return await context_compression_service.get_compressed_context(
         project_id=project_id,
         chapter_no=chapter_no,
@@ -243,29 +257,41 @@ async def context_compression_get_compressed(
 
 @mcp.tool(name="context.compression.auto_compress")
 async def context_compression_auto_compress(
-    project_id: str,
+    workspace: str,
+    project: str,
     chapter_no: int,
 ) -> dict[str, Any]:
     """执行自动压缩。章节提交后自动触发，在批次/弧光/卷/系列边界执行压缩。"""
     principal = await get_principal("write")
+    project_id = await auth.resolve_project_id(workspace, project, principal, access="write")
     logger.info("context.compression.auto_compress called")
-    validate_required(locals(), "project_id", "chapter_no")
-    return await context_compression_service.auto_compress_after_commit(
+    validate_required(locals(), "workspace", "project", "chapter_no")
+    results = await context_compression_service.auto_compress_after_commit(
         project_id=project_id,
         chapter_no=chapter_no,
     )
+    volume_info = await context_compression_service.check_volume_closure(
+        project_id, chapter_no,
+    )
+    knowledge_batch = await context_compression_service.check_knowledge_batch(
+        project_id, chapter_no,
+    )
+    return {"ok": True, "results": results, "volume_closure": volume_info, "knowledge_batch": knowledge_batch}
 
 
 @mcp.tool(name="context.compression.list")
 async def context_compression_list(
+    workspace: str,
+    project: str,
     project_id: str,
     layer: str | None = None,
     limit: int = 50,
 ) -> list[dict[str, Any]]:
     """列出压缩上下文。返回已压缩的上下文列表，可按层级筛选。"""
     principal = await get_principal("read")
+    project_id = await auth.resolve_project_id(workspace, project, principal, access="read")
     logger.info("context.compression.list called")
-    validate_required(locals(), "project_id")
+    validate_required(locals(), "workspace", "project", "project_id")
     return await context_compression_service.list_compressed_contexts(
         project_id=project_id,
         layer=layer,
@@ -275,6 +301,8 @@ async def context_compression_list(
 
 @mcp.tool(name="archive.auto_archive")
 async def archive_auto_archive(
+    workspace: str,
+    project: str,
     project_id: str,
     current_chapter_no: int,
     keep_recent_volumes: int = 3,
@@ -282,8 +310,9 @@ async def archive_auto_archive(
 ) -> dict[str, Any]:
     """自动归档旧数据。保留近期卷和章节，归档历史数据以保持查询性能。"""
     principal = await get_principal("write")
+    project_id = await auth.resolve_project_id(workspace, project, principal, access="write")
     logger.info("archive.auto_archive called")
-    validate_required(locals(), "project_id", "current_chapter_no")
+    validate_required(locals(), "workspace", "project", "project_id", "current_chapter_no")
     return await context_compression_service.archive_old_data(
         project_id=project_id,
         current_chapter_no=current_chapter_no,
@@ -294,10 +323,13 @@ async def archive_auto_archive(
 
 @mcp.tool(name="archive.get_stats")
 async def archive_get_stats(
+    workspace: str,
+    project: str,
     project_id: str,
 ) -> dict[str, Any]:
     """获取数据分布统计。返回各表的数据量分布，用于归档决策。"""
     principal = await get_principal("read")
+    project_id = await auth.resolve_project_id(workspace, project, principal, access="read")
     logger.info("archive.get_stats called")
-    validate_required(locals(), "project_id")
+    validate_required(locals(), "workspace", "project", "project_id")
     return await context_compression_service.get_archive_stats(project_id=project_id)

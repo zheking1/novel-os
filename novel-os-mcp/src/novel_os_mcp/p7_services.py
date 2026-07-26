@@ -185,16 +185,16 @@ class PromptTemplateService:
         return [row_to_dict(row) for row in rows]
 
     async def delete_template(self, project_id: str, template_key: str) -> bool:
-        """删除模板（系统模板不可删除）"""
+        """软删除模板（系统模板不可删除）"""
         result = await self._db.execute(
             """
-            DELETE FROM prompt_templates
+            UPDATE prompt_templates SET is_active = false
             WHERE project_id = $1 AND template_key = $2 AND is_system = FALSE
             """,
             project_id,
             template_key,
         )
-        return "DELETE 1" in result
+        return "UPDATE 1" in result
 
     async def render_template(
         self,
@@ -227,6 +227,23 @@ class PromptTemplateService:
             "rendered_content": content,
             "variables_used": variables,
         }
+
+    async def delete_template(
+        self,
+        project_id: str,
+        template_key: str,
+    ) -> dict[str, Any]:
+        row = await self._db.fetchrow(
+            """
+            UPDATE prompt_templates SET is_active = false WHERE project_id = $1 AND template_key = $2
+            RETURNING template_key, name
+            """,
+            project_id,
+            template_key,
+        )
+        if row is None:
+            raise ValueError(f"Template not found: {template_key}")
+        return {"ok": True, "template_key": row["template_key"], "name": row["name"]}
 
     async def get_version_history(
         self,

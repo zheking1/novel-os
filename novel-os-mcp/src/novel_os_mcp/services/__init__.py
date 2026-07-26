@@ -13,10 +13,11 @@ from .model_cost import ModelCostService
 from .vector_index import VectorIndexService
 from .archive import ArchiveService
 from .backup import BackupService
+from .knowledge_audit import KnowledgeAuditService
+from .knowledge_council import KnowledgeCouncilService
 
 # Re-export from other modules (backward compatibility)
 from ..global_settings import GlobalSettingsService
-from ..knowledge_service import KnowledgeService
 
 __all__ = [
     "WorkspaceService",
@@ -36,6 +37,7 @@ __all__ = [
     "VectorIndexService",
     "ArchiveService",
     "BackupService",
+    "KnowledgeAuditService",
+    "KnowledgeCouncilService",
     "GlobalSettingsService",
-    "KnowledgeService",
 ]

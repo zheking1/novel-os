@@ -84,16 +84,15 @@ class ComplianceService:
     ) -> None:
         await self._db.execute(
             """
-            INSERT INTO audit_logs (project_id, user_id, action, resource_type, resource_id, payload)
-            SELECT $1::uuid, users.id, $3, $4, $5::uuid, $6::jsonb
+            INSERT INTO audit_logs (user_id, action, resource_type, resource_id, payload)
+            SELECT users.id, $2, $3, $4::uuid, $5::jsonb
             FROM users
-            WHERE ($2::text IS NULL OR users.username = $2)
+            WHERE ($1::text IS NULL OR users.username = $1)
             UNION ALL
-            SELECT $1::uuid, NULL, $3, $4, $5::uuid, $6::jsonb
-            WHERE $2::text IS NULL
+            SELECT NULL, $2, $3, $4::uuid, $5::jsonb
+            WHERE $1::text IS NULL
             LIMIT 1
             """,
-            project_id,
             username,
             action,
             resource_type,

@@ -103,53 +103,49 @@ class RulesService:
         self,
         project_id: str,
         rule_types: list[str] | None,
-        status: str = "active",
+        status: str | None = "active",
         chapter_no: int | None = None,
         volume_no: int | None = None,
     ) -> list[dict[str, Any]]:
+        conditions = ["project_id = $1", "is_deleted = false"]
+        params: list[Any] = [project_id]
+        idx = 2
+        
+        if status is not None:
+            conditions.append(f"status = ${idx}")
+            params.append(status)
+            idx += 1
+        
         if rule_types:
-            rows = await self._db.fetch(
-                """
-                SELECT id::text, rule_key, rule_type, scope, scope_type, scope_ref, scope_config,
-                       title, content, severity, status, version, priority,
-                       effective_chapter_no, expire_chapter_no, effective_volume_no, expire_volume_no,
-                       is_temporary, active_from_event, expire_on_event, conflict_policy,
-                       supersedes_rule_ids, blocked_by_rule_ids, metadata
-                FROM canon_rules
-                WHERE project_id = $1 AND status = $2 AND rule_type = ANY($3::text[])
-                  AND ($4::int IS NULL OR effective_chapter_no IS NULL OR effective_chapter_no <= $4)
-                  AND ($4::int IS NULL OR expire_chapter_no IS NULL OR expire_chapter_no >= $4)
-                  AND ($5::int IS NULL OR effective_volume_no IS NULL OR effective_volume_no <= $5)
-                  AND ($5::int IS NULL OR expire_volume_no IS NULL OR expire_volume_no >= $5)
-                ORDER BY priority ASC, rule_type, rule_key
-                """,
-                project_id,
-                status,
-                rule_types,
-                chapter_no,
-                volume_no,
-            )
-        else:
-            rows = await self._db.fetch(
-                """
-                SELECT id::text, rule_key, rule_type, scope, scope_type, scope_ref, scope_config,
-                       title, content, severity, status, version, priority,
-                       effective_chapter_no, expire_chapter_no, effective_volume_no, expire_volume_no,
-                       is_temporary, active_from_event, expire_on_event, conflict_policy,
-                       supersedes_rule_ids, blocked_by_rule_ids, metadata
-                FROM canon_rules
-                WHERE project_id = $1 AND status = $2
-                  AND ($3::int IS NULL OR effective_chapter_no IS NULL OR effective_chapter_no <= $3)
-                  AND ($3::int IS NULL OR expire_chapter_no IS NULL OR expire_chapter_no >= $3)
-                  AND ($4::int IS NULL OR effective_volume_no IS NULL OR effective_volume_no <= $4)
-                  AND ($4::int IS NULL OR expire_volume_no IS NULL OR expire_volume_no >= $4)
-                ORDER BY priority ASC, rule_type, rule_key
-                """,
-                project_id,
-                status,
-                chapter_no,
-                volume_no,
-            )
+            conditions.append(f"rule_type = ANY(${idx}::text[])")
+            params.append(rule_types)
+            idx += 1
+        
+        conditions.append(f"(${idx}::int IS NULL OR effective_chapter_no IS NULL OR effective_chapter_no <= ${idx})")
+        params.append(chapter_no)
+        idx += 1
+        conditions.append(f"(${idx}::int IS NULL OR expire_chapter_no IS NULL OR expire_chapter_no >= ${idx})")
+        params.append(chapter_no)
+        idx += 1
+        conditions.append(f"(${idx}::int IS NULL OR effective_volume_no IS NULL OR effective_volume_no <= ${idx})")
+        params.append(volume_no)
+        idx += 1
+        conditions.append(f"(${idx}::int IS NULL OR expire_volume_no IS NULL OR expire_volume_no >= ${idx})")
+        params.append(volume_no)
+        
+        rows = await self._db.fetch(
+            f"""
+            SELECT id::text, rule_key, rule_type, scope, scope_type, scope_ref, scope_config,
+                   title, content, severity, status, version, priority,
+                   effective_chapter_no, expire_chapter_no, effective_volume_no, expire_volume_no,
+                   is_temporary, active_from_event, expire_on_event, conflict_policy,
+                   supersedes_rule_ids, blocked_by_rule_ids, metadata
+            FROM canon_rules
+            WHERE {' AND '.join(conditions)}
+            ORDER BY priority ASC, rule_type, rule_key
+            """,
+            *params,
+        )
         return rows_to_dicts(rows)
 
     async def list_effective_rules(
@@ -817,4 +813,134 @@ class RulesService:
                 "status": rule["status"],
                 "version": rule["version"],
             },
+        }
+
+    async def delete_rule(self, project_id: str, rule_key: str | None = None, rule_id: str | None = None) -> dict[str, Any]:
+        """软删除规则"""
+        if not rule_key and not rule_id:
+            raise ValueError("rule_key or rule_id is required")
+        
+        conditions = ["project_id = $1"]
+        params: list[Any] = [project_id]
+        idx = 2
+        
+        if rule_key:
+            conditions.append(f"rule_key = ${idx}")
+            params.append(rule_key)
+            idx += 1
+        if rule_id:
+            conditions.append(f"id::text = ${idx}")
+            params.append(rule_id)
+            idx += 1
+        
+        row = await self._db.fetchrow(
+            f"""
+            UPDATE canon_rules SET is_deleted = true, updated_at = now()
+            WHERE {' AND '.join(conditions)}
+            RETURNING id::text, rule_key, title, rule_type
+            """,
+            *params,
+        )
+        if not row:
+            raise ValueError(f"规则不存在")
+        return {"deleted": True, "rule_key": row["rule_key"], "title": row["title"]}
+
+    async def list_active_global(self, rule_type: str | None = None) -> list[dict[str, Any]]:
+        conditions = ["status = 'active'"]
+        params: list[Any] = []
+        if rule_type:
+            conditions.append("rule_type = $1")
+            params.append(rule_type)
+        rows = await self._db.fetch(
+            f"SELECT * FROM global_rules WHERE {' AND '.join(conditions)} ORDER BY created_at DESC LIMIT 200",
+            *params,
+        )
+        return rows_to_dicts(rows)
+
+    async def list_global_rules(
+        self, rule_type: str | None = None, status: str = "active", limit: int = 100
+    ) -> list[dict[str, Any]]:
+        conditions = ["status = $1"]
+        params: list[Any] = [status]
+        idx = 2
+        if rule_type:
+            conditions.append(f"rule_type = ${idx}")
+            params.append(rule_type)
+            idx += 1
+        params.append(limit)
+        rows = await self._db.fetch(
+            f"""SELECT * FROM global_rules WHERE {' AND '.join(conditions)}
+                ORDER BY created_at DESC LIMIT ${idx}""",
+            *params,
+        )
+        return rows_to_dicts(rows)
+
+    async def upsert_global_rule(
+        self, rule_key: str, rule_type: str, title: str, content: str,
+        severity: str = "warning", status: str = "active",
+        metadata: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        await self._db.connect()
+        row = await self._db.fetchrow(
+            """INSERT INTO global_rules (rule_key, rule_type, title, content, severity, status, metadata)
+               VALUES ($1, $2, $3, $4, $5, $6, $7)
+               ON CONFLICT (rule_key) DO UPDATE SET
+                 rule_type = $2, title = $3, content = $4, severity = $5,
+                 status = $6, metadata = coalesce($7, global_rules.metadata),
+                 updated_at = NOW()
+               RETURNING *""",
+            rule_key, rule_type, title, content, severity, status,
+            json_dumps(metadata or {}),
+        )
+        return row_to_dict(row) if row else {"ok": True, "rule_key": rule_key}
+
+    async def delete_global_rule(self, rule_key: str) -> dict[str, Any]:
+        await self._db.connect()
+        row = await self._db.fetchrow(
+            "UPDATE global_rules SET status = 'inactive', updated_at = NOW() WHERE rule_key = $1 RETURNING rule_key, title",
+            rule_key,
+        )
+        if not row:
+            return {"ok": False, "error": f"Global rule not found: {rule_key}"}
+        return {"ok": True, "deleted": True, "rule_key": row["rule_key"], "title": row["title"]}
+
+    async def promote_to_global(
+        self, project_id: str, rule_key: str, promoted_by: str = "",
+        discussion_id: str = "",
+    ) -> dict[str, Any]:
+        await self._db.connect()
+        project_rule = await self._db.fetchrow(
+            "SELECT * FROM canon_rules WHERE project_id = $1 AND rule_key = $2 AND is_deleted = false",
+            project_id, rule_key,
+        )
+        if not project_rule:
+            return {"ok": False, "error": f"Project rule not found: {rule_key}"}
+        global_row = await self._db.fetchrow(
+            """INSERT INTO global_rules (rule_key, rule_type, title, content, severity, status,
+               metadata, source_project_id, promoted_from_rule_id, promoted_by, discussion_id)
+               VALUES ($1, $2, $3, $4, $5, 'active', $6, $7, $8, $9, $10)
+               ON CONFLICT (rule_key) DO UPDATE SET
+                 rule_type = $2, title = $3, content = $4, severity = $5,
+                 metadata = $6, promoted_by = $9, discussion_id = $10,
+                 updated_at = NOW()
+               RETURNING *""",
+            rule_key,
+            project_rule.get("rule_type", "creative"),
+            project_rule["title"],
+            project_rule["content"],
+            project_rule.get("severity", "warning"),
+            json_dumps(project_rule.get("metadata") or {}),
+            project_id,
+            project_rule["id"],
+            promoted_by,
+            discussion_id,
+        )
+        await self._db.execute(
+            "UPDATE canon_rules SET promotion_status = 'promoted', promoted_to_global_id = $1, discussion_id = $2 WHERE project_id = $3 AND rule_key = $4",
+            global_row["id"], discussion_id, project_id, rule_key,
+        )
+        return {
+            "ok": True,
+            "global_rule": row_to_dict(global_row),
+            "project_rule_key": rule_key,
         }

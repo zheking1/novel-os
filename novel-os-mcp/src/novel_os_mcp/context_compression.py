@@ -17,8 +17,9 @@ from .utils import json_dumps, row_to_dict, rows_to_dicts
 class ContextCompressionService:
     """Manages hierarchical context compression for long-form novels."""
 
-    def __init__(self, db: Database):
+    def __init__(self, db: Database, llm_client: Any = None):
         self._db = db
+        self._llm = llm_client
 
     # ------------------------------------------------------------------
     # Chapter Summary Compression
@@ -470,6 +471,61 @@ class ContextCompressionService:
                 results.append(r)
 
         return results
+
+    async def check_knowledge_batch(
+        self, project_id: str, chapter_no: int,
+    ) -> dict[str, Any] | None:
+        if chapter_no % 10 != 0:
+            return None
+        pk_count = await self._db.fetchval(
+            "SELECT COUNT(*) FROM project_knowledge WHERE project_id = $1 AND created_at > (NOW() - INTERVAL '7 days')",
+            project_id,
+        )
+        uk_count = await self._db.fetchval(
+            "SELECT COUNT(*) FROM universal_knowledge WHERE source = 'discussion_room' AND created_at > (NOW() - INTERVAL '7 days')",
+        )
+        entity_count = await self._db.fetchval(
+            "SELECT COUNT(*) FROM state_entities WHERE project_id = $1 AND lifecycle_status = 'active'",
+            project_id,
+        )
+        total_new = (pk_count or 0) + (uk_count or 0) + (entity_count or 0)
+        if total_new == 0:
+            return None
+        return {
+            "is_batch_time": True,
+            "chapter_no": chapter_no,
+            "new_since_last_batch": {
+                "project_knowledge": pk_count or 0,
+                "universal_knowledge": uk_count or 0,
+                "state_entities": entity_count or 0,
+            },
+            "suggestion": (
+                f"已累计 {total_new} 条新知识。建议调 discussion_room.create_session 后台归纳"
+                f"（第 {chapter_no - 9}-{chapter_no} 章），不阻塞下一章生成。"
+            ),
+        }
+
+    async def check_volume_closure(
+        self, project_id: str, chapter_no: int,
+    ) -> dict[str, Any] | None:
+        vol = await self._db.fetchrow(
+            "SELECT volume_no, title, start_chapter_no, end_chapter_no FROM volumes WHERE project_id = $1 AND end_chapter_no = $2",
+            project_id, chapter_no,
+        )
+        if not vol:
+            return None
+        rule_count = await self._db.fetchval(
+            "SELECT COUNT(*) FROM canon_rules WHERE project_id = $1 AND promotion_status IS NULL AND is_deleted = false",
+            project_id,
+        )
+        return {
+            "is_volume_end": True,
+            "volume_no": vol["volume_no"],
+            "volume_title": vol["title"],
+            "chapter_range": f"{vol['start_chapter_no']}-{vol['end_chapter_no']}",
+            "pending_rule_count": rule_count or 0,
+            "suggestion": f"第{vol['volume_no']}卷已完结。建议: 讨论室归纳本卷知识, 对{rule_count or 0}条待评估规则逐条判断是否升级为全局。",
+        }
 
     # ------------------------------------------------------------------
     # List & Query

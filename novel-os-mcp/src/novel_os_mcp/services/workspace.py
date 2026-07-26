@@ -74,11 +74,10 @@ class WorkspaceService:
 
     async def ensure_user_exists(self, username: str) -> None:
         """Ensure user exists in database. Create with default values if not exists."""
-        # Default password hash for '123456' using bcrypt
         default_password_hash = '$2b$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi'
         await self._db.execute(
             """
-            INSERT INTO users (username, nickname, status, password_hash)
+            INSERT INTO users (username, display_name, status, password_hash)
             VALUES ($1, $1, 'active', $2)
             ON CONFLICT (username) DO NOTHING
             """,
@@ -89,9 +88,9 @@ class WorkspaceService:
     async def list_users(self, status: str | None = None, limit: int = 100) -> list[dict[str, Any]]:
         rows = await self._db.fetch(
             """
-            SELECT id::text, username, nickname as display_name, status, created_at, updated_at
+            SELECT id::text, username, display_name, status, created_at, updated_at
             FROM users
-            WHERE ($1::text IS NULL OR status = $1)
+            WHERE is_deleted = false AND ($1::text IS NULL OR status = $1)
             ORDER BY username
             LIMIT $2
             """,
@@ -143,7 +142,7 @@ class WorkspaceService:
             FROM workspaces w
             LEFT JOIN workspace_members wm ON wm.workspace_id = w.id
             LEFT JOIN users u ON u.id = wm.user_id
-            WHERE ($1::text IS NULL OR u.username = $1)
+            WHERE w.is_deleted = false AND ($1::text IS NULL OR u.username = $1)
             ORDER BY w.slug
             """,
             username,
@@ -224,7 +223,7 @@ class WorkspaceService:
             JOIN workspaces w ON w.id = p.workspace_id
             LEFT JOIN project_members pm ON pm.project_id = p.id
             LEFT JOIN users u ON u.id = pm.user_id
-            WHERE w.slug = $1
+            WHERE w.slug = $1 AND p.is_deleted = false
               AND ($2::text IS NULL OR u.username = $2)
             ORDER BY p.slug
             """,
@@ -299,6 +298,53 @@ class WorkspaceService:
                 )
         return row_to_dict(row)
 
+    async def delete_user(self, username: str) -> dict[str, Any]:
+        row = await self._db.fetchrow(
+            "UPDATE users SET is_deleted = true WHERE username = $1 RETURNING username",
+            username,
+        )
+        if row is None:
+            raise ValueError(f"User not found: {username}")
+        return {"ok": True, "username": row["username"]}
+
+    async def delete_project(self, workspace_slug: str, project_slug: str) -> dict[str, Any]:
+        row = await self._db.fetchrow(
+            """
+            UPDATE projects SET is_deleted = true WHERE slug = $1
+            AND workspace_id = (SELECT id FROM workspaces WHERE slug = $2)
+            RETURNING id::text, slug
+            """,
+            project_slug,
+            workspace_slug,
+        )
+        if row is None:
+            raise ValueError(f"Project not found: {workspace_slug}/{project_slug}")
+        return {"ok": True, "id": row["id"], "slug": row["slug"]}
+
+    async def delete_workspace(self, slug: str) -> dict[str, Any]:
+        row = await self._db.fetchrow(
+            "UPDATE workspaces SET is_deleted = true WHERE slug = $1 RETURNING id::text, slug",
+            slug,
+        )
+        if row is None:
+            raise ValueError(f"Workspace not found: {slug}")
+        return {"ok": True, "id": row["id"], "slug": row["slug"]}
+
+    async def remove_workspace_member(self, workspace_slug: str, username: str) -> dict[str, Any]:
+        row = await self._db.fetchrow(
+            """
+            DELETE FROM workspace_members
+            WHERE workspace_id = (SELECT id FROM workspaces WHERE slug = $1)
+              AND user_id = (SELECT id FROM users WHERE username = $2)
+            RETURNING user_id::text
+            """,
+            workspace_slug,
+            username,
+        )
+        if row is None:
+            raise ValueError(f"Member not found: {username} in workspace {workspace_slug}")
+        return {"ok": True, "user_id": row["user_id"]}
+
     async def register_local_binding(
         self,
         project_id: str,
@@ -343,7 +389,7 @@ class WorkspaceService:
         token_hash = hashlib.sha256(token.encode("utf-8")).hexdigest()
         async with self._db.acquire() as conn:
             async with conn.transaction():
-                user = await conn.fetchrow("SELECT id FROM users WHERE username = $1", username)
+                user = await conn.fetchrow("SELECT id FROM users WHERE username = $1::text", username)
                 if user is None:
                     raise ValueError(f"User not found: {username}")
                 workspace_id = None
@@ -385,7 +431,7 @@ class WorkspaceService:
                 row = await conn.fetchrow(
                     """
                     INSERT INTO api_tokens (user_id, workspace_id, project_id, name, token_hash, scopes, expires_at)
-                    VALUES ($1, $2, $3, $4, $5, $6, $7::timestamptz)
+                    VALUES ($1::uuid, $2, $3, $4, $5, $6, $7::timestamptz)
                     RETURNING id::text, name, scopes, expires_at, created_at
                     """,
                     user["id"],

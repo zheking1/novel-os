@@ -284,41 +284,60 @@ class LocalService:
     # ========== 章节列表 ==========
 
     async def list_chapters(self, project_id: str, status: str | None = None, limit: int = 100, offset: int = 0) -> list[dict[str, Any]]:
-        """从 DB 索引获取章节列表"""
+        """从 DB 的 chapters 表获取章节列表（不依赖本地文件系统）"""
         await self._db.connect()
         if status:
             rows = await self._db.fetch(
-                "SELECT * FROM chapter_index WHERE project_id = $1 AND status = $2 ORDER BY chapter_no LIMIT $3 OFFSET $4",
+                "SELECT id::text, chapter_no, title, status, volume_no, created_at, updated_at FROM chapters WHERE project_id = $1 AND status = $2 ORDER BY chapter_no LIMIT $3 OFFSET $4",
                 project_id, status, limit, offset,
             )
         else:
             rows = await self._db.fetch(
-                "SELECT * FROM chapter_index WHERE project_id = $1 ORDER BY chapter_no LIMIT $2 OFFSET $3",
+                "SELECT id::text, chapter_no, title, status, volume_no, created_at, updated_at FROM chapters WHERE project_id = $1 ORDER BY chapter_no LIMIT $2 OFFSET $3",
                 project_id, limit, offset,
             )
         return rows_to_dicts(rows)
 
     async def get_chapter(self, project_id: str, chapter_no: int) -> dict[str, Any] | None:
-        """获取章节元数据"""
+        """从 DB 的 chapters 表获取章节元数据（不依赖本地文件系统）"""
         await self._db.connect()
         row = await self._db.fetchrow(
-            "SELECT * FROM chapter_index WHERE project_id = $1 AND chapter_no = $2",
+            "SELECT id::text, chapter_no, title, status, volume_no, word_count, source_path, created_at, updated_at FROM chapters WHERE project_id = $1 AND chapter_no = $2",
             project_id, chapter_no,
         )
-        return row_to_dict(row) if row else None
+        if not row:
+            return None
+        result = dict(row)
+        # 附加上 generation_passes 中的摘要
+        summary_row = await self._db.fetchrow(
+            "SELECT content, metadata FROM generation_passes WHERE project_id = $1 AND chapter_no = $2 AND pass_type = 'draft' ORDER BY created_at DESC LIMIT 1",
+            project_id, chapter_no,
+        )
+        if summary_row:
+            result["summary"] = summary_row["content"][:500] if summary_row["content"] else ""
+            meta = ensure_json_value(summary_row.get("metadata") or {})
+            if isinstance(meta, dict) and meta.get("word_count"):
+                result["word_count"] = meta["word_count"]
+            if isinstance(meta, dict) and meta.get("local_file_path"):
+                result["local_file_path"] = meta["local_file_path"]
+        return result
 
     async def get_chapter_content(self, project_id: str, chapter_no: int, version: str = "final") -> str | None:
-        """读取章节正文（从本地文件）"""
-        project = await self.get_project(project_id)
-        if not project:
-            raise ValueError("项目未注册")
-        chapter = await self.get_chapter(project_id, chapter_no)
-        if not chapter:
-            return None
-        local_path = chapter.get(f"{version}_path") or chapter.get("local_path")
-        if not local_path:
-            return None
-        return await self.read_file(project["local_root"], local_path)
+        """读取章节摘要（从 generation_passes，不依赖本地文件系统）"""
+        row = await self._db.fetchrow(
+            "SELECT content FROM generation_passes WHERE project_id = $1 AND chapter_no = $2 ORDER BY created_at DESC LIMIT 1",
+            project_id, chapter_no,
+        )
+        return row["content"] if row else None
+
+    async def update_chapter_source(self, project_id: str, chapter_no: int, source_path: str | None) -> None:
+        """更新 chapters 表的 source_path（用户本地正文文件路径）"""
+        await self._db.connect()
+        await self._db.execute(
+            "INSERT INTO chapters (project_id, chapter_no, source_path) VALUES ($1, $2, $3) "
+            "ON CONFLICT (project_id, chapter_no) DO UPDATE SET source_path = COALESCE($3, chapters.source_path), updated_at = NOW()",
+            project_id, chapter_no, source_path,
+        )
 
     # ========== 审查 ==========
 

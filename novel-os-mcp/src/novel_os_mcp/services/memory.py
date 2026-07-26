@@ -274,6 +274,9 @@ class MemoryService:
         entity_type: str,
         name: str,
         aliases: list[str] | None = None,
+        summary: str | None = None,
+        description: str | None = None,
+        portrait_url: str | None = None,
         profile: dict[str, Any] | None = None,
         lifecycle_status: str = "active",
         importance: str = "medium",
@@ -289,20 +292,28 @@ class MemoryService:
         row = await self._db.fetchrow(
             """
             INSERT INTO state_entities (
-              project_id, entity_type, name, aliases, profile, lifecycle_status, importance, tags,
+              project_id, entity_type, name, aliases, summary, description, portrait_url,
+              profile, lifecycle_status, importance, tags,
               first_seen_chapter_no, last_seen_chapter_no, first_seen_volume_no, last_seen_volume_no,
               source_type, source_id, metadata
             )
             VALUES (
-              $1, $2, $3, COALESCE($4::text[], ARRAY[]::text[]), $5::jsonb, $6, $7,
-              COALESCE($8::text[], ARRAY[]::text[]), $9, $10, $11, $12, $13, $14, $15::jsonb
+              $1, $2, $3, COALESCE($4::text[], ARRAY[]::text[]),
+              $5, $6, $7,
+              $8::jsonb, $9, $10,
+              COALESCE($11::text[], ARRAY[]::text[]),
+              $12, $13, $14, $15,
+              $16, $17, $18::jsonb
             )
             ON CONFLICT (project_id, entity_type, name)
             DO UPDATE SET aliases = CASE WHEN $4::text[] IS NULL THEN state_entities.aliases ELSE EXCLUDED.aliases END,
+                          summary = COALESCE(EXCLUDED.summary, state_entities.summary),
+                          description = COALESCE(EXCLUDED.description, state_entities.description),
+                          portrait_url = COALESCE(EXCLUDED.portrait_url, state_entities.portrait_url),
                           profile = state_entities.profile || EXCLUDED.profile,
                           lifecycle_status = EXCLUDED.lifecycle_status,
                           importance = EXCLUDED.importance,
-                          tags = CASE WHEN $8::text[] IS NULL THEN state_entities.tags ELSE EXCLUDED.tags END,
+                          tags = CASE WHEN $11::text[] IS NULL THEN state_entities.tags ELSE EXCLUDED.tags END,
                           first_seen_chapter_no = COALESCE(EXCLUDED.first_seen_chapter_no, state_entities.first_seen_chapter_no),
                           last_seen_chapter_no = COALESCE(EXCLUDED.last_seen_chapter_no, state_entities.last_seen_chapter_no),
                           first_seen_volume_no = COALESCE(EXCLUDED.first_seen_volume_no, state_entities.first_seen_volume_no),
@@ -311,7 +322,8 @@ class MemoryService:
                           source_id = COALESCE(EXCLUDED.source_id, state_entities.source_id),
                           metadata = state_entities.metadata || EXCLUDED.metadata,
                           updated_at = now()
-            RETURNING id::text, entity_type, name, aliases, profile, lifecycle_status, importance, tags,
+            RETURNING id::text, entity_type, name, aliases, summary, description, portrait_url,
+                      profile, lifecycle_status, importance, tags,
                       first_seen_chapter_no, last_seen_chapter_no, first_seen_volume_no, last_seen_volume_no,
                       source_type, source_id, metadata, created_at, updated_at
             """,
@@ -319,6 +331,9 @@ class MemoryService:
             entity_type,
             name,
             aliases,
+            summary,
+            description,
+            portrait_url,
             json_dumps(profile or {}),
             lifecycle_status,
             importance,
@@ -346,7 +361,8 @@ class MemoryService:
     ) -> list[dict[str, Any]]:
         rows = await self._db.fetch(
             """
-            SELECT e.id::text, e.entity_type, e.name, e.aliases, e.profile, e.lifecycle_status,
+            SELECT e.id::text, e.entity_type, e.name, e.aliases, e.summary, e.description, e.portrait_url,
+                   e.profile, e.lifecycle_status,
                    e.importance, e.tags, e.first_seen_chapter_no, e.last_seen_chapter_no,
                    e.first_seen_volume_no, e.last_seen_volume_no, e.source_type, e.source_id,
                    e.metadata, e.created_at, e.updated_at,
@@ -397,7 +413,8 @@ class MemoryService:
             )
             row = await conn.fetchrow(
                 """
-                SELECT e.id::text, e.entity_type, e.name, e.aliases, e.profile, e.lifecycle_status,
+                SELECT e.id::text, e.entity_type, e.name, e.aliases, e.summary, e.description, e.portrait_url,
+                       e.profile, e.lifecycle_status,
                        e.importance, e.tags, e.first_seen_chapter_no, e.last_seen_chapter_no,
                        e.first_seen_volume_no, e.last_seen_volume_no, e.source_type, e.source_id,
                        e.metadata, e.created_at, e.updated_at,
@@ -623,6 +640,72 @@ class MemoryService:
         )
         return rows_to_dicts(rows)
 
+    async def get_snapshot_at_chapter(
+        self,
+        project_id: str,
+        entity_name: str,
+        chapter_no: int,
+    ) -> dict[str, Any]:
+        """Get the state snapshot that was effective at a specific chapter."""
+        row = await self._db.fetchrow(
+            """
+            SELECT s.id::text, s.entity_id::text, e.entity_type, e.name, s.chapter_id::text,
+                   s.state, s.is_current,
+                   s.effective_chapter_no, s.expire_chapter_no,
+                   s.duration_type, s.change_reason, s.source_type, s.metadata,
+                   s.created_at
+            FROM state_snapshots s
+            JOIN state_entities e ON e.id = s.entity_id
+            WHERE s.project_id = $1
+              AND e.name = $2
+              AND (s.effective_chapter_no IS NULL OR s.effective_chapter_no <= $3)
+              AND (s.expire_chapter_no IS NULL OR s.expire_chapter_no >= $3)
+            ORDER BY s.effective_chapter_no DESC NULLS LAST, s.created_at DESC
+            LIMIT 1
+            """,
+            project_id,
+            entity_name,
+            chapter_no,
+        )
+        if not row:
+            return {"found": False, "entity_name": entity_name, "chapter_no": chapter_no}
+
+        result = row_to_dict(row)
+        result["found"] = True
+        return result
+
+    async def get_entity_state_timeline(
+        self,
+        project_id: str,
+        entity_name: str,
+        start_chapter: int = 1,
+        end_chapter: int | None = None,
+        limit: int = 50,
+    ) -> list[dict[str, Any]]:
+        """Get the state change timeline for an entity across chapters."""
+        rows = await self._db.fetch(
+            """
+            SELECT DISTINCT ON (s.effective_chapter_no, s.chapter_id)
+                   s.id::text, s.effective_chapter_no, s.expire_chapter_no,
+                   s.state, s.change_reason, s.source_type, s.duration_type,
+                   s.created_at
+            FROM state_snapshots s
+            JOIN state_entities e ON e.id = s.entity_id
+            WHERE s.project_id = $1
+              AND e.name = $2
+              AND ($3::int IS NULL OR s.effective_chapter_no >= $3 OR s.effective_chapter_no IS NULL)
+              AND ($4::int IS NULL OR s.effective_chapter_no <= $4)
+            ORDER BY s.effective_chapter_no, s.chapter_id, s.created_at DESC
+            LIMIT $5
+            """,
+            project_id,
+            entity_name,
+            start_chapter,
+            end_chapter,
+            limit,
+        )
+        return rows_to_dicts(rows)
+
     async def upsert_relationship(
         self,
         project_id: str,
@@ -831,18 +914,34 @@ class MemoryService:
                                 continue
                             entity = await conn.fetchrow(
                                 """
-                                INSERT INTO state_entities (project_id, entity_type, name, aliases, profile)
-                                VALUES ($1, $2, $3, $4, $5::jsonb)
+                                INSERT INTO state_entities (project_id, entity_type, name, aliases, summary, description, tags,
+                                                            importance, lifecycle_status, profile,
+                                                            first_seen_chapter_no, last_seen_chapter_no)
+                                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10::jsonb, $11, $12)
                                 ON CONFLICT (project_id, entity_type, name)
-                                DO UPDATE SET profile = state_entities.profile || EXCLUDED.profile,
-                                              updated_at = now()
+                                DO UPDATE SET
+                                    profile = state_entities.profile || EXCLUDED.profile,
+                                    summary = COALESCE(EXCLUDED.summary, state_entities.summary),
+                                    description = COALESCE(EXCLUDED.description, state_entities.description),
+                                    tags = CASE WHEN $7 IS NULL THEN state_entities.tags ELSE EXCLUDED.tags END,
+                                    importance = COALESCE(EXCLUDED.importance, state_entities.importance),
+                                    last_seen_chapter_no = GREATEST(COALESCE(EXCLUDED.last_seen_chapter_no, 0), COALESCE(state_entities.last_seen_chapter_no, 0)),
+                                    first_seen_chapter_no = LEAST(COALESCE(EXCLUDED.first_seen_chapter_no, 999999), COALESCE(state_entities.first_seen_chapter_no, 999999)),
+                                    updated_at = now()
                                 RETURNING id
                                 """,
                                 project_id,
                                 entity_type,
                                 name,
                                 change.get("aliases", []),
+                                change.get("summary"),
+                                change.get("description"),
+                                change.get("tags"),
+                                change.get("importance", "medium"),
+                                change.get("lifecycle_status", "active"),
                                 json_dumps(change.get("profile", {})),
+                                change.get("first_seen_chapter_no") or chapter_no,
+                                change.get("last_seen_chapter_no") or chapter_no,
                             )
                             await conn.execute(
                                 "UPDATE state_snapshots SET is_current = false WHERE project_id = $1 AND entity_id = $2",

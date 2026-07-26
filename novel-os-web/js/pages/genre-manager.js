@@ -38,7 +38,7 @@
      */
     async loadGenres() {
       try {
-        const result = await window.ApiClient.genre.list();
+        const result = await ApiClient.callTool('setting.genre.list', {});
         this.genres = result || [];
         console.log('[GenreManager] Genres loaded:', this.genres.length);
       } catch (error) {
@@ -225,7 +225,7 @@
           typical_elements: elementsStr ? elementsStr.split('\n').map(s => s.trim()).filter(Boolean) : []
         };
 
-        await window.ApiClient.genre.upsert(data);
+        await ApiClient.callTool('setting.genre.upsert', data);
 
         // 关闭模态框
         window.ModalDialog.close();
@@ -252,7 +252,7 @@
         t('common.confirmDelete'),
         async () => {
           try {
-            await window.ApiClient.genre.delete(slug);
+            await ApiClient.callTool('setting.genre.delete', { slug });
 
             await this.loadGenres();
             this.renderTable();

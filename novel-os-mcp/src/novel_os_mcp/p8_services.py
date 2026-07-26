@@ -33,9 +33,9 @@ class RelationshipGraphService:
 
         entities = await self._db.fetch(
             f"""
-            SELECT id::text, entity_type, name, core_profile
+            SELECT id::text, entity_type, name, profile
             FROM state_entities
-            WHERE project_id = $1 AND isarchived = FALSE {type_condition}
+            WHERE project_id = $1 AND lifecycle_status = 'active' {type_condition}
             """,
             *params,
         )
@@ -66,7 +66,7 @@ class RelationshipGraphService:
                 "id": e["id"],
                 "type": e["entity_type"],
                 "name": e["name"],
-                "profile": e["core_profile"][:200] if e["core_profile"] else None,
+                "profile": e["profile"][:200] if e["profile"] else None,
             })
 
         edges = []
@@ -373,13 +373,13 @@ class OfflineEnhancementService:
         if entity_type == "state_entity":
             name = data.get("name", "")
             etype = data.get("entity_type", "character")
-            profile = json_dumps(data.get("core_profile", {}))
+            profile = json_dumps(data.get("profile", {}))
             await self._db.execute(
                 """
-                INSERT INTO state_entities (id, project_id, entity_type, name, core_profile)
+                INSERT INTO state_entities (id, project_id, entity_type, name, profile)
                 VALUES ($1::uuid, $2::uuid, $3, $4, $5::jsonb)
-                ON CONFLICT (project_id, name) DO UPDATE SET
-                    core_profile = EXCLUDED.core_profile, updated_at = NOW()
+                ON CONFLICT (project_id, entity_type, name) DO UPDATE SET
+                    profile = EXCLUDED.profile, updated_at = NOW()
                 """,
                 entity_id, change.get("project_id"), etype, name, profile,
             )

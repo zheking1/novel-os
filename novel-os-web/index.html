@@ -9,6 +9,9 @@
   <!-- Tailwind CSS -->
   <script src="https://cdn.tailwindcss.com"></script>
   
+  <!-- D3.js for Knowledge Graph -->
+  <script src="https://d3js.org/d3.v7.min.js"></script>
+  
   <style>
     ::-webkit-scrollbar { width: 6px; height: 6px; }
     ::-webkit-scrollbar-track { background: #f1f1f1; }
@@ -58,6 +61,29 @@
           登录
         </button>
       </form>
+      <div class="mt-4 text-center">
+        <button onclick="toggleRegister()" class="text-sm text-primary-600 hover:underline">注册新账号</button>
+      </div>
+      <div id="register-form" class="hidden mt-4 pt-4 border-t">
+        <div id="register-msg" class="text-sm mb-3"></div>
+        <div class="mb-3">
+          <label class="block text-sm font-medium text-gray-700 mb-1">用户名</label>
+          <input id="reg-username" type="text" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" required>
+        </div>
+        <div class="mb-3">
+          <label class="block text-sm font-medium text-gray-700 mb-1">密码</label>
+          <input id="reg-password" type="password" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" required>
+        </div>
+        <div class="mb-3">
+          <label class="block text-sm font-medium text-gray-700 mb-1" id="captcha-label">验证码</label>
+          <div class="flex gap-2 items-center">
+            <input id="reg-captcha" type="text" class="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm" placeholder="输入答案" required>
+            <span id="captcha-question" class="px-3 py-2 bg-gray-100 rounded-lg text-sm font-mono font-bold cursor-pointer" onclick="loadCaptcha()" title="点击刷新">点击刷新</span>
+          </div>
+          <input type="hidden" id="captcha-id">
+        </div>
+        <button onclick="handleRegister()" class="w-full bg-green-600 text-white py-2 rounded-lg hover:bg-green-700 text-sm font-medium">注册</button>
+      </div>
     </div>
   </div>
 
@@ -102,28 +128,34 @@
                   title="Switch to English">
             中文
           </button>
+          
+          <!-- 用户状态 -->
+          <div id="user-menu" class="flex items-center gap-2">
+            <div class="flex items-center gap-2 px-3 py-1.5 bg-gray-50 rounded-lg">
+              <div class="w-8 h-8 bg-primary-600 rounded-full flex items-center justify-center text-white text-sm font-bold">
+                <span id="user-avatar">?</span>
+              </div>
+              <div class="flex flex-col">
+                <span id="user-name" class="text-sm font-medium text-gray-700">加载中...</span>
+                <span id="user-role" class="text-xs text-gray-500">用户</span>
+              </div>
+            </div>
+<button onclick="handleLogout()" 
+                     class="px-3 py-1.5 text-sm text-red-600 border border-red-200 rounded hover:bg-red-50 transition-colors"
+                     title="退出登录">
+               退出
+             </button>
+             <button id="reg-toggle-btn" onclick="toggleRegistration()" 
+                     class="hidden px-3 py-1.5 text-sm border border-gray-300 rounded hover:bg-gray-100 transition-colors"
+                     title="开放/关闭注册">
+               注册: ?
+             </button>
+          </div>
         </div>
       </header>
 
       <!-- 内容区域 -->
-      <div id="content-area" class="flex-1 p-6">
-        <div class="bg-white rounded-lg shadow p-8 text-center">
-          <h1 class="text-2xl font-bold text-gray-800 mb-4">欢迎使用 Novel OS</h1>
-          <p class="text-gray-600">基础框架已搭建完成</p>
-          <div class="mt-6 space-x-4">
-            <button onclick="testApi()" class="px-4 py-2 bg-primary-600 text-white rounded hover:bg-primary-700">
-              测试API
-            </button>
-            <button onclick="showMenuInfo()" class="px-4 py-2 bg-gray-600 text-white rounded hover:bg-gray-700">
-              显示菜单信息
-            </button>
-          </div>
-          <div class="mt-6 pt-6 border-t border-gray-200">
-            <p class="text-sm text-gray-500">当前语言: <span id="current-lang" class="font-medium">中文</span></p>
-            <p class="text-sm text-gray-500 mt-1">点击右上角按钮切换语言</p>
-          </div>
-        </div>
-      </div>
+      <div id="content-area" class="flex-1 p-6"></div>
     </main>
   </div>
 
@@ -136,57 +168,91 @@
   </div>
 
   <!-- 核心模块 - 按顺序加载 -->
-  <script src="js/core/i18n.js?v=2"></script>
-  <script src="js/core/app-core.js?v=2"></script>
-  <script src="js/core/api-client.js?v=2"></script>
-  <script src="js/core/menu-manager.js?v=2"></script>
-  <script src="js/core/router.js?v=2"></script>
-  
+  <script src="js/core/i18n.js?v=42"></script>
+  <script src="js/core/app-core.js?v=42"></script>
+  <script src="js/core/api-client.js?v=44"></script>
+  <script src="js/core/menu-manager.js?v=42"></script>
+  <script src="js/core/router.js?v=42"></script>
+
+  <!-- 工具函数 -->
+  <script src="js/utils/error-handler.js?v=42"></script>
+  <script src="js/utils/form-validator.js?v=42"></script>
+
   <!-- 组件 -->
-  <script src="js/components/data-table.js?v=2"></script>
-  <script src="js/components/modal-dialog.js?v=2"></script>
+  <script src="js/components/data-table.js?v=42"></script>
+  <script src="js/components/modal-dialog.js?v=42"></script>
   
   <!-- 页面 -->
-  <script src="js/pages/project-manage-page.js?v=2"></script>
-  <script src="js/pages/template-list-page.js?v=2"></script>
-  <script src="js/pages/level-manager.js?v=2"></script>
-  <script src="js/pages/genre-manager.js?v=2"></script>
-  <script src="js/pages/category-manager.js?v=2"></script>
-  <script src="js/pages/binding-matrix-manager.js?v=2"></script>
-  <script src="js/pages/health-page.js?v=2"></script>
-  <script src="js/pages/canon-list-page.js?v=2"></script>
-  <script src="js/pages/entities-list-page.js?v=2"></script>
-  <script src="js/pages/rules-list-page.js?v=2"></script>
-  <script src="js/pages/plot-volumes-page.js?v=2"></script>
-  <script src="js/pages/plot-threads-page.js?v=2"></script>
-  <script src="js/pages/foreshadowing-list-page.js?v=2"></script>
-  <script src="js/pages/context-preview-page.js?v=2"></script>
-  <script src="js/pages/review-tasks-page.js?v=2"></script>
-  <script src="js/pages/pipeline-page.js?v=2"></script>
-  <script src="js/pages/chapters-page.js?v=2"></script>
-  <script src="js/pages/project-world-rules-page.js?v=2"></script>
-  <script src="js/pages/project-characters-page.js?v=2"></script>
-  <script src="js/pages/project-factions-page.js?v=2"></script>
-  <script src="js/pages/project-world-state-page.js?v=2"></script>
-  <script src="js/pages/model-profiles-page.js?v=2"></script>
-  <script src="js/pages/kb-pk-list-page.js?v=2"></script>
-  <script src="js/pages/kb-uk-list-page.js?v=2"></script>
-  <script src="js/pages/kb-categories-page.js?v=2"></script>
-  <script src="js/pages/knowledge-graph-page.js?v=2"></script>
-  <script src="js/pages/knowledge-stats-page.js?v=2"></script>
-  <script src="js/pages/knowledge-review-page.js?v=2"></script>
-  <script src="js/pages/knowledge-expiry-page.js?v=2"></script>
-  <script src="js/pages/skill-manage-page.js?v=2"></script>
-  <script src="js/pages/sync-status-page.js?v=2"></script>
-  <script src="js/pages/sync-conflicts-page.js?v=2"></script>
-  <script src="js/pages/audit-logs-page.js?v=2"></script>
-  <script src="js/pages/offline-status-page.js?v=2"></script>
-  <script src="js/pages/sys-cache-page.js?v=2"></script>
-  <script src="js/pages/sys-backup-page.js?v=2"></script>
-  <script src="js/pages/connection-page.js?v=2"></script>
-  <script src="js/pages/account-page.js?v=2"></script>
-  <script src="js/pages/users-page.js?v=2"></script>
-  <script src="js/pages/debug-page.js?v=2"></script>
+  <script src="js/pages/project-manage-page.js?v=42"></script>
+  <script src="js/pages/template-list-page.js?v=42"></script>
+  <script src="js/pages/level-manager.js?v=42"></script>
+  <script src="js/pages/category-manager.js?v=42"></script>
+  
+  <script src="js/pages/health-page.js?v=42"></script>
+  <script src="js/pages/canon-list-page.js?v=42"></script>
+  <script src="js/pages/entities-list-page.js?v=42"></script>
+  <script src="js/pages/rules-list-page.js?v=42"></script>
+  <script src="js/pages/plot-volumes-page.js?v=42"></script>
+  <script src="js/pages/plot-threads-page.js?v=42"></script>
+  <script src="js/pages/foreshadowing-list-page.js?v=42"></script>
+  <script src="js/pages/context-preview-page.js?v=43"></script>
+  <script src="js/pages/review-tasks-page.js?v=44"></script>
+  <script src="js/pages/api-tokens-page.js?v=5"></script>
+  <script src="js/pages/review-council-page.js?v=1"></script>
+  <script src="js/pages/pipeline-page.js?v=45"></script>
+  <script src="js/pages/chapters-page.js?v=44"></script>
+  <script src="js/pages/project-world-rules-page.js?v=42"></script>
+  <script src="js/pages/project-characters-page.js?v=42"></script>
+  <script src="js/pages/project-factions-page.js?v=42"></script>
+  <script src="js/pages/project-world-state-page.js?v=43"></script>
+  <script src="js/pages/model-profiles-page.js?v=45"></script>
+  <script src="js/pages/model-routes-page.js?v=42"></script>
+  <script src="js/pages/model-rate-limits-page.js?v=42"></script>
+  <script src="js/pages/kb-pk-list-page.js?v=42"></script>
+  <script src="js/pages/kb-uk-list-page.js?v=42"></script>
+  <script src="js/pages/uk-manage-page.js?v=42"></script>
+  <script src="js/pages/kb-genres-page.js?v=42"></script>
+  <script src="js/pages/global-rules-page.js?v=42"></script>
+  <script src="js/pages/evolution-logs-page.js?v=42"></script>
+  <script src="js/pages/materials-page.js?v=42"></script>
+  <script src="js/pages/kb-categories-page.js?v=42"></script>
+  <script src="js/pages/knowledge-graph-page.js?v=43"></script>
+  <script src="js/pages/knowledge-stats-page.js?v=42"></script>
+  <script src="js/pages/knowledge-review-page.js?v=42"></script>
+  <script src="js/pages/knowledge-expiry-page.js?v=42"></script>
+  <script src="js/pages/expectations-page.js?v=42"></script>
+  <script src="js/pages/kb-search-page.js?v=42"></script>
+  <script src="js/pages/kb-auto-search-page.js?v=42"></script>
+  <script src="js/pages/kb-relations-page.js?v=42"></script>
+  <script src="js/pages/kb-init-page.js?v=42"></script>
+  <script src="js/pages/world-snapshot-page.js?v=42"></script>
+  <script src="js/pages/arc-tracking-page.js?v=42"></script>
+  <script src="js/pages/skill-manage-page.js?v=42"></script>
+  <script src="js/pages/style-profiles-page.js?v=43"></script>
+  <script src="js/pages/style-analysis-page.js?v=42"></script>
+  <script src="js/pages/style-drift-page.js?v=42"></script>
+  <script src="js/pages/sync-status-page.js?v=42"></script>
+  <script src="js/pages/sync-conflicts-page.js?v=42"></script>
+  <script src="js/pages/audit-logs-page.js?v=42"></script>
+  <script src="js/pages/offline-status-page.js?v=42"></script>
+  <script src="js/pages/sys-cache-page.js?v=42"></script>
+  <script src="js/pages/sys-backup-page.js?v=42"></script>
+  <script src="js/pages/connection-page.js?v=42"></script>
+  <script src="js/pages/account-page.js?v=42"></script>
+  <script src="js/pages/users-page.js?v=42"></script>
+  <script src="js/pages/workspace-manage-page.js?v=42"></script>
+  <script src="js/pages/member-manage-page.js?v=42"></script>
+  <script src="js/pages/arc-characters-page.js?v=42"></script>
+  <script src="js/pages/pacing-analysis-page.js?v=42"></script>
+  <script src="js/pages/debug-page.js?v=42"></script>
+  <script src="js/pages/compliance-page.js?v=42"></script>
+  <script src="js/pages/local-projects-page.js?v=42"></script>
+  <script src="js/pages/system-evolution-page.js?v=42"></script>
+  <script src="js/pages/system-notifications-page.js?v=42"></script>
+  <script src="js/pages/discussion-room-page.js?v=43"></script>
+  <script src="js/pages/entity-detail-page.js?v=42"></script>
+  <script src="js/pages/chapter-plans-page.js?v=42"></script>
+  <script src="js/pages/home-page.js?v=42"></script>
 
   <!-- 应用初始化 -->
   <script>
@@ -210,6 +276,7 @@
         const me = await fetch('/api/me').then(r => r.json());
         if (me.authenticated) {
           window.AppState.username = me.username;
+          window.AppState.isAdmin = me.username === 'admin' || me.username === 'admin';
           showApp();
           await initApp();
         } else {
@@ -219,6 +286,47 @@
         showLogin();
       }
     });
+
+    let captchaId = '';
+    async function loadCaptcha() {
+      try {
+        const r = await fetch('/api/captcha', { method: 'POST' }).then(r => r.json());
+        if (r.ok) {
+          captchaId = r.captcha_id;
+          document.getElementById('captcha-question').textContent = r.question;
+          document.getElementById('captcha-id').value = r.captcha_id;
+        }
+      } catch(e) { document.getElementById('captcha-question').textContent = '加载失败'; }
+    }
+
+    function toggleRegister() {
+      const el = document.getElementById('register-form');
+      el.classList.toggle('hidden');
+      if (!el.classList.contains('hidden')) loadCaptcha();
+    }
+
+    async function handleRegister() {
+      const username = document.getElementById('reg-username').value.trim();
+      const password = document.getElementById('reg-password').value;
+      const answer = document.getElementById('reg-captcha').value.trim();
+      const msg = document.getElementById('register-msg');
+      if (!username || !password || !answer) { msg.className='text-red-500 text-sm mb-3'; msg.textContent='请填写所有字段'; return; }
+      try {
+        const r = await fetch('/api/register', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({ username, password, captcha_id: captchaId, captcha_answer: answer })
+        }).then(r => r.json());
+        if (r.ok) {
+          msg.className = 'text-green-500 text-sm mb-3';
+          msg.textContent = '注册成功！请登录';
+        } else {
+          msg.className = 'text-red-500 text-sm mb-3';
+          msg.textContent = r.error;
+          loadCaptcha();
+        }
+      } catch(e) { msg.className='text-red-500 text-sm mb-3'; msg.textContent = '网络错误'; }
+    }
 
     function showLogin() {
       document.getElementById('login-screen').classList.remove('hidden');
@@ -250,6 +358,7 @@
         const data = await resp.json();
         if (data.ok) {
           window.AppState.username = data.username;
+          window.AppState.isAdmin = data.username === 'admin' || data.username === 'admin';
           showApp();
           await initApp();
         } else {
@@ -307,6 +416,9 @@
           
           try {
             const projects = await window.ApiClient.project.list(savedWorkspace, { showLoading: false });
+            // Store projects list for ID lookup
+            window.AppState.projectsList = projects || [];
+            
             if (projects && projects.length > 0) {
               projectSelect.innerHTML = `
                 <option value="">${t('project.select')}</option>
@@ -315,9 +427,12 @@
               
               // 恢复之前选择的项目
               const savedProject = localStorage.getItem('novel-project');
-              if (savedProject && projects.some(p => p.slug === savedProject)) {
+              const savedProjectData = projects.find(p => p.slug === savedProject);
+              if (savedProject && savedProjectData) {
                 projectSelect.value = savedProject;
                 window.AppState.currentProject = savedProject;
+                window.AppState.currentProjectId = savedProjectData.id;
+                console.log('[App] Restored project ID:', savedProjectData.id);
               }
             } else {
               projectSelect.innerHTML = `<option value="">${t('project.none')}</option>`;
@@ -332,7 +447,10 @@
         console.log('[App] Rendering menu...');
         renderMenu();
         
-        // 4. 更新语言切换按钮
+        // 4. 更新用户状态显示
+        updateUserDisplay();
+        
+        // 5. 更新语言切换按钮
         updateLanguageButton();
         
         // 5. 标记初始化完成
@@ -348,6 +466,10 @@
             navigateToPage(pageId);
             updateBreadcrumb();
           }
+        } else {
+          // 默认导航到首页
+          window.MenuManager.setCurrentPage('home');
+          navigateToPage('home');
         }
         
         console.log('[App] Initialization complete!');
@@ -368,7 +490,8 @@
     function renderMenu() {
       const menu = window.MenuManager.getMenu({
         project: window.AppState.currentProject,
-        t: window.t
+        t: window.t,
+        isAdmin: window.AppState.isAdmin
       });
       
       const menuHtml = menu.map(section => `
@@ -436,10 +559,13 @@
         const projects = await window.ApiClient.project.list(workspaceSlug, { showLoading: false });
         console.log('[App] Projects loaded:', projects?.length || 0);
         
+        // Store projects list for ID lookup
+        window.AppState.projectsList = projects || [];
+        
         if (projects && projects.length > 0) {
           projectSelect.innerHTML = `
             <option value="">${t('project.select')}</option>
-            ${projects.map(p => `<option value="${p.slug}">${p.title || p.name || p.slug}</option>`).join('')}
+            ${projects.map(p => `<option value="${p.slug}" data-id="${p.id || ''}">${p.title || p.name || p.slug}</option>`).join('')}
           `;
         } else {
           projectSelect.innerHTML = `<option value="">${t('project.none')}</option>`;
@@ -456,6 +582,12 @@
     function handleProjectChange(projectSlug) {
       console.log('[App] Project changed:', projectSlug);
       window.AppState.currentProject = projectSlug;
+      
+      // Look up project ID from stored projects list
+      const project = window.AppState.projectsList?.find(p => p.slug === projectSlug);
+      window.AppState.currentProjectId = project?.id || null;
+      console.log('[App] Project ID:', window.AppState.currentProjectId);
+      
       localStorage.setItem('novel-project', projectSlug || '');
       
       // 重新渲染菜单
@@ -472,10 +604,41 @@
       const langBtn = document.getElementById('lang-toggle');
       if (langBtn) {
         const currentLang = window.i18n.getCurrentLang();
-        const otherLang = currentLang === 'zh' ? 'en' : 'zh';
         langBtn.textContent = currentLang === 'zh' ? '中文' : 'EN';
         langBtn.title = currentLang === 'zh' ? 'Switch to English' : '切换到中文';
       }
+    }
+
+    function updateUserDisplay() {
+      const username = window.AppState.username;
+      if (!username) return;
+      
+      const userNameEl = document.getElementById('user-name');
+      const userAvatarEl = document.getElementById('user-avatar');
+      const userRoleEl = document.getElementById('user-role');
+      
+      if (userNameEl) userNameEl.textContent = username;
+      if (userAvatarEl) userAvatarEl.textContent = username.charAt(0).toUpperCase();
+      if (userRoleEl) userRoleEl.textContent = window.AppState.isAdmin ? '管理员' : '用户';
+    }
+
+    async function handleLogout() {
+      if (!confirm('确定要退出登录吗？')) return;
+      
+      try {
+        await fetch('/api/logout', { method: 'POST' });
+      } catch (e) {
+        console.error('[App] Logout error:', e);
+      }
+      
+      // 清除本地状态
+      window.AppState.username = null;
+      window.AppState.isAdmin = false;
+      localStorage.removeItem('novel-workspace');
+      localStorage.removeItem('novel-project');
+      
+      // 显示登录页面
+      showLogin();
     }
 
     async function toggleLanguage() {
@@ -518,7 +681,7 @@
     // 路径 -> 页面ID 映射
     function pathToPageId(path) {
       if (!path) return null;
-      const menu = window.MenuManager.getMenu({ project: window.AppState?.currentProject, t: window.t });
+      const menu = window.MenuManager.getMenu({ project: window.AppState?.currentProject, t: window.t, isAdmin: window.AppState?.isAdmin });
       for (const section of menu) {
         for (const group of section.groups) {
           for (const item of group.items) {
@@ -562,7 +725,7 @@
           window.RulesListPage?.init() || showPlaceholder(t('nav.rulesList'));
           break;
         case 'graph-view':
-          window.GraphViewPage?.init() || showPlaceholder(t('nav.graphView'));
+          window.KnowledgeGraphPage?.init('project') || showPlaceholder(t('nav.graphView'));
           break;
           
         // ===== 项目管理 - 剧情 =====
@@ -629,20 +792,21 @@
           window.AutoSearchPage?.init() || showPlaceholder(t('nav.autoSearch'));
           break;
         case 'knowledge-graph':
-          window.KnowledgeGraphPage?.init() || showPlaceholder(t('nav.knowledgeGraph'));
+          window.KnowledgeGraphPage?.init('global') || showPlaceholder(t('nav.knowledgeGraph'));
           break;
         case 'knowledge-stats':
           window.KnowledgeStatsPage?.init() || showPlaceholder(t('nav.knowledgeStats'));
           break;
-        case 'genre-manage':
-          window.GenreManager.init();
+        case 'kb-genres':
+          window.KbGenresPage?.init() || showPlaceholder(t('nav.kbGenres'));
+          break;
+        case 'global-rules':
+          window.GlobalRulesPage?.init() || showPlaceholder('全局规则');
           break;
         case 'category-manage':
-          window.CategoryManager.init();
+          window.KbCategoriesPage?.init() || showPlaceholder('分类管理');
           break;
-        case 'binding-matrix':
-          window.BindingMatrixManager.init();
-          break;
+        
         case 'knowledge-review':
           window.KnowledgeReviewPage?.init() || showPlaceholder(t('nav.knowledgeReview'));
           break;
@@ -657,6 +821,24 @@
           break;
         case 'kb-uk':
           window.KbUkListPage?.init() || showPlaceholder(t('nav.ukManage'));
+          break;
+case 'system-evolution':
+          window.SystemEvolutionPage?.init() || showPlaceholder('系统进化管理');
+          break;
+        case 'evolution-logs':
+          window.EvolutionLogsPage?.init() || showPlaceholder('进化日志');
+          break;
+        case 'system-notifications':
+          window.SystemNotificationsPage?.init() || showPlaceholder(t('nav.notifications'));
+          break;
+        case 'entity-detail':
+          window.EntityDetailPage?.init() || showPlaceholder('实体详情');
+          break;
+        case 'chapter-plans':
+          window.ChapterPlansPage?.init() || showPlaceholder('章节大纲');
+          break;
+        case 'home':
+          window.HomePage?.init() || showPlaceholder('首页');
           break;
           
         // ===== 系统管理 =====
@@ -699,6 +881,12 @@
         case 'system-connection':
           window.ConnectionPage?.init() || showPlaceholder(t('nav.connection'));
           break;
+        case 'api-keys':
+          window.ApiKeysPage?.init() || showPlaceholder('API Key 管理');
+          break;
+        case 'review-council':
+          window.ReviewCouncilPage?.init() || showPlaceholder('审核委员会');
+          break;
         case 'system-account':
           window.AccountPage?.init() || showPlaceholder(t('nav.account'));
           break;
@@ -707,6 +895,59 @@
           break;
         case 'system-debug':
           window.DebugPage?.init() || showPlaceholder(t('nav.debug'));
+          break;
+          
+        // ===== 新增页面 =====
+        case 'arc-characters':
+          window.ArcCharactersPage?.init() || showPlaceholder(t('nav.arcCharacters'));
+          break;
+        case 'arc-tracking':
+          window.ArcTrackingPage?.init() || showPlaceholder(t('nav.arcTracking'));
+          break;
+        case 'expectations':
+          window.ExpectationsPage?.init() || showPlaceholder(t('nav.expectations'));
+          break;
+        case 'kb-init':
+          window.KbInitPage?.init() || showPlaceholder(t('nav.kbInit'));
+          break;
+        case 'kb-relations':
+          window.KbRelationsPage?.init() || showPlaceholder(t('nav.kbRelations'));
+          break;
+        case 'kb-search':
+          window.KbSearchPage?.init() || showPlaceholder(t('nav.kbSearch'));
+          break;
+        case 'materials':
+          window.MaterialsPage?.init() || showPlaceholder(t('nav.materials'));
+          break;
+        case 'member-manage':
+          window.MemberManagePage?.init() || showPlaceholder(t('nav.memberManage'));
+          break;
+        case 'model-rate-limits':
+          window.ModelRateLimitsPage?.init() || showPlaceholder(t('nav.modelRateLimits'));
+          break;
+        case 'model-routes':
+          window.ModelRoutesPage?.init() || showPlaceholder(t('nav.modelRoutes'));
+          break;
+        case 'pacing-analysis':
+          window.PacingAnalysisPage?.init() || showPlaceholder(t('nav.pacingAnalysis'));
+          break;
+        case 'style-analysis':
+          window.StyleAnalysisPage?.init() || showPlaceholder(t('nav.styleAnalysis'));
+          break;
+        case 'style-drift':
+          window.StyleDriftPage?.init() || showPlaceholder(t('nav.styleDrift'));
+          break;
+        case 'style-profiles':
+          window.StyleProfilesPage?.init() || showPlaceholder(t('nav.styleProfiles'));
+          break;
+        case 'workspace-manage':
+          window.WorkspaceManagePage?.init() || showPlaceholder(t('nav.workspaceManage'));
+          break;
+        case 'world-snapshot':
+          window.WorldSnapshotPage?.init() || showPlaceholder(t('nav.worldSnapshot'));
+          break;
+        case 'discussion-room':
+          window.DiscussionRoomPage?.init() || showPlaceholder('讨论室');
           break;
           
         default:

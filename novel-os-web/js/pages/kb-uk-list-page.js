@@ -149,8 +149,7 @@
                           class="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50">
                     ${t('common.cancel')}
                   </button>
-                  <button type="submit" 
-                          class="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700">
+                  <button type="submit" id="kb-uk-save-btn" class="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700">
                     ${t('common.save')}
                   </button>
                 </div>

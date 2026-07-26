@@ -39,6 +39,10 @@ class Database:
         async with self.acquire() as conn:
             return await conn.fetch(query, *args)
 
+    async def fetchval(self, query: str, *args):
+        async with self.acquire() as conn:
+            return await conn.fetchval(query, *args)
+
     async def execute(self, query: str, *args) -> str:
         async with self.acquire() as conn:
             return await conn.execute(query, *args)

@@ -2,7 +2,7 @@ import logging
 from typing import Any
 
 from ..mcp_core import mcp
-from ..deps import db, auth, vector_index_service, embedding_service, rerank_service, knowledge_service, vector_index, settings
+from ..deps import db, auth, kb_service, vector_index_service, embedding_service, rerank_service, vector_index, settings
 from ..tool_auth import get_principal, validate_required
 from ..utils import rows_to_dicts
 
@@ -163,12 +163,14 @@ async def vector_index_process(
 
 @mcp.tool(name="embedding.status")
 async def embedding_status(
+    workspace: str,
+    project: str,
     project_id: str,
 ) -> dict[str, Any]:
     """检查项目的 embedding 和 rerank 配置状态。"""
     principal = await get_principal(None)
     logger.info("embedding_status called")
-    validate_required(locals(), "project_id")
+    validate_required(locals(), "workspace", "project", "project_id")
     emb_config = await embedding_service._get_config(project_id)
     rr_config = await rerank_service._get_config(project_id)
     return {
@@ -183,13 +185,16 @@ async def embedding_status(
 
 @mcp.tool(name="embedding.embed")
 async def embedding_embed(
+    workspace: str,
+    project: str,
     project_id: str,
     texts: list[str],
 ) -> dict[str, Any]:
     """使用项目配置的模型生成文本向量。返回向量列表和维度信息。"""
     principal = await get_principal("write")
+    project_id = await auth.resolve_project_id(workspace, project, principal, access="write")
     logger.info("embedding_embed called")
-    validate_required(locals(), "project_id", "texts")
+    validate_required(locals(), "workspace", "project", "project_id", "texts")
     vectors = await embedding_service.embed(project_id=project_id, texts=texts)
     return {
         "ok": len(vectors) > 0,
@@ -201,6 +206,8 @@ async def embedding_embed(
 
 @mcp.tool(name="embedding.rerank")
 async def embedding_rerank(
+    workspace: str,
+    project: str,
     project_id: str,
     query: str,
     documents: list[str],
@@ -208,8 +215,9 @@ async def embedding_rerank(
 ) -> dict[str, Any]:
     """使用项目配置的模型对文档进行 rerank 排序。返回 top_n 相关结果。"""
     principal = await get_principal("write")
+    project_id = await auth.resolve_project_id(workspace, project, principal, access="write")
     logger.info("embedding_rerank called")
-    validate_required(locals(), "project_id", "query", "documents")
+    validate_required(locals(), "workspace", "project", "project_id", "query", "documents")
     results = await rerank_service.rerank(project_id=project_id, query=query, documents=documents, top_n=top_n)
     return {
         "ok": True,
@@ -219,6 +227,8 @@ async def embedding_rerank(
 
 @mcp.tool(name="rag.search_knowledge")
 async def rag_search_knowledge(
+    workspace: str,
+    project: str,
     project_id: str,
     query: str,
     category_slug: str | None = None,
@@ -231,15 +241,12 @@ async def rag_search_knowledge(
     Falls back to keyword search if not available.
     """
     principal = await get_principal("read")
+    project_id = await auth.resolve_project_id(workspace, project, principal, access="read")
     logger.info("rag_search_knowledge called")
 
     query_vector = await embedding_service.embed_single(project_id=project_id, text=query)
     if query_vector:
-        items = await knowledge_service.search_items(
-            query=query,
-            category_slug=category_slug,
-            limit=limit * 2,
-        )
+        items = await kb_service._search_uk(query=query, category_slug=category_slug, limit=limit * 2)
         item_texts = [
             f"{item.get('title', '')} {item.get('summary', '') or item.get('content', '')[:200]}"
             for item in items
@@ -258,9 +265,7 @@ async def rag_search_knowledge(
                 "items": scored[:limit],
             }
 
-    items = await knowledge_service.search_items(
-        query=query,
-        category_slug=category_slug,
+    items = await kb_service._search_uk(query=query, category_slug=category_slug,
         limit=limit,
     )
     return {
@@ -273,12 +278,15 @@ async def rag_search_knowledge(
 
 @mcp.tool(name="rag.search_events")
 async def rag_search_events(
+    workspace: str,
+    project: str,
     project_id: str,
     query: str,
     limit: int = 10,
 ) -> dict[str, Any]:
     """语义搜索事件。优先向量检索，无 embedding 时降级为关键词匹配。"""
     principal = await get_principal("read")
+    project_id = await auth.resolve_project_id(workspace, project, principal, access="read")
     logger.info("rag_search_events called")
 
     query_vector = await embedding_service.embed_single(project_id=project_id, text=query)

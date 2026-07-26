@@ -41,6 +41,28 @@ async def volume_upsert(
     )
 
 
+@mcp.tool(name="volume.get")
+async def volume_get(
+    workspace: str,
+    project: str,
+    volume_no: int | None = None,
+    volume_id: str | None = None,
+) -> dict[str, Any]:
+    """获取单个卷详情。可用 volume_no（整数）或 volume_id（UUID）查询。"""
+    principal = await get_principal("read")
+    logger.info("volume_get called: volume_no=%s, volume_id=%s", volume_no, volume_id)
+    validate_required(locals(), "workspace", "project")
+    if volume_no is None and volume_id is None:
+        raise ValueError("volume_no or volume_id is required")
+    project_id = await auth.resolve_project_id(workspace, project, principal)
+    result = await plot_service.get_volume(
+        project_id=project_id, volume_no=volume_no, volume_id=volume_id,
+    )
+    if not result:
+        return {"error": f"Volume not found"}
+    return result
+
+
 @mcp.tool(name="volume.list")
 async def volume_list(
     workspace: str,
@@ -182,6 +204,20 @@ async def plot_thread_check_stalled(
         statuses=statuses,
         limit=limit,
     )
+
+
+@mcp.tool(name="plot.thread.delete")
+async def plot_thread_delete(
+    workspace: str,
+    project: str,
+    key: str,
+) -> dict[str, Any]:
+    """物理删除剧情线。"""
+    principal = await get_principal("write")
+    logger.info("plot_thread_delete called")
+    validate_required(locals(), "workspace", "project", "key")
+    project_id = await auth.resolve_project_id(workspace, project, principal, access="write")
+    return await plot_service.delete_thread(project_id=project_id, key=key)
 
 
 @mcp.tool(name="plot.list_foreshadowing")

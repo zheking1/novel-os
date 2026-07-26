@@ -15,7 +15,7 @@
     render() {
       const contentArea = document.getElementById('content-area');
       contentArea.innerHTML = `
-        <div class="space-y-4">
+        <div class="max-w-5xl mx-auto space-y-4">
           <div class="flex items-center justify-between">
             <div>
               <h1 class="text-2xl font-bold text-gray-800">${t('nav.contextPreview')}</h1>
@@ -82,7 +82,7 @@
         
         if (!workspace || !project) return;
 
-        const volumes = await window.ApiClient.volume.list(workspace, project);
+        const volumes = await window.ApiClient.callTool('volume.list', { workspace, project });
         const volumeSelect = document.getElementById('ctx-volume');
         volumeSelect.innerHTML = `<option value="">全部</option>` + 
           (volumes || []).map(v => `<option value="${v.volume_no}">第${v.volume_no}卷 - ${v.title || '未命名'}</option>`).join('');
@@ -97,7 +97,8 @@
         const project = window.AppState.currentProject;
         const volumeNo = document.getElementById('ctx-volume').value;
 
-        const chapters = await window.ApiClient.localChapter.list(project);
+        const chaptersResult = await window.ApiClient.callTool('local.chapter.list', { workspace: window.AppState.currentWorkspace, project });
+        const chapters = chaptersResult?.chapters || [];
         const chapterSelect = document.getElementById('ctx-chapter');
         
         let filteredChapters = chapters || [];
@@ -117,22 +118,32 @@
       const chapterNo = document.getElementById('ctx-chapter').value;
       if (!chapterNo) return;
 
-      try {
-        const workspace = window.AppState.currentWorkspace;
-        const project = window.AppState.currentProject;
+      const workspace = window.AppState.currentWorkspace;
+      const project = window.AppState.currentProject;
 
-        // 加载压缩上下文
-        const compressed = await window.ApiClient.contextCompression.getCompressed(project, parseInt(chapterNo));
-        
-        document.getElementById('ctx-compressed').textContent = compressed ? JSON.stringify(compressed, null, 2) : '暂无数据';
-        
-        // 加载世界状态
-        const worldState = await window.ApiClient.kb.world.get(project, parseInt(chapterNo));
-        document.getElementById('ctx-world').innerHTML = worldState ? 
-          `<pre class="text-xs">${JSON.stringify(worldState.world_state, null, 2)}</pre>` : '暂无数据';
-      } catch (error) {
-        console.error('[ContextPreview] Load context error:', error);
-      }
+      // 加载上下文包
+      const pack = await window.ApiClient.callTool('context.get_pack', { workspace, project, chapter_no: parseInt(chapterNo) }).catch(() => null);
+      document.getElementById('ctx-compressed').innerHTML = pack?.sections
+        ? `<pre class="text-xs">${JSON.stringify(pack, null, 2).slice(0, 3000)}...</pre>`
+        : '暂无上下文数据（可通过 pipeline.generate 生成后自动创建）';
+
+      // 加载章节摘要
+      const summaries = await window.ApiClient.callTool('memory.get_recent_summaries', { workspace, project, before_chapter_no: parseInt(chapterNo), count: 5 }).catch(() => null);
+      document.getElementById('ctx-summaries').innerHTML = summaries?.summaries?.length
+        ? summaries.summaries.map(s => `<div class="mb-2 p-2 bg-gray-50 rounded"><strong>第${s.chapter_no}章</strong>: ${s.summary}</div>`).join('')
+        : '暂无章节摘要数据';
+
+      // 加载角色状态
+      const entities = await window.ApiClient.callTool('state.entity.list', { workspace, project, limit: 20 }).catch(() => null);
+      document.getElementById('ctx-characters').innerHTML = entities?.entities?.length
+        ? entities.entities.map(e => `<div class="mb-1"><strong>${e.name}</strong> <span class="text-gray-400">(${e.entity_type})</span></div>`).join('')
+        : '暂无角色状态数据';
+
+      // 加载世界状态
+      const worldState = await window.ApiClient.callTool('kb.world.get', { workspace, project }).catch(() => null);
+      document.getElementById('ctx-world').innerHTML = worldState
+        ? `<pre class="text-xs">${JSON.stringify(worldState.world_state || worldState, null, 2)}</pre>`
+        : '暂无世界状态数据';
     },
 
     refresh() {

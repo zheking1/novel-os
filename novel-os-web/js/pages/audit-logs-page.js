@@ -16,12 +16,19 @@
         </div>
       `;
       await this.loadData();
+      return true;
     },
 
     async loadData() {
       const container = document.getElementById('audit-content');
       try {
-        const logs = await window.ApiClient.request('GET', '/workflow/audit-logs?limit=50').catch(() => []);
+        const ws = window.AppState.currentWorkspace;
+        const proj = window.AppState.currentProject;
+        const args = { limit: 50 };
+        if (ws) args.workspace = ws;
+        if (proj) args.project = proj;
+        const result = await window.ApiClient.callTool('workflow.list_audit_logs', args).catch(() => []);
+        const logs = Array.isArray(result) ? result : (result?.logs || []);
         if (!logs || logs.length === 0) {
           container.innerHTML = `<div class="p-8 text-center text-gray-500">暂无审计日志</div>`;
           return;

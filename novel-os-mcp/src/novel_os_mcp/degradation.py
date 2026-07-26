@@ -18,8 +18,11 @@ class DependencyHealthService:
         """检查 Qdrant 健康状态"""
         try:
             import httpx
+            headers = {}
+            if self._settings.qdrant_api_key:
+                headers["api-key"] = self._settings.qdrant_api_key
             async with httpx.AsyncClient(timeout=5.0) as client:
-                response = await client.get(f"{self._settings.qdrant_url}/health")
+                response = await client.get(f"{self._settings.qdrant_url}/healthz", headers=headers)
                 if response.status_code == 200:
                     return {"healthy": True, "url": self._settings.qdrant_url, "status": "operational"}
                 return {"healthy": False, "url": self._settings.qdrant_url, "status": f"http_{response.status_code}"}
@@ -48,7 +51,7 @@ class DependencyHealthService:
     async def check_database_health(self) -> dict[str, Any]:
         """检查数据库健康状态"""
         try:
-            from ..db import Database
+            from .db import Database
             db = Database(self._settings)
             await db.connect()
             result = await db.fetchrow("SELECT 1 as health")

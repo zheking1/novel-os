@@ -428,11 +428,11 @@ class GlobalSettingsService:
         workspace_id: str,
         item_id: str,
     ) -> dict[str, Any]:
-        """删除设定项目"""
+        """软删除设定项目"""
         row = await self._db.fetchrow(
             """
-            DELETE FROM setting_items
-            WHERE id = $1 AND workspace_id = $2 AND is_global = FALSE
+            UPDATE setting_items SET is_active = false
+            WHERE id = $1 AND workspace_id = $2
             RETURNING id::text
             """,
             item_id,
@@ -509,6 +509,15 @@ class GlobalSettingsService:
         return results
 
     # ========== CSV 导入导出 ==========
+
+    async def delete_genre(self, slug: str) -> dict[str, Any]:
+        row = await self._db.fetchrow(
+            "UPDATE setting_genres SET is_active = false WHERE slug = $1 RETURNING slug",
+            slug,
+        )
+        if row is None:
+            raise ValueError(f"Genre not found: {slug}")
+        return {"ok": True, "slug": row["slug"]}
 
     async def csv_import(
         self,

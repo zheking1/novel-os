@@ -58,19 +58,51 @@ class EmbeddingService:
         if not texts:
             return []
 
-        api_url = (config.get("default_params") or {}).get("api_url", "")
-        api_key = (config.get("default_params") or {}).get("api_key", "")
-        dimensions = (config.get("default_params") or {}).get("dimensions", 1024)
+        # Parse default_params (asyncpg may return jsonb as string)
+        params = config.get("default_params") or {}
+        if isinstance(params, str):
+            import json
+            params = json.loads(params)
+
+        api_url = params.get("api_url", "")
+        api_key = params.get("api_key", "")
+        dimensions = params.get("dimensions", 1024)
 
         if not api_url or not api_key:
             return []
 
-        client = await self._get_client(config["provider"], api_url)
+        provider = config["provider"]
+        client = await self._get_client(provider, api_url)
         url = f"{api_url.rstrip('/')}/v1/embeddings"
         headers = {
             "Authorization": f"Bearer {api_key}",
             "Content-Type": "application/json",
         }
+
+        # SiliconFlow uses {text: "..."} format for input
+        if provider == "siliconflow":
+            # Call once per text, then combine results
+            all_embeddings = []
+            for text in texts:
+                payload = {
+                    "model": config["model_name"],
+                    "input": text,
+                }
+                try:
+                    resp = await client.post(url, json=payload, headers=headers)
+                    resp.raise_for_status()
+                    data = resp.json()
+                    raw = data["data"]
+                    if isinstance(raw, list) and len(raw) > 0:
+                        all_embeddings.append(raw[0]["embedding"])
+                    else:
+                        all_embeddings.append([])
+                except Exception as e:
+                    logger.error(f"Embedding API error ({provider}): {e}")
+                    all_embeddings.append([])
+            return all_embeddings
+
+        # Standard OpenAI-compatible format
         payload = {
             "model": config["model_name"],
             "input": texts,
@@ -139,8 +171,12 @@ class RerankService:
         if not config or not documents:
             return [{"index": i, "score": 1.0, "text": doc} for i, doc in enumerate(documents[:top_n])]
 
-        api_url = (config.get("default_params") or {}).get("api_url", "")
-        api_key = (config.get("default_params") or {}).get("api_key", "")
+        params = config.get("default_params") or {}
+        if isinstance(params, str):
+            import json
+            params = json.loads(params)
+        api_url = params.get("api_url", "")
+        api_key = params.get("api_key", "")
 
         if not api_url or not api_key:
             return [{"index": i, "score": 1.0, "text": doc} for i, doc in enumerate(documents[:top_n])]

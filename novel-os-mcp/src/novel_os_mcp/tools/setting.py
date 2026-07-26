@@ -285,6 +285,15 @@ async def setting_genre_list() -> list[dict[str, Any]]:
     return await global_settings_service.list_genres()
 
 
+@mcp.tool(name="setting.genre.delete")
+async def setting_genre_delete(slug: str) -> dict[str, Any]:
+    """删除指定题材。"""
+    principal = await get_principal("write")
+    logger.info("setting_genre_delete called")
+    validate_required(locals(), "slug")
+    return await global_settings_service.delete_genre(slug=slug)
+
+
 @mcp.tool(name="setting.csv.import")
 async def setting_csv_import(
     workspace: str,

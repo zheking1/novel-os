@@ -266,13 +266,11 @@ class ModelCostService:
 
         rows = await self._db.fetch(
             f"""
-            SELECT mp.id::text, mp.project_id::text, mp.profile_key, mp.display_name,
+            SELECT mp.id::text, mp.profile_key, mp.display_name,
                    mp.provider, mp.model_name, mp.task_types, mp.tier,
                    mp.default_params, mp.cost_config, mp.rate_limit_config,
-                   mp.is_default, mp.status, mp.metadata, mp.created_at, mp.updated_at,
-                   p.slug as project_slug, p.title as project_title
+                   mp.is_default, mp.status, mp.metadata, mp.created_at, mp.updated_at
             FROM model_profiles mp
-            LEFT JOIN projects p ON mp.project_id = p.id
             WHERE {' AND '.join(conditions)}
             ORDER BY mp.is_default DESC, mp.tier, mp.display_name
             """,
@@ -282,42 +280,87 @@ class ModelCostService:
 
     async def upsert_profile(
         self,
-        project_id: str,
         profile_key: str,
-        display_name: str,
-        provider: str,
-        model_name: str,
-        task_types: list[str],
-        tier: str = "standard",
+        display_name: str | None = None,
+        provider: str | None = None,
+        model_name: str | None = None,
+        task_types: list[str] | None = None,
+        tier: str | None = None,
         default_params: dict[str, Any] | None = None,
         cost_config: dict[str, Any] | None = None,
         rate_limit_config: dict[str, Any] | None = None,
-        is_default: bool = False,
-        status: str = "active",
+        is_default: bool | None = None,
+        status: str | None = None,
         metadata: dict[str, Any] | None = None,
         username: str | None = None,
+        is_contributed: bool | None = None,
     ) -> dict[str, Any]:
-        """Create or update a model profile."""
+        """Create or update a model profile. None fields keep existing values."""
+        # Fetch existing by username + profile_key
+        existing = await self._db.fetchrow(
+            "SELECT * FROM model_profiles WHERE user_id = $1 AND profile_key = $2",
+            username, profile_key,
+        )
+
+        if existing:
+            # Merge: use new value if provided, otherwise keep existing
+            merged = dict(existing)
+            if display_name is not None: merged["display_name"] = display_name
+            if provider is not None: merged["provider"] = provider
+            if model_name is not None: merged["model_name"] = model_name
+            if task_types is not None: merged["task_types"] = task_types
+            if tier is not None: merged["tier"] = tier
+            if default_params is not None: merged["default_params"] = default_params
+            if cost_config is not None: merged["cost_config"] = cost_config
+            if rate_limit_config is not None: merged["rate_limit_config"] = rate_limit_config
+            if is_default is not None: merged["is_default"] = is_default
+            if status is not None: merged["status"] = status
+            if metadata is not None: merged["metadata"] = metadata
+            if username is not None: merged["user_id"] = username
+            if is_contributed is not None: merged["is_contributed"] = is_contributed
+        else:
+            # Creating new: display_name, provider, model_name required
+            if not display_name or not provider or not model_name:
+                raise ValueError("新建模型配置需要 display_name、provider、model_name")
+            merged = {
+                "display_name": display_name, "provider": provider,
+                "model_name": model_name, "task_types": task_types or [],
+                "tier": tier or "standard", "default_params": default_params or {},
+                "cost_config": cost_config or {}, "rate_limit_config": rate_limit_config or {},
+                "is_default": is_default or False, "status": status or "active",
+                "metadata": metadata or {}, "user_id": username,
+                "is_contributed": is_contributed or False,
+            }
+
         row = await self._db.fetchrow(
             """
             INSERT INTO model_profiles
-              (project_id, profile_key, display_name, provider, model_name, task_types,
-               tier, default_params, cost_config, rate_limit_config, is_default, status, metadata, user_id)
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
-            ON CONFLICT (project_id, profile_key) DO UPDATE
+              (user_id, profile_key, display_name, provider, model_name, task_types,
+               tier, default_params, cost_config, rate_limit_config, is_default, status, metadata)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+            ON CONFLICT (user_id, profile_key) DO UPDATE
             SET display_name = $3, provider = $4, model_name = $5, task_types = $6,
                 tier = $7, default_params = $8, cost_config = $9, rate_limit_config = $10,
-                is_default = $11, status = $12, metadata = $13, user_id = $14, updated_at = NOW()
-            RETURNING id::text, project_id::text, profile_key, display_name, provider, model_name,
+                is_default = $11, status = $12, metadata = $13, updated_at = NOW()
+            RETURNING id::text, uuid, profile_key, display_name, provider, model_name,
                       task_types, tier, default_params, cost_config, rate_limit_config,
                       is_default, status, metadata, created_at, updated_at
             """,
-            project_id, profile_key, display_name, provider, model_name, task_types,
-            tier, json_dumps(default_params), json_dumps(cost_config),
-            json_dumps(rate_limit_config), is_default, status, json_dumps(metadata),
-            username,
+            username, profile_key,
+            merged["display_name"], merged["provider"], merged["model_name"],
+            merged["task_types"],
+            merged["tier"], json_dumps(merged["default_params"]),
+            json_dumps(merged["cost_config"]), json_dumps(merged["rate_limit_config"]),
+            merged["is_default"], merged["status"], json_dumps(merged["metadata"]),
+            merged["user_id"],
         )
-        return row_to_dict(row) if row else {}
+        result = row_to_dict(row) if row else {}
+        if is_contributed is not None:
+            await self._db.execute(
+                "UPDATE model_profiles SET is_contributed=$1 WHERE user_id=$2 AND profile_key=$3",
+                is_contributed, username, profile_key,
+            )
+        return result
 
     async def route_model(
         self,
@@ -333,7 +376,7 @@ class ModelCostService:
             SELECT r.profile_key, r.conditions, r.fallback_profile_keys,
                    mp.provider, mp.model_name, mp.default_params, mp.cost_config
             FROM model_route_rules r
-            JOIN model_profiles mp ON r.profile_key = mp.profile_key AND mp.project_id = $1
+            JOIN model_profiles mp ON r.profile_key = mp.profile_key AND (mp.project_id = $1 OR mp.project_id IS NULL)
             WHERE r.project_id = $1 AND r.task_type = $2 AND r.status = 'active'
             ORDER BY r.priority DESC
             LIMIT 1
@@ -447,11 +490,11 @@ class ModelCostService:
             params.append(to_date + " 23:59:59")
             idx += 1
         if task_types:
-            conditions.append(f"task_type = ANY(${'{idx}'})")
+            conditions.append(f"operation_type = ANY(${'{idx}'})")
             params.append(task_types)
             idx += 1
         if profile_keys:
-            conditions.append(f"profile_key = ANY(${'{idx}'})")
+            conditions.append(f"model_name = ANY(${'{idx}'})")
             params.append(profile_keys)
             idx += 1
 
@@ -464,8 +507,7 @@ class ModelCostService:
                 COUNT(*)::int AS total_requests,
                 SUM(input_tokens)::bigint AS total_input_tokens,
                 SUM(output_tokens)::bigint AS total_output_tokens,
-                SUM(cost_amount)::float AS total_cost,
-                AVG(latency_ms)::float AS avg_latency_ms
+                SUM(cost_usd)::float AS total_cost
             FROM model_usage
             WHERE {where_clause}
             """,
@@ -489,7 +531,7 @@ class ModelCostService:
                 COUNT(*)::int AS request_count,
                 SUM(input_tokens)::bigint AS input_tokens,
                 SUM(output_tokens)::bigint AS output_tokens,
-                SUM(cost_amount)::float AS cost
+                SUM(cost_usd)::float AS cost
             FROM model_usage
             WHERE {where_clause}
             GROUP BY {group_sql}

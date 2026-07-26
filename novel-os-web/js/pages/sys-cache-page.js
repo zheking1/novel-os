@@ -17,22 +17,23 @@
         <div id="cache-content" class="space-y-6"></div>
       `;
       await this.loadData();
+      return true;
     },
 
     async loadData() {
       const container = document.getElementById('cache-content');
       try {
         const [health, stats] = await Promise.all([
-          window.ApiClient.request('GET', '/cache/health').catch(() => ({})),
-          window.ApiClient.request('GET', '/cache/stats').catch(() => ({}))
+          window.ApiClient.callTool('cache.health').catch(() => ({})),
+          window.ApiClient.callTool('cache.get_stats').catch(() => ({}))
         ]);
         container.innerHTML = `
           <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div class="bg-white rounded-lg shadow p-6">
               <h3 class="font-semibold text-gray-700 mb-4">Redis 状态</h3>
               <div class="flex items-center gap-2">
-                <span class="w-3 h-3 rounded-full ${health.status === 'healthy' ? 'bg-green-500' : 'bg-red-500'}"></span>
-                <span class="font-medium">${health.status === 'healthy' ? '健康' : '异常'}</span>
+                <span class="w-3 h-3 rounded-full ${(health.status === 'healthy' || health.healthy) ? 'bg-green-500' : 'bg-red-500'}"></span>
+                <span class="font-medium">${(health.status === 'healthy' || health.healthy) ? '健康' : '异常'}</span>
               </div>
               <div class="text-sm text-gray-500 mt-2">连接数: ${health.connections || 0}</div>
               <div class="text-sm text-gray-500 mt-1">内存: ${health.memory || '未知'}</div>
@@ -51,7 +52,7 @@
 
     async warmCache() {
       try {
-        await window.ApiClient.request('POST', '/cache/warm');
+        await window.ApiClient.callTool('cache.warm');
         alert('缓存预热已启动');
       } catch (e) { alert('操作失败: ' + e.message); }
     }

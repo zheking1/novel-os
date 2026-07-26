@@ -42,6 +42,10 @@
               <option value="sub">支线</option>
               <option value="arc">弧线</option>
             </select>
+            <button onclick="PlotThreadsPage.checkStalled()" 
+                    class="px-3 py-2 border border-orange-300 text-orange-600 rounded-lg hover:bg-orange-50 text-sm whitespace-nowrap">
+              🚫 检测停滞
+            </button>
           </div>
 
           <div id="threads-list-container" class="bg-white rounded-lg shadow">
@@ -109,6 +113,21 @@
                       <input type="number" id="thread-expected-next" min="1"
                              class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500">
                     </div>
+                    <div>
+                      <label class="block text-sm font-medium text-gray-700 mb-1">关联卷号</label>
+                      <input type="number" id="thread-volume" min="1"
+                             class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500">
+                    </div>
+                    <div>
+                      <label class="block text-sm font-medium text-gray-700 mb-1">起始章节</label>
+                      <input type="number" id="thread-start-chapter" min="1"
+                             class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500">
+                    </div>
+                    <div>
+                      <label class="block text-sm font-medium text-gray-700 mb-1">停滞阈值（章数）</label>
+                      <input type="number" id="thread-stalled-after" min="1" value="20"
+                             class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500">
+                    </div>
                   </div>
                   <div>
                     <label class="block text-sm font-medium text-gray-700 mb-1">进度备注</label>
@@ -121,8 +140,8 @@
                           class="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50">
                     ${t('common.cancel')}
                   </button>
-                  <button type="submit" 
-                          class="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700">
+                  <button type="submit" id="thread-save-btn"
+                           class="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700">
                     ${t('common.save')}
                   </button>
                 </div>
@@ -144,8 +163,8 @@
           return;
         }
 
-        const result = await window.ApiClient.plotThread.list(workspace, project);
-        this.renderList(result || []);
+        const result = await window.ApiClient.callTool('plot.thread.list', { workspace, project });
+        this.renderList((result || []).filter(t => t.status !== 'deleted'));
       } catch (error) {
         console.error('[PlotThreads] Load error:', error);
         container.innerHTML = `<div class="p-8 text-center text-red-500">加载失败: ${error.message}</div>`;
@@ -193,28 +212,28 @@
                   </div>
                 </div>
                 <div class="flex items-center gap-2 ml-4">
-                  <button onclick="PlotThreadsPage.advanceThread('${thread.id}')" 
-                          class="p-2 text-gray-400 hover:text-green-600 hover:bg-green-50 rounded transition-colors"
-                          title="推进">
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"/>
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
-                    </svg>
-                  </button>
-                  <button onclick="PlotThreadsPage.editThread('${thread.id}')" 
-                          class="p-2 text-gray-400 hover:text-primary-600 hover:bg-primary-50 rounded transition-colors"
-                          title="编辑">
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
-                    </svg>
-                  </button>
-                  <button onclick="PlotThreadsPage.deleteThread('${thread.id}', '${thread.title}')" 
-                          class="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors"
-                          title="删除">
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
-                    </svg>
-                  </button>
+                   <button onclick="PlotThreadsPage.advanceThread('${thread.key}')" 
+                           class="p-2 text-gray-400 hover:text-green-600 hover:bg-green-50 rounded transition-colors"
+                           title="推进">
+                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"/>
+                       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                     </svg>
+                   </button>
+                   <button onclick="PlotThreadsPage.editThread('${thread.key}')" 
+                           class="p-2 text-gray-400 hover:text-primary-600 hover:bg-primary-50 rounded transition-colors"
+                           title="编辑">
+                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
+                     </svg>
+                   </button>
+                   <button onclick="PlotThreadsPage.deleteThread('${thread.key}', '${thread.title}')" 
+                           class="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors"
+                           title="删除">
+                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+                     </svg>
+                   </button>
                 </div>
               </div>
             </div>
@@ -232,6 +251,9 @@
       document.getElementById('thread-importance').value = 'medium';
       document.getElementById('thread-current-chapter').value = '';
       document.getElementById('thread-expected-next').value = '';
+      document.getElementById('thread-volume').value = '';
+      document.getElementById('thread-start-chapter').value = '';
+      document.getElementById('thread-stalled-after').value = '20';
       document.getElementById('thread-progress-note').value = '';
       document.getElementById('thread-modal').classList.remove('hidden');
     },
@@ -240,21 +262,26 @@
       document.getElementById('thread-modal').classList.add('hidden');
     },
 
-    async editThread(id) {
+    async editThread(key) {
       try {
         const workspace = window.AppState.currentWorkspace;
         const project = window.AppState.currentProject;
-        const thread = await window.ApiClient.plotThread.get(workspace, project, id);
+        const threads = await window.ApiClient.callTool('plot.thread.list', { workspace, project, include_closed: true });
+        const thread = threads.find(t => t.key === key);
+        if (!thread) { alert('情节线不存在'); return; }
         
         document.getElementById('thread-modal-title').textContent = '编辑情节线';
-        document.getElementById('thread-id').value = thread.id;
+        document.getElementById('thread-id').value = thread.key;
         document.getElementById('thread-title').value = thread.title;
         document.getElementById('thread-key').value = thread.key;
         document.getElementById('thread-type').value = thread.thread_type || 'main';
         document.getElementById('thread-importance').value = thread.importance || 'medium';
         document.getElementById('thread-current-chapter').value = thread.current_chapter_no || '';
         document.getElementById('thread-expected-next').value = thread.expected_next_chapter_no || '';
-        document.getElementById('thread-progress-note').value = thread.progress_note || '';
+        document.getElementById('thread-volume').value = thread.volume_no || '';
+        document.getElementById('thread-start-chapter').value = thread.start_chapter_no || '';
+        document.getElementById('thread-stalled-after').value = thread.stalled_after_chapters || '20';
+        document.getElementById('thread-progress-note').value = (thread.metadata && thread.metadata.progress_note) || '';
         document.getElementById('thread-modal').classList.remove('hidden');
       } catch (error) {
         alert('加载情节线失败: ' + error.message);
@@ -265,24 +292,24 @@
       e.preventDefault();
       const workspace = window.AppState.currentWorkspace;
       const project = window.AppState.currentProject;
-      const id = document.getElementById('thread-id').value;
+      const key = document.getElementById('thread-key').value;
       
+      const progressNote = document.getElementById('thread-progress-note').value;
       const data = {
+        key: key,
         title: document.getElementById('thread-title').value,
-        key: document.getElementById('thread-key').value,
         thread_type: document.getElementById('thread-type').value,
         importance: document.getElementById('thread-importance').value,
+        volume_no: document.getElementById('thread-volume').value ? parseInt(document.getElementById('thread-volume').value) : undefined,
+        start_chapter_no: document.getElementById('thread-start-chapter').value ? parseInt(document.getElementById('thread-start-chapter').value) : undefined,
         current_chapter_no: document.getElementById('thread-current-chapter').value ? parseInt(document.getElementById('thread-current-chapter').value) : undefined,
         expected_next_chapter_no: document.getElementById('thread-expected-next').value ? parseInt(document.getElementById('thread-expected-next').value) : undefined,
-        progress_note: document.getElementById('thread-progress-note').value || undefined
+        stalled_after_chapters: document.getElementById('thread-stalled-after').value ? parseInt(document.getElementById('thread-stalled-after').value) : 20,
+        metadata: progressNote ? { progress_note: progressNote } : undefined
       };
 
       try {
-        if (id) {
-          await window.ApiClient.plotThread.update(workspace, project, id, data);
-        } else {
-          await window.ApiClient.plotThread.create(workspace, project, data);
-        }
+        await window.ApiClient.callTool('plot.thread.upsert', { workspace, project, ...data });
         this.hideModal();
         this.loadData();
       } catch (error) {
@@ -290,23 +317,49 @@
       }
     },
 
-    async deleteThread(id, title) {
-      if (!confirm(`确定删除情节线 "${title}" 吗？此操作不可恢复。`)) return;
+    async deleteThread(key, title) {
+      if (!confirm(`确定删除情节线 "${title}" 吗？`)) return;
       
       try {
-        await window.ApiClient.plotThread.delete(window.AppState.currentWorkspace, window.AppState.currentProject, id);
+        await window.ApiClient.callTool('plot.thread.upsert', { 
+          workspace: window.AppState.currentWorkspace, 
+          project: window.AppState.currentProject, 
+          key: key,
+          title: title,
+          status: 'deleted'
+        });
+        if (window.showToast) window.showToast('success', '情节线已删除');
         this.loadData();
       } catch (error) {
-        alert('删除失败: ' + error.message);
+        console.error('[PlotThreads] Delete error:', error);
+        if (window.showToast) window.showToast('error', '删除失败: ' + error.message);
       }
     },
 
-    async advanceThread(id) {
+    async checkStalled() {
+      const workspace = window.AppState.currentWorkspace;
+      const project = window.AppState.currentProject;
+      const ch = prompt('请输入当前章节号:');
+      if (!ch) return;
+      try {
+        const result = await window.ApiClient.callTool('plot.thread.check_stalled', { workspace, project, current_chapter_no: parseInt(ch) });
+        const stalled = Array.isArray(result) ? result : (result?.stalled_threads || []);
+        if (!stalled.length) {
+          alert('没有停滞的情节线');
+          return;
+        }
+        alert(`发现 ${stalled.length} 个停滞情节线:\n${stalled.slice(0, 10).map(t => `• ${t.title} (${t.thread_type}, 停滞 ${(ch - (t.last_advanced_chapter_no || t.start_chapter_no || 0))} 章)`).join('\n')}${stalled.length > 10 ? `\n...还有${stalled.length - 10}个` : ''}`);
+      } catch (error) {
+        alert('检测失败: ' + error.message);
+      }
+    },
+
+    async advanceThread(key) {
       const chapter = prompt('请输入推进到的章节号:');
       if (!chapter) return;
       
       try {
-        await window.ApiClient.plotThread.advance(window.AppState.currentWorkspace, window.AppState.currentProject, id, parseInt(chapter));
+        await window.ApiClient.callTool('plot.thread.advance', { workspace: window.AppState.currentWorkspace, project: window.AppState.currentProject, key: key, chapter_no: parseInt(chapter) });
         this.loadData();
       } catch (error) {
         alert('推进失败: ' + error.message);

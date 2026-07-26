@@ -44,11 +44,12 @@
           </div>
         </div>
       `;
+      return true;
     },
 
     async testApi() {
       try {
-        const result = await window.ApiClient.workspace.list({ showLoading: false });
+        const result = await window.ApiClient.callTool('workspace.list', {});
         alert('API 正常!\n工作空间数量: ' + (result?.length || 0));
       } catch (e) {
         alert('API 错误: ' + e.message);

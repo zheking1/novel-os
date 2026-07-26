@@ -17,19 +17,29 @@
         <div id="backup-content" class="space-y-6"></div>
       `;
       await this.loadData();
+      return true;
     },
 
     async loadData() {
       const container = document.getElementById('backup-content');
       try {
+        const ws = window.AppState.currentWorkspace;
+        const proj = window.AppState.currentProject;
+        const args = {};
+        if (ws) args.workspace = ws;
+        if (proj) args.project = proj;
+
         const [backups, schedules] = await Promise.all([
-          window.ApiClient.request('GET', '/backups').catch(() => []),
-          window.ApiClient.request('GET', '/backups/schedules').catch(() => [])
+          window.ApiClient.callTool('backup.list', args).catch(() => []),
+          window.ApiClient.callTool('backup.schedule.list', args).catch(() => [])
         ]);
+        const backupList = Array.isArray(backups) ? backups : (backups?.backups || []);
+        const scheduleList = Array.isArray(schedules) ? schedules : (schedules?.schedules || []);
+
         container.innerHTML = `
           <div class="bg-white rounded-lg shadow p-6">
             <h3 class="font-semibold text-gray-700 mb-4">备份记录</h3>
-            ${(!backups || backups.length === 0) ? '<div class="text-gray-500 text-sm">暂无备份</div>' : `
+            ${backupList.length === 0 ? '<div class="text-gray-500 text-sm">暂无备份</div>' : `
               <div class="overflow-x-auto">
                 <table class="w-full text-sm">
                   <thead class="bg-gray-50">
@@ -41,7 +51,7 @@
                     </tr>
                   </thead>
                   <tbody class="divide-y divide-gray-100">
-                    ${(backups || []).map(b => `
+                    ${backupList.map(b => `
                       <tr class="hover:bg-gray-50">
                         <td class="px-4 py-3 text-gray-500">${b.created_at || '-'}</td>
                         <td class="px-4 py-3 text-gray-600">${b.backup_type || 'incremental'}</td>
@@ -56,9 +66,9 @@
           </div>
           <div class="bg-white rounded-lg shadow p-6">
             <h3 class="font-semibold text-gray-700 mb-4">备份计划</h3>
-            ${(!schedules || schedules.length === 0) ? '<div class="text-gray-500 text-sm">暂无备份计划</div>' : `
+            ${scheduleList.length === 0 ? '<div class="text-gray-500 text-sm">暂无备份计划</div>' : `
               <div class="space-y-3">
-                ${(schedules || []).map(s => `
+                ${scheduleList.map(s => `
                   <div class="flex items-center justify-between p-3 bg-gray-50 rounded">
                     <div>
                       <div class="font-medium text-gray-800">${s.schedule_name || '默认计划'}</div>
@@ -78,7 +88,12 @@
     async createBackup() {
       if (!confirm('确定创建备份？')) return;
       try {
-        await window.ApiClient.request('POST', '/backups', { backup_type: 'manual' });
+        const ws = window.AppState.currentWorkspace;
+        const proj = window.AppState.currentProject;
+        const args = { backup_type: 'full' };
+        if (ws) args.workspace = ws;
+        if (proj) args.project = proj;
+        await window.ApiClient.callTool('backup.create', args);
         alert('备份已创建');
         await this.loadData();
       } catch (e) { alert('创建失败: ' + e.message); }

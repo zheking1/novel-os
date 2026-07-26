@@ -59,7 +59,7 @@ class AuthService:
             token_hash,
         )
         if row is None or row["user_status"] != "active":
-            raise PermissionError("Invalid or expired API token")
+            raise PermissionError("API Key 无效或已过期。请在 Web UI「系统管理 → API Key 管理」中检查或重新创建")
         await self._db.execute("UPDATE api_tokens SET last_used_at = now() WHERE id = $1", row["token_id"])
         return Principal(
             username=row["username"],
@@ -70,21 +70,12 @@ class AuthService:
 
     @staticmethod
     def _bearer_token() -> str:
-        headers = get_http_headers(include={"authorization", "x-novel-os-token"})
-        authorization = headers.get("authorization") or headers.get("Authorization") or ""
-        
-        # Support ApiKey prefix
-        if authorization.startswith("ApiKey "):
-            return authorization[7:].strip()
-        
-        prefix = "Bearer "
-        if authorization.startswith(prefix):
-            token = authorization[len(prefix) :].strip()
-        else:
-            token = headers.get("x-novel-os-token") or headers.get("X-Novel-OS-Token") or ""
-        if not token:
-            raise PermissionError("Missing Authorization: Bearer <token> or ApiKey <key>")
-        return token
+        headers = get_http_headers(include={"apikey"})
+        # Check apiKey header (Trae MCP client compatible)
+        token = headers.get("apikey") or headers.get("apiKey") or headers.get("ApiKey") or ""
+        if token:
+            return token
+        raise PermissionError("缺少 apiKey 请求头。请在 MCP 客户端配置中添加 headers.apiKey 字段，值为你在 Web UI「API Key 管理」中创建的 Key")
 
     @staticmethod
     def _role_allows(role: str | None, access: str) -> bool:
@@ -113,7 +104,13 @@ class AuthService:
             principal.username,
         )
         if row is None or not self._role_allows(row["role"], access):
-            raise PermissionError(f"No access to workspace: {workspace_slug}")
+            workspaces = await self._db.fetch(
+                "SELECT w.slug FROM workspace_members wm JOIN workspaces w ON w.id = wm.workspace_id WHERE wm.user_id = (SELECT id FROM users WHERE username = $1)",
+                principal.username,
+            )
+            available = [w["slug"] for w in workspaces]
+            hint = f"你有权限的工作区: {', '.join(available)}" if available else "你没有加入任何工作区，请先通过 Web UI 登录创建个人工作区"
+            raise PermissionError(f"无权限访问工作区 '{workspace_slug}'。{hint}")
 
     async def require_project_access(self, principal: Principal, project_id: str, access: str = "read") -> None:
         if "admin" in principal.scopes:
@@ -133,7 +130,7 @@ class AuthService:
             principal.username,
         )
         if row is None or not self._role_allows(row["role"], access):
-            raise PermissionError("No access to project")
+            raise PermissionError("无权限访问该项目。你可能不是该项目成员，请让项目 owner 添加你")
 
     async def resolve_project_id(
         self,

@@ -175,11 +175,11 @@ async def rules_list(
     workspace: str,
     project: str,
     rule_types: list[str] | None = None,
-    status: str = "active",
+    status: str | None = "active",
     chapter_no: int | None = None,
     volume_no: int | None = None,
 ) -> list[dict[str, Any]]:
-    """列出创作规则。支持按类型、状态、章节、卷号过滤。"""
+    """列出创作规则。支持按类型、状态、章节、卷号过滤。传 status=null 返回所有状态。"""
     principal = await get_principal("read")
     logger.info("rules_list called")
     validate_required(locals(), "workspace", "project")
@@ -435,6 +435,27 @@ async def rules_apply_proposal(
     )
 
 
+@mcp.tool(name="rules.delete")
+async def rules_delete(
+    workspace: str,
+    project: str,
+    rule_key: str | None = None,
+    rule_id: str | None = None,
+) -> dict[str, Any]:
+    """物理删除创作规则。支持按 rule_key 或 rule_id 删除。"""
+    principal = await get_principal("write")
+    logger.info("rules_delete called")
+    validate_required(locals(), "workspace", "project")
+    if not rule_key and not rule_id:
+        raise ValueError("rule_key or rule_id is required")
+    project_id = await auth.resolve_project_id(workspace, project, principal, access="write")
+    return await rules_service.delete_rule(
+        project_id=project_id,
+        rule_key=rule_key,
+        rule_id=rule_id,
+    )
+
+
 @mcp.tool(name="compliance.rule.upsert")
 async def compliance_rule_upsert(
     workspace: str,
@@ -501,6 +522,21 @@ async def compliance_rule_list(
         chapter_no=chapter_no,
         volume_no=volume_no,
     )
+
+
+@mcp.tool(name="compliance.rule.delete")
+async def compliance_rule_delete(
+    workspace: str,
+    project: str,
+    rule_key: str,
+) -> dict:
+    """删除（软删除）合规检查规则"""
+    principal = await get_principal("write")
+    logger.info("compliance_rule_delete called")
+    validate_required(locals(), "workspace", "project", "rule_key")
+    project_id = await auth.resolve_project_id(workspace, project, principal, access="write")
+    result = await rules_service.delete_rule(project_id=project_id, rule_key=rule_key)
+    return {"ok": True, "rule_key": rule_key, "title": result.get("title")}
 
 
 @mcp.tool(name="compliance.check")

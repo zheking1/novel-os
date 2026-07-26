@@ -17,7 +17,7 @@
             </div>
             <div>
               <div class="text-xl font-bold text-gray-800">${window.AppState.username || '未登录'}</div>
-              <div class="text-gray-500">管理员</div>
+              <div class="text-gray-500">${window.AppState.isAdmin ? '管理员' : '用户'}</div>
             </div>
           </div>
           <div class="space-y-4">
@@ -37,6 +37,7 @@
           <button onclick="AccountPage.logout()" class="mt-6 w-full px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700">退出登录</button>
         </div>
       `;
+      return true;
     },
 
     logout() {

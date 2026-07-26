@@ -20,7 +20,8 @@ class KBService:
                 """
                 SELECT rc.id::text, rc.slug, rc.name, rc.description, rc.parent_id::text,
                        rc.genre_tags, rc.sort_order, rc.is_system,
-                       (SELECT COUNT(*) FROM ref_categories child WHERE child.parent_id = rc.id) as child_count
+                       (SELECT COUNT(*) FROM ref_categories child WHERE child.parent_id = rc.id) as child_count,
+                       (SELECT COUNT(*) FROM universal_knowledge uk WHERE uk.category_id = rc.id) as entry_count
                 FROM ref_categories rc
                 ORDER BY rc.sort_order
                 """
@@ -30,7 +31,8 @@ class KBService:
                 """
                 SELECT rc.id::text, rc.slug, rc.name, rc.description, rc.parent_id::text,
                        rc.genre_tags, rc.sort_order, rc.is_system,
-                       (SELECT COUNT(*) FROM ref_categories child WHERE child.parent_id = rc.id) as child_count
+                       (SELECT COUNT(*) FROM ref_categories child WHERE child.parent_id = rc.id) as child_count,
+                       (SELECT COUNT(*) FROM universal_knowledge uk WHERE uk.category_id = rc.id) as entry_count
                 FROM ref_categories rc
                 JOIN ref_categories parent ON parent.slug = $1
                 WHERE rc.parent_id = parent.id
@@ -43,7 +45,8 @@ class KBService:
                 """
                 SELECT rc.id::text, rc.slug, rc.name, rc.description, rc.parent_id::text,
                        rc.genre_tags, rc.sort_order, rc.is_system,
-                       (SELECT COUNT(*) FROM ref_categories child WHERE child.parent_id = rc.id) as child_count
+                       (SELECT COUNT(*) FROM ref_categories child WHERE child.parent_id = rc.id) as child_count,
+                       (SELECT COUNT(*) FROM universal_knowledge uk WHERE uk.category_id = rc.id) as entry_count
                 FROM ref_categories rc
                 WHERE rc.parent_id IS NULL
                 ORDER BY rc.sort_order
@@ -293,7 +296,7 @@ class KBService:
 
     async def uk_search(
         self,
-        query: str,
+        query: str | None = None,
         category_slug: str | None = None,
         genre: str | None = None,
         era: str | None = None,
@@ -303,6 +306,7 @@ class KBService:
         conditions = ["uk.status = 'active'"]
         params: list[Any] = []
         idx = 0
+        cte = ""
 
         if query:
             idx += 1
@@ -310,9 +314,18 @@ class KBService:
             conditions.append(f"uk.search_vector @@ plainto_tsquery('simple', ${idx})")
 
         if category_slug:
+            # 递归查找分类及其所有子分类
             idx += 1
             params.append(category_slug)
-            conditions.append(f"(rc.slug = ${idx} OR rc.parent_id IN (SELECT id FROM ref_categories WHERE slug = ${idx}))")
+            cte = f"""
+            WITH RECURSIVE cat_tree AS (
+                SELECT id FROM ref_categories WHERE slug = ${idx}
+                UNION ALL
+                SELECT rc.id FROM ref_categories rc
+                INNER JOIN cat_tree ct ON rc.parent_id = ct.id
+            )
+            """
+            conditions.append(f"uk.category_id IN (SELECT id FROM cat_tree)")
 
         if genre:
             idx += 1
@@ -335,6 +348,7 @@ class KBService:
         where = " AND ".join(conditions)
         rows = await self._db.fetch(
             f"""
+            {cte}
             SELECT uk.id::text, uk.topic, uk.summary, uk.content, uk.era,
                    uk.year_range, uk.genre_tags, uk.source, uk.source_url,
                    uk.reliability, uk.tags, uk.use_count, uk.created_at,
@@ -512,19 +526,19 @@ class KBService:
     async def pk_list(self, project_id: str, category: str | None = None) -> list[dict]:
         if category:
             rows = await self._db.fetch(
-                "SELECT * FROM project_knowledge WHERE project_id = $1 AND category = $2 AND status = 'active' ORDER BY key",
+                "SELECT * FROM project_knowledge WHERE project_id = $1 AND category = $2 AND is_deleted = false ORDER BY key",
                 project_id, category,
             )
         else:
             rows = await self._db.fetch(
-                "SELECT * FROM project_knowledge WHERE project_id = $1 AND status = 'active' ORDER BY category, key",
+                "SELECT * FROM project_knowledge WHERE project_id = $1 AND is_deleted = false ORDER BY category, key",
                 project_id,
             )
         return rows_to_dicts(rows)
 
     async def pk_delete(self, project_id: str, category: str, key: str) -> bool:
         result = await self._db.execute(
-            "UPDATE project_knowledge SET status = 'deleted' WHERE project_id = $1 AND category = $2 AND key = $3",
+            "UPDATE project_knowledge SET is_deleted = true WHERE project_id = $1 AND category = $2 AND key = $3",
             project_id, category, key,
         )
         return result == "UPDATE 1"
@@ -580,7 +594,7 @@ class KBService:
 
     async def world_list_snapshots(self, project_id: str, limit: int = 10) -> list[dict]:
         rows = await self._db.fetch(
-            "SELECT id::text, chapter_no, story_time, story_year, story_era, story_progress, character_count, active_threads, created_at FROM world_snapshots WHERE project_id = $1 ORDER BY chapter_no DESC LIMIT $2",
+            "SELECT id::text, chapter_no, story_time, story_year, story_era, story_progress, character_count, active_threads, world_state, created_at FROM world_snapshots WHERE project_id = $1 ORDER BY chapter_no DESC LIMIT $2",
             project_id, limit,
         )
         return rows_to_dicts(rows)
@@ -662,6 +676,80 @@ class KBService:
             entry_id, gap_id,
         )
         return result == "UPDATE 1"
+
+    async def gap_analyze(self, genre: str) -> dict:
+        """分析题材的知识缺口：统计每个分类已有 UK 条目数，返回缺口报告。"""
+        await self._db.connect()
+        config = await self.get_genre_config(genre)
+        if not config:
+            strategy = self.GENRE_STRATEGIES.get(genre)
+            if not strategy:
+                return {"ok": False, "error": f"Unknown genre: {genre}"}
+            included = strategy.get("included_categories", [])
+            genre_name = genre
+        else:
+            included = config.get("included_categories") or []
+            # Resolve canonical name from genre_canonical
+            name_row = await self._db.fetchrow(
+                "SELECT canonical_genre as name FROM genre_canonical WHERE canonical_genre = $1", genre
+            )
+            genre_name = name_row["name"] if name_row else genre
+
+        if not included:
+            return {"ok": True, "genre": genre, "gen_name": genre_name, "gaps": [], "total_existing": 0, "total_needed": 0}
+
+        placeholders = ", ".join(f"${i+1}" for i in range(len(included)))
+        rows = await self._db.fetch(
+            f"""SELECT rc.slug, rc.name, COUNT(uk.id) as cnt
+                FROM ref_categories rc
+                LEFT JOIN universal_knowledge uk ON uk.category_id = rc.id AND uk.status = 'active'
+                WHERE rc.slug IN ({placeholders})
+                GROUP BY rc.slug, rc.name, rc.sort_order
+                ORDER BY rc.sort_order""",
+            *included,
+        )
+        core = {"power_system", "world_building", "character_setting", "internal-energy", "magic"}
+        existing_map = {r["slug"]: r for r in rows}
+        gaps = []
+        total_existing = 0
+        total_needed = 0
+        for slug in included:
+            row = existing_map.get(slug, {"slug": slug, "name": slug, "cnt": 0})
+            cnt = int(row["cnt"] or 0)
+            is_core = slug in core or any(
+                slug.startswith(p) for p in ["internal-energy", "physical", "psychic", "technology", "bloodline", "contract"]
+            )
+            expected = 3 if is_core else 1
+            should_fill = cnt < expected
+            gaps.append({
+                "category_slug": slug,
+                "category_name": row.get("name", slug),
+                "existing": cnt,
+                "expected": expected,
+                "should_fill": should_fill,
+                "priority": "core" if is_core else "supplement",
+            })
+            total_existing += cnt
+            if should_fill:
+                total_needed += (expected - cnt)
+
+        need_fill = [g for g in gaps if g["should_fill"]]
+        return {
+            "ok": True,
+            "genre": genre,
+            "gen_name": genre_name,
+            "total_categories": len(included),
+            "total_existing": total_existing,
+            "total_needed": total_needed,
+            "gaps": gaps,
+            "needs_fill": need_fill,
+            "suggestion": (
+                f"{len(need_fill)}个分类欠缺知识条目: "
+                + ", ".join(g["category_name"] for g in need_fill[:5])
+                + ("..." if len(need_fill) > 5 else "")
+                if need_fill else "所有分类已有足够知识条目"
+            ),
+        }
 
     # ============================================================
     # Genre Strategies
@@ -751,16 +839,82 @@ class KBService:
     }
 
     async def genre_list(self) -> list[dict]:
-        return [
-            {"id": k, **v}
-            for k, v in self.GENRE_STRATEGIES.items()
-        ]
+        rows = await self._db.fetch(
+            """
+            SELECT gc.canonical_genre as id, gc.canonical_genre as slug, gc.canonical_genre as name, gc.description,
+                   gc.metadata ->> 'typical_elements' as typical_elements,
+                   gc.metadata ->> 'target_audience' as target_audience,
+                   gc.platform_tags, gc.aliases,
+                   gkc.included_categories, gkc.excluded_categories
+            FROM genre_canonical gc
+            LEFT JOIN genre_knowledge_config gkc ON gkc.genre = gc.canonical_genre
+            ORDER BY gc.canonical_genre
+            """
+        )
+        if rows:
+            result = []
+            for r in rows:
+                d = row_to_dict(r)
+                d["icon"] = self._genre_icon(d.get("id", ""))
+                # Resolve included slugs to Chinese names
+                inc_slugs = d.get("included_categories") or []
+                exc_slugs = d.get("excluded_categories") or []
+                if inc_slugs:
+                    names = await self._db.fetch(
+                        "SELECT slug, name FROM ref_categories WHERE slug = ANY($1)",
+                        inc_slugs,
+                    )
+                    d["included_names"] = [row["name"] or row["slug"] for row in names]
+                if exc_slugs:
+                    enames = await self._db.fetch(
+                        "SELECT slug, name FROM ref_categories WHERE slug = ANY($1)",
+                        exc_slugs,
+                    )
+                    d["excluded_names"] = [row["name"] or row["slug"] for row in enames]
+                result.append(d)
+            return result
+        return [{"id": k, **v} for k, v in self.GENRE_STRATEGIES.items()]
 
     async def genre_get_strategy(self, genre_id: str) -> dict | None:
+        row = await self._db.fetchrow(
+            """
+            SELECT gc.canonical_genre as id, gc.canonical_genre as slug, gc.canonical_genre as name, gc.description,
+                   gc.metadata ->> 'typical_elements' as typical_elements,
+                   gc.metadata ->> 'target_audience' as target_audience,
+                   gc.platform_tags, gc.aliases,
+                   gkc.included_categories, gkc.excluded_categories
+            FROM genre_canonical gc
+            LEFT JOIN genre_knowledge_config gkc ON gkc.genre = gc.canonical_genre
+            WHERE gc.canonical_genre = $1
+            """,
+            genre_id,
+        )
+        if row:
+            d = row_to_dict(row)
+            d["icon"] = self._genre_icon(d.get("id", ""))
+            d["active_categories"] = d.get("included_categories") or []
+            return d
         return self.GENRE_STRATEGIES.get(genre_id)
 
     async def genre_get_search_keywords(self, genre_id: str, **kwargs) -> list[str]:
-        """Generate search keywords for a genre with template variables filled."""
+        row = await self._db.fetchrow(
+            """
+            SELECT gc.metadata ->> 'typical_elements' as typical_elements, gc.platform_tags, gc.canonical_genre as name
+            FROM genre_canonical gc
+            WHERE gc.canonical_genre = $1
+            """,
+            genre_id,
+        )
+        if row:
+            keywords = []
+            name = row["name"] or ""
+            for elem in (row["typical_elements"] or []):
+                keywords.append(f"{name}{elem}设定")
+            for tag in (row["platform_tags"] or [])[:3]:
+                keywords.append(f"{tag} 小说知识")
+            for k, v in kwargs.items():
+                keywords = [kw.replace(f"{{{k}}}", str(v)) for kw in keywords]
+            return keywords
         strategy = self.GENRE_STRATEGIES.get(genre_id)
         if not strategy:
             return []
@@ -772,46 +926,93 @@ class KBService:
             keywords.append(kw)
         return keywords
 
-    async def genre_preheat(self, project_id: str, genre: str) -> dict:
-        """Pre-load genre-related UK items into project_knowledge for faster retrieval."""
-        strategy = self.GENRE_STRATEGIES.get(genre)
-        if not strategy:
-            return {"ok": False, "error": f"Unknown genre: {genre}"}
+    async def _search_uk(
+        self, query: str, category_slug: str | None = None, limit: int = 20
+    ) -> list[dict]:
+        """Search universal_knowledge by keyword, optionally filtered by category slug."""
+        await self._db.connect()
+        conditions = ["uk.status = 'active'"]
+        params: list[Any] = []
+        idx = 1
 
-        # Find UK items matching this genre's categories
-        category_map = {
-            "xianxia": "kb_plot_templates",
-            "xuanhuan": "kb_plot_templates",
-            "urban": "kb_writing_technique",
-            "sci-fi": "kb_setting_background",
-            "horror": "kb_setting_background",
-            "post_apocalyptic": "kb_setting_background",
-            "game": "kb_plot_templates",
-            "time_travel": "kb_plot_templates",
-            "isekai": "kb_plot_templates",
-            "historical_republic": "kb_setting_background",
-            "historical_ancient": "kb_setting_background",
-        }
-        target_cat = category_map.get(genre, "kb_genre")
+        search_pat = f"%{query}%"
+        for col in ("uk.topic", "uk.summary", "uk.content"):
+            conditions.append(f"{col} ILIKE ${idx}")
+            params.append(search_pat)
+            idx += 1
 
-        # Query UK items by category
+        if category_slug:
+            conditions.append(
+                f"""uk.category_id IN (SELECT id FROM ref_categories WHERE slug = ${idx})"""
+            )
+            params.append(category_slug)
+            idx += 1
+
+        params.append(limit)
         rows = await self._db.fetch(
-            """
-            SELECT id::text, kb_code, topic, summary, content, genre_tags
-            FROM universal_knowledge
-            WHERE category_slug = $1
-            ORDER BY reliability DESC NULLS LAST, use_count DESC NULLS LAST, RANDOM()
-            LIMIT 20
-            """,
-            target_cat,
+            f"""SELECT uk.id::text, uk.topic as title, uk.summary, uk.content,
+                       COALESCE(rc.slug, '') as category_slug
+                FROM universal_knowledge uk
+                LEFT JOIN ref_categories rc ON rc.id = uk.category_id
+                WHERE {' OR '.join(conditions[:3]) if idx <= 3 else ' AND '.join(conditions)}
+                ORDER BY uk.reliability DESC, uk.use_count DESC
+                LIMIT ${idx}""",
+            *params,
         )
+        return rows_to_dicts(rows)
+
+    async def genre_preheat(self, project_id: str, genre: str) -> dict:
+        config = await self.get_genre_config(genre)
+        if not config:
+            strategy = self.GENRE_STRATEGIES.get(genre)
+            if not strategy:
+                return {"ok": False, "error": f"Unknown genre: {genre}"}
+            category_map = {
+                "xianxia": "internal-energy", "xuanhuan": "internal-energy",
+                "urban": "relationships", "sci-fi": "technology",
+                "horror": "world_building", "post_apocalyptic": "physical",
+                "game": "technology", "time_travel": "world_building",
+                "isekai": "world_building", "historical_republic": "world_building",
+                "historical_ancient": "world_building",
+            }
+            target_cat = category_map.get(genre, "world_building")
+            rows = await self._db.fetch(
+                """
+                SELECT uk.id::text, uk.topic, uk.summary, uk.content, uk.genre_tags,
+                       rc.slug as category_slug
+                FROM universal_knowledge uk
+                LEFT JOIN ref_categories rc ON rc.id = uk.category_id
+                WHERE rc.slug = $1
+                ORDER BY uk.reliability DESC NULLS LAST, uk.use_count DESC NULLS LAST, RANDOM()
+                LIMIT 20
+                """,
+                target_cat,
+            )
+        else:
+            included = config["included_categories"] or []
+            cat_slugs = [s for s in included if s]
+            if not cat_slugs:
+                return {"ok": True, "genre": genre, "preloaded": 0, "total_available": 0}
+            placeholders = ", ".join(f"${i+1}" for i in range(len(cat_slugs)))
+            rows = await self._db.fetch(
+                f"""
+                SELECT uk.id::text, uk.topic, uk.summary, uk.content, uk.genre_tags,
+                       rc.slug as category_slug
+                FROM universal_knowledge uk
+                LEFT JOIN ref_categories rc ON rc.id = uk.category_id
+                WHERE rc.slug IN ({placeholders})
+                ORDER BY uk.reliability DESC NULLS LAST, uk.use_count DESC NULLS LAST, RANDOM()
+                LIMIT 30
+                """,
+                *cat_slugs,
+            )
 
         if not rows:
             return {"ok": True, "genre": genre, "preloaded": 0, "total_available": 0}
 
         created = 0
         for row in rows:
-            key = f"preheat_{genre}_{row['kb_code'] or row['topic'][:50]}"
+            key = f"preheat_{genre}_{row['category_slug'] or 'uk'}_{row['id'][:8]}"
             value = {
                 "topic": row["topic"],
                 "summary": row["summary"] or "",
@@ -819,7 +1020,6 @@ class KBService:
                 "source_uk_id": row["id"],
             }
             tags = [genre] + (row["genre_tags"] or [])
-            # Use pk_upsert which has ON CONFLICT handling
             await self.pk_upsert(
                 project_id=project_id,
                 category="genre_template",
@@ -832,59 +1032,60 @@ class KBService:
 
         return {"ok": True, "genre": genre, "preloaded": created, "total_available": len(rows)}
 
+    @staticmethod
+    def _genre_icon(genre_id: str) -> str:
+        icon_map = {
+            "xianxia": "🏔️", "xuanhuan": "⚔️", "urban": "🏙️", "scifi": "🚀",
+            "fantasy": "🐉", "history": "📜", "mystery": "🔍", "gaming": "🎮",
+            "doomsday": "☢️", "farming": "🌾", "yanqing": "💕", "time-travel-history": "⏳",
+        }
+        return icon_map.get(genre_id, "📚")
+
     # ============================================================
     # Auto Search + AI Organize
     # ============================================================
 
-    async def auto_search_and_organize(
+    async def search_and_store(
         self,
         query: str,
+        search_results: list[dict],
         category_slug: str | None = None,
         genre_tags: list[str] | None = None,
         project_id: str | None = None,
         chapter_no: int | None = None,
     ) -> dict:
+        """一步完成：创建搜索任务 → 存储结果 → 完成任务。
+
+        Args:
+            query: 搜索关键词
+            search_results: web_search 结果 [{title, url, snippet}]
+            category_slug: UK 分类 slug
+            genre_tags: 题材标签
+            project_id: 可选，关联项目
+            chapter_no: 可选，关联章节
+
+        Returns:
+            {job_id, entries_created, results_count, entry_ids}
         """
-        1. Create search job
-        2. Return query for caller to execute web_search
-        3. Caller passes results back to organize_and_store()
-        """
+        # 1. Create search job
         job = await self.search_create_job(
-            query_text=query, project_id=project_id,
-            category_slug=category_slug, chapter_no=chapter_no,
+            query_text=query,
+            project_id=project_id,
+            category_slug=category_slug,
+            chapter_no=chapter_no,
             triggered_by="auto_search",
         )
-        return {
-            "job_id": job["id"],
-            "query": query,
-            "status": "pending_search",
-            "message": "Execute web_search with this query, then call kb.organize_and_store with results.",
-        }
+        job_id = job["id"]
 
-    async def organize_and_store(
-        self,
-        job_id: str,
-        search_results: list[dict],
-        category_slug: str | None = None,
-        genre_tags: list[str] | None = None,
-    ) -> dict:
-        """
-        Take web_search results, extract structured entries, store to universal_knowledge.
-        search_results: list of {title, url, snippet} from web_search.
-        """
+        # 2. Store results
         entries_created = 0
-        entities_created = 0
         created_ids = []
-
         for result in search_results:
             title = result.get("title", "")
             url = result.get("url", "")
             snippet = result.get("snippet", result.get("content", ""))
-
             if not title or not snippet:
                 continue
-
-            # Store as universal knowledge entry
             entry = await self.uk_entry_create(
                 topic=title,
                 content=snippet,
@@ -897,6 +1098,7 @@ class KBService:
             entries_created += 1
             created_ids.append(entry["id"])
 
+        # 3. Complete job
         await self.search_complete_job(
             job_id=job_id,
             results_count=len(search_results),
@@ -904,6 +1106,7 @@ class KBService:
         )
 
         return {
+            "ok": True,
             "job_id": job_id,
             "results_count": len(search_results),
             "entries_created": entries_created,
@@ -978,11 +1181,17 @@ class KBService:
     # ============================================================
 
     async def get_genre_config(self, genre: str) -> dict | None:
-        """获取小说类型的知识配置"""
+        """获取小说类型的知识配置。支持英文 slug 和中文名。"""
         await self._db.connect()
         row = await self._db.fetchrow(
             "SELECT * FROM genre_knowledge_config WHERE genre = $1", genre
         )
+        if not row:
+            row = await self._db.fetchrow(
+                """SELECT gkc.* FROM genre_knowledge_config gkc
+                   WHERE gkc.genre = $1""",
+                genre,
+            )
         return row_to_dict(row) if row else None
 
     async def list_genre_configs(self) -> list[dict]:
@@ -990,6 +1199,98 @@ class KBService:
         await self._db.connect()
         rows = await self._db.fetch("SELECT * FROM genre_knowledge_config ORDER BY genre")
         return rows_to_dicts(rows)
+
+    async def genre_update_config(
+        self,
+        genre: str,
+        included_categories: list[str] | None = None,
+        excluded_categories: list[str] | None = None,
+        description: str | None = None,
+    ) -> dict:
+        """更新题材知识配置"""
+        await self._db.connect()
+        existing = await self.get_genre_config(genre)
+        if existing:
+            sets = []
+            params = [genre]
+            idx = 2
+            if included_categories is not None:
+                sets.append(f"included_categories = ${idx}")
+                params.append(included_categories)
+                idx += 1
+            if excluded_categories is not None:
+                sets.append(f"excluded_categories = ${idx}")
+                params.append(excluded_categories)
+                idx += 1
+            if description is not None:
+                sets.append(f"description = ${idx}")
+                params.append(description)
+                idx += 1
+            sets.append("updated_at = NOW()")
+            params.append(genre)
+            await self._db.execute(
+                f"UPDATE genre_knowledge_config SET {', '.join(sets)} WHERE genre = ${idx}",
+                *params,
+            )
+        else:
+            await self._db.execute(
+                """INSERT INTO genre_knowledge_config (genre, included_categories, excluded_categories, description)
+                   VALUES ($1, $2, $3, $4)""",
+                genre, included_categories or [], excluded_categories or [], description,
+            )
+        return await self.get_genre_config(genre) or {"ok": True, "genre": genre}
+
+    async def genre_create(
+        self,
+        slug: str,
+        name: str,
+        description: str | None = None,
+        typical_elements: list[str] | None = None,
+        target_audience: str | None = None,
+        platform_tags: list[str] | None = None,
+        aliases: list[str] | None = None,
+        included_categories: list[str] | None = None,
+        excluded_categories: list[str] | None = None,
+    ) -> dict:
+        """创建题材"""
+        await self._db.connect()
+        canonical_genre = name
+        await self._db.execute(
+            """INSERT INTO genre_canonical (canonical_genre, description,
+               platform_tags, aliases, metadata)
+               VALUES ($1, $2, $3, $4, $5::jsonb)
+               ON CONFLICT (canonical_genre) DO UPDATE SET
+                 description = $2, platform_tags = $3, aliases = $4, 
+                 metadata = $5::jsonb, updated_at = NOW()""",
+            canonical_genre, description,
+            platform_tags or [], aliases or [],
+            json_dumps({"typical_elements": typical_elements or [], "target_audience": target_audience or ""}),
+        )
+        if included_categories is not None or excluded_categories is not None:
+            await self.genre_update_config(
+                genre=name,
+                included_categories=included_categories,
+                excluded_categories=excluded_categories,
+            )
+        return await self.genre_get_strategy(slug) or {"ok": True, "slug": slug, "name": name}
+
+    async def genre_delete(self, slug: str) -> dict:
+        """删除题材（同时删除知识配置）"""
+        await self._db.connect()
+        # Get name first for cleanup
+        row = await self._db.fetchrow(
+            "SELECT canonical_genre FROM genre_canonical WHERE canonical_genre = $1", slug
+        )
+        if not row:
+            return {"ok": False, "error": f"Genre not found: {slug}"}
+        name = row["canonical_genre"]
+        await self._db.execute(
+            "DELETE FROM genre_knowledge_config WHERE genre = $1", name
+        )
+        await self._db.execute(
+            "DELETE FROM genre_canonical WHERE canonical_genre = $1", slug
+        )
+        return {"ok": True, "slug": slug, "name": name}
 
     async def get_project_pack(self, project_id: str) -> dict | None:
         """获取项目知识包"""

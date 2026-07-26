@@ -15,6 +15,8 @@
 
     "projectMgmtGroup": "Project Management",
     "projectManage": "Project List",
+    "workspaceManage": "Workspace Management",
+    "memberManage": "Member Management",
 
     "settingsGroup": "Settings",
     "canonList": "Canon Documents",
@@ -46,8 +48,18 @@
     "localChapters": "Local Chapters",
     "localPipeline": "Local Pipeline",
 
+    "analysisGroup": "Analysis",
+    "arcCharacters": "Character Arc",
+    "pacingAnalysis": "Pacing Analysis",
+    "arcTracking": "Arc Tracking",
+    "worldSnapshot": "World Snapshot",
+
     "knowledgeMgmtGroup": "Knowledge Management",
     "ukManage": "Knowledge Entries",
+    "kbGenres": "Genre Strategies",
+    "kbRelations": "Entity Relations",
+    "kbInit": "Knowledge Init",
+    "materials": "Reference Materials",
     "autoSearch": "Auto Search",
     "knowledgeGraph": "Knowledge Graph",
     "knowledgeStats": "Statistics",
@@ -55,9 +67,19 @@
     "knowledgeReviewGroup": "Knowledge Review",
     "knowledgeReview": "Review List",
     "knowledgeExpiry": "Expiry Monitor",
+    "expectations": "Reader Expectations",
+
+    "knowledgeSearchGroup": "Knowledge Search",
+    "kbSearch": "Full-text Search",
+
+    "evolutionGroup": "System Evolution",
+    "systemEvolution": "Evolution Management",
+    "notifications": "Notifications",
 
     "modelGroup": "Model Config",
     "modelProfiles": "Model Profiles",
+    "modelRoutes": "Routing Rules",
+    "modelRateLimits": "Rate Limits",
     "costReport": "Cost Report",
 
     "templateGroup": "Templates",
@@ -66,6 +88,11 @@
 
     "skillGroup": "Skill",
     "skillManage": "Skill Manager",
+
+    "styleGroup": "Style Control",
+    "styleProfiles": "Style Profiles",
+    "styleAnalysis": "Style Analysis",
+    "styleDrift": "Style Drift",
 
     "dataGroup": "Data",
     "syncStatus": "Sync Status",
@@ -81,6 +108,7 @@
     "systemInfo": "System Info",
     "connection": "Connection",
     "account": "Account",
+    "apiKeys": "API Keys",
     "users": "Users",
     "debug": "Debug"
   },

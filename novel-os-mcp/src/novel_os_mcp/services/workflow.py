@@ -346,18 +346,42 @@ class WorkflowService:
         except Exception:
             logger.warning("Character alive check failed", exc_info=True)
 
-        # 3. Setting consistency (basic: check canon doc keys mentioned in content)
+        # 3. Setting consistency — 检查正文是否引用了活跃的设定文档，标记未引用的
         try:
             from .canon import CanonService
             canon_svc = CanonService(self._db)
             docs = await canon_svc.list_documents(
                 project_id=project_id, status="active", limit=20)
+            content_lower = content.lower()
+            # 获取本章节涉及的角色名（用于判断哪些设定应被引用）
+            char_rows = await self._db.fetch(
+                "SELECT name FROM state_entities WHERE project_id = $1 AND entity_type = 'character' AND lifecycle_status = 'active'",
+                project_id,
+            )
+            chapter_names = {r["name"].lower() for r in char_rows}
+            doc_keys_verified = 0
             for doc in docs.get("documents", []):
                 key = doc.get("key", "")
                 title = doc.get("title", "")
-                if key and key.lower() in content.lower():
-                    # Verify doc is still active (not archived)
-                    pass  # key found in content, doc is active - OK
+                if not key:
+                    continue
+                # 设定 key 出现在正文中 → 已引用，通过
+                if key.lower() in content_lower:
+                    doc_keys_verified += 1
+                    continue
+                # 设定标题或 key 包含本章角色名，但 key 未出现在正文 → 可能遗漏
+                title_lower = (title or "").lower()
+                if chapter_names and chapter_names & set(title_lower.split()):
+                    issues.append({
+                        "type": "canon_missing_reference",
+                        "severity": "warning",
+                        "doc_key": key,
+                        "doc_title": title,
+                        "message": f"设定文档 '{title}' 与本章角色相关但未被引用",
+                    })
+            # 记录已校验通过的文档数（供日志参考）
+            if doc_keys_verified > 0:
+                logger.info("Setting consistency: %d canon docs verified", doc_keys_verified)
         except Exception:
             logger.warning("Setting consistency check failed", exc_info=True)
 
@@ -366,6 +390,14 @@ class WorkflowService:
             "issues": issues,
             "passed": len(issues) == 0,
             "issue_count": len(issues),
+            "workflow_guide": {
+                "phase": "内容校验",
+                "passed": len(issues) == 0,
+                "description": "校验通过→提交章节；不通过→修订后再提交",
+                "next_step": "workflow.submit_chapter_commit" if len(issues) == 0 else "修订正文",
+                "issue_count": len(issues),
+                "blocking_count": len([i for i in issues if i.get("severity") in ("error", "critical")]),
+            },
         }
 
     async def submit_chapter_commit(
@@ -379,12 +411,39 @@ class WorkflowService:
         username: str,
     ) -> dict[str, Any]:
         """提交章节完成确认，写入 chapter_commits + audit_logs。"""
-        # Resolve chapter_id
+        # Resolve chapter_id — if not found, auto-create chapter record
         ch_row = await self._db.fetchrow(
             "SELECT id FROM chapters WHERE project_id = $1 AND chapter_no = $2",
             project_id, chapter_no,
         )
         chapter_id = ch_row["id"] if ch_row else None
+
+        if not chapter_id:
+            vol_row = await self._db.fetchrow(
+                "SELECT volume_no FROM volumes WHERE project_id = $1 AND start_chapter_no <= $2 AND (end_chapter_no IS NULL OR end_chapter_no >= $2) LIMIT 1",
+                project_id, chapter_no,
+            )
+            volume_no = vol_row["volume_no"] if vol_row else 1
+            ch_row = await self._db.fetchrow(
+                "INSERT INTO chapters (project_id, chapter_no, title, volume_no, status) VALUES ($1, $2, $3, $4, 'draft') RETURNING id",
+                project_id, chapter_no, title or f"第{chapter_no}章", volume_no,
+            )
+            chapter_id = ch_row["id"]
+
+        # 强制审核：检查是否有已完成（含已汇总）的审核任务
+        if accept:
+            review_count = await self._db.fetchval(
+                """
+                SELECT COUNT(*) FROM review_jobs
+                WHERE project_id = $1 AND chapter_id = $2 AND status IN ('completed', 'aggregated')
+                """,
+                project_id, chapter_id,
+            )
+            if review_count == 0:
+                raise PermissionError(
+                    f"章节 {chapter_no} 尚未完成审核，请先调用 review.start_job 启动审核并等待审核完成后再提交。"
+                    f"如需跳过审核，请传入 accept=false 仅保存记录。"
+                )
 
         async with self._db.acquire() as conn:
             async with conn.transaction():
@@ -417,13 +476,14 @@ class WorkflowService:
                 # Audit log
                 await conn.execute(
                     """
-                    INSERT INTO audit_logs (project_id, user_id, action, resource_type, resource_id, payload)
-                    VALUES ($1, $2, 'chapter_commit', 'chapter', $3, $4::jsonb)
+                    INSERT INTO audit_logs (user_id, action, resource_type, resource_id, payload)
+                    SELECT users.id, 'chapter_commit', 'chapter', $1::uuid, $2::jsonb
+                    FROM users
+                    WHERE users.username = $3
                     """,
-                    project_id,
-                    username,
                     chapter_id,
                     json_dumps({"chapter_no": chapter_no, "commit_no": commit_row["commit_no"], "accept": accept}),
+                    username,
                 )
 
         return {
@@ -432,6 +492,20 @@ class WorkflowService:
             "commit_no": commit_row["commit_no"],
             "accepted": commit_row["accepted"],
             "created_at": commit_row["created_at"],
+            "workflow_guide": {
+                "phase": "章节提交完成",
+                "description": "章节已提交，下一步执行数据维护",
+                "next_actions": [
+                    {"tool": "kb.world.auto_update", "desc": "更新世界状态"},
+                    {"tool": "arc.record_emotion", "desc": "记录角色情感变化"},
+                    {"tool": "arc.record_power", "desc": "记录角色实力变化"},
+                    {"tool": "arc.record_relationship", "desc": "记录角色关系变化"},
+                    {"tool": "arc.record_personality", "desc": "记录角色性格变化"},
+                    {"tool": "plot.thread.advance", "desc": "推进剧情线"},
+                    {"tool": "foreshadowing.payoff", "desc": "回收到期伏笔"},
+                    {"tool": "workflow.learn_from_review", "desc": "从审核学习（可选）"},
+                ],
+            },
         }
 
     async def list_audit_logs(
@@ -442,9 +516,9 @@ class WorkflowService:
         limit: int = 50,
     ) -> list[dict[str, Any]]:
         """列出审计日志。"""
-        conditions = ["project_id = $1"]
-        params: list[Any] = [project_id]
-        idx = 2
+        conditions: list[str] = []
+        params: list[Any] = []
+        idx = 1
 
         if action:
             conditions.append(f"action = ${idx}")
@@ -458,10 +532,10 @@ class WorkflowService:
         params.append(limit)
         rows = await self._db.fetch(
             f"""
-            SELECT id::text, project_id, user_id, action, resource_type,
-                   resource_id, payload, created_at
+            SELECT id::text, user_id, action, resource_type,
+                   resource_id::text, payload, created_at
             FROM audit_logs
-            WHERE {' AND '.join(conditions)}
+            {f'WHERE {" AND ".join(conditions)}' if conditions else ''}
             ORDER BY created_at DESC
             LIMIT ${idx}
             """,

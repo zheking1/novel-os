@@ -102,6 +102,20 @@ async def prompt_template_render(
     return await prompt_template_service.render_template(project_id, template_key, variables)
 
 
+@mcp.tool(name="prompt.template.delete")
+async def prompt_template_delete(
+    workspace: str,
+    project: str,
+    template_key: str,
+) -> dict[str, Any]:
+    """删除 Prompt 模板"""
+    principal = await get_principal("write")
+    logger.info("prompt_template_delete called")
+    validate_required(locals(), "workspace", "project", "template_key")
+    project_id = await auth.resolve_project_id(workspace, project, principal, access="write")
+    return await prompt_template_service.delete_template(project_id=project_id, template_key=template_key)
+
+
 @mcp.tool(name="context.weight.upsert")
 async def context_weight_upsert(
     workspace: str,

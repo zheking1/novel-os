@@ -76,40 +76,32 @@ def session_secret() -> bytes:
     return secret
 
 
-# Local storage for MCP settings (not in database)
-MCP_SETTINGS_FILE = DATA_DIR / "mcp_settings.json"
+CAPTCHAS: dict[str, dict[str, Any]] = {}
 
-def load_mcp_settings() -> dict[str, Any]:
-    """Load MCP settings from local file."""
-    if not MCP_SETTINGS_FILE.exists():
-        return {}
-    return json.loads(MCP_SETTINGS_FILE.read_text(encoding="utf-8"))
-
-
-def save_mcp_settings(settings: dict[str, Any]) -> None:
-    """Save MCP settings to local file."""
-    DATA_DIR.mkdir(parents=True, exist_ok=True)
-    tmp = MCP_SETTINGS_FILE.with_suffix(".tmp")
-    tmp.write_text(json.dumps(settings, ensure_ascii=False, indent=2), encoding="utf-8")
-    tmp.replace(MCP_SETTINGS_FILE)
+def get_user_mcp_token(username: str) -> str | None:
+    """Get MCP token for a user from system_settings."""
+    conn = get_db_connection()
+    try:
+        cur = conn.cursor()
+        cur.execute("SELECT value FROM system_settings WHERE key = %s", ("mcp_token:" + username,))
+        row = cur.fetchone()
+        return row[0] if row else None
+    finally:
+        conn.close()
 
 
-def get_user_mcp_settings(username: str) -> dict[str, Any]:
-    """Get MCP settings for a user."""
-    settings = load_mcp_settings()
-    return settings.get(username, {})
-
-
-def set_user_mcp_settings(username: str, mcp_url: str | None = None, mcp_token: str | None = None) -> None:
-    """Set MCP settings for a user."""
-    settings = load_mcp_settings()
-    if username not in settings:
-        settings[username] = {}
-    if mcp_url is not None:
-        settings[username]["mcp_url"] = mcp_url
-    if mcp_token is not None:
-        settings[username]["mcp_token"] = mcp_token
-    save_mcp_settings(settings)
+def set_user_mcp_token(username: str, token: str) -> None:
+    """Store MCP token for a user in system_settings."""
+    conn = get_db_connection()
+    try:
+        cur = conn.cursor()
+        cur.execute(
+            "INSERT INTO system_settings (key, value) VALUES (%s, %s) ON CONFLICT (key) DO UPDATE SET value = %s, updated_at = NOW()",
+            ("mcp_token:" + username, token, token),
+        )
+        conn.commit()
+    finally:
+        conn.close()
 
 
 def hash_password(password: str, salt_b64: str | None = None) -> str:
@@ -174,8 +166,7 @@ class McpClient:
         if self.session_id:
             headers["mcp-session-id"] = self.session_id
         if self.token:
-            headers["Authorization"] = f"Bearer {self.token}"
-            headers["X-Novel-OS-Token"] = self.token
+            headers["apiKey"] = self.token
         req = urllib.request.Request(
             self.url,
             data=json.dumps(payload, ensure_ascii=False).encode("utf-8"),
@@ -371,15 +362,17 @@ class Handler(BaseHTTPRequestHandler):
         user = self.get_user_from_db(username)
         if not user:
             return None
-        # Merge with local MCP settings
-        mcp_settings = get_user_mcp_settings(username)
-        user["mcp_url"] = mcp_settings.get("mcp_url")
-        user["mcp_token"] = mcp_settings.get("mcp_token")
+        # Merge with MCP token from system_settings
+        user["mcp_token"] = get_user_mcp_token(username)
+        user["mcp_url"] = DEFAULT_MCP_URL
         return username, user
 
     def do_GET(self) -> None:
-        # Static file serving (JS, CSS, i18n)
-        if self.path.startswith(("/js/", "/css/", "/i18n/")):
+        if self.path.startswith("/api/admin/setting"):
+            self.handle_admin_setting_get()
+            return
+        # Static file serving (JS, CSS, i18n, md)
+        if self.path.startswith(("/js/", "/css/", "/i18n/")) or self.path.endswith(".md"):
             self.serve_static()
             return
         
@@ -451,6 +444,15 @@ class Handler(BaseHTTPRequestHandler):
             if self.path == "/api/tool":
                 self.handle_tool()
                 return
+            if self.path == "/api/captcha":
+                self.handle_captcha()
+                return
+            if self.path == "/api/register":
+                self.handle_register()
+                return
+            if self.path == "/api/admin/setting":
+                self.handle_admin_setting()
+                return
             self.send_json(404, {"ok": False, "error": "not found"})
         except Exception as exc:
             self.send_json(400, {"ok": False, "error": str(exc)})
@@ -473,8 +475,9 @@ class Handler(BaseHTTPRequestHandler):
             self.send_json(500, {"ok": False, "error": "failed to create user"})
             return
         
-        # Save MCP settings locally
-        set_user_mcp_settings(username, payload.get("mcp_url") or DEFAULT_MCP_URL, token)
+        # Save MCP token to system_settings
+        if token:
+            set_user_mcp_token(username, token)
         
         self.send_login(username)
 
@@ -498,7 +501,14 @@ class Handler(BaseHTTPRequestHandler):
         if not self._verify_password_any(password, stored_hash):
             self.send_json(401, {"ok": False, "error": "invalid username or password"})
             return
-        self.send_login(username)
+        # Check if user already has a personal token; if not, create one
+        mcp_token = user.get("mcp_token") or get_user_mcp_token(username)
+        if not mcp_token:
+            mcp_token = self._create_user_token(username, user)
+
+        # Ensure user has a personal workspace (slug = username), using their token
+        self._ensure_user_workspace(username, mcp_token or MCP_SERVICE_TOKEN)
+        self.send_login(username, mcp_token)
 
     def _verify_password_any(self, password: str, stored: str) -> bool:
         """Verify password supporting both pbkdf2 (legacy) and bcrypt (new) formats."""
@@ -515,9 +525,39 @@ class Handler(BaseHTTPRequestHandler):
                 return False
         return False
 
-    def send_login(self, username: str) -> None:
+    def send_login(self, username: str, mcp_token: str | None = None) -> None:
+        # Auto-create and store personal MCP token for this user
+        if mcp_token:
+            set_user_mcp_token(username, mcp_token)
         cookie_header = f"{SESSION_COOKIE}={sign_session(username)}; Path=/; HttpOnly; SameSite=Lax; Max-Age={SESSION_TTL_SECONDS}"
         self.send_json(200, {"ok": True, "username": username}, cookie_header)
+
+    def _create_user_token(self, username: str, user: dict) -> str | None:
+        """Auto-create personal MCP token for user. Admin users get admin scope."""
+        try:
+            client = McpClient(DEFAULT_MCP_URL, MCP_SERVICE_TOKEN)
+            # Create fresh token (admin users get admin scope)
+            is_admin = username in ("admin", "admin")
+            result = client.call_tool(
+                "auth.create_api_token",
+                {"name": f"auto_{username}", "scopes": (["admin", "read", "write"] if is_admin else ["read", "write"]), "username": username},
+            )
+            if result and result.get("token"):
+                return str(result["token"])
+        except Exception as e:
+            print(f"Failed to create auto-token for {username}: {e}")
+        return None
+
+    def _ensure_user_workspace(self, username: str, token: str) -> None:
+        """确保用户拥有个人工作区（slug=username），若不存在则自动创建。"""
+        try:
+            client = McpClient(DEFAULT_MCP_URL, token)
+            client.call_tool("workspace.create", {
+                "slug": username,
+                "name": f"{username}的工作区",
+            })
+        except Exception:
+            pass  # 已存在时 workspace.create 会返回错误，忽略
 
     def handle_account(self) -> None:
         current = self.current_user()
@@ -541,21 +581,8 @@ class Handler(BaseHTTPRequestHandler):
                 self.send_json(500, {"ok": False, "error": "failed to update password"})
             return
         
-        # Handle MCP settings update (stored locally, not in database)
-        mcp_url = str(payload.get("mcp_url") or "").strip()
-        mcp_token = str(payload.get("mcp_token") or "").strip()
-        if mcp_url or mcp_token:
-            set_user_mcp_settings(username, mcp_url or None, mcp_token or None)
-            # Get updated settings
-            updated_settings = get_user_mcp_settings(username)
-            self.send_json(200, {
-                "ok": True, 
-                "mcp_url": updated_settings.get("mcp_url"), 
-                "has_mcp_token": bool(updated_settings.get("mcp_token"))
-            })
-        else:
-            self.send_json(200, {"ok": True, "mcp_url": user.get("mcp_url"), 
-                                "has_mcp_token": bool(user.get("mcp_token"))})
+        # MCP settings are now auto-managed (token auto-created on login, stored in DB)
+            self.send_json(200, {"ok": True, "has_mcp_token": bool(user.get("mcp_token"))})
 
     def handle_tool(self) -> None:
         current = self.current_user()
@@ -567,11 +594,11 @@ class Handler(BaseHTTPRequestHandler):
         tool = payload["tool"]
         arguments = payload.get("arguments") or {}
         url = payload.get("mcp_url") or user.get("mcp_url") or DEFAULT_MCP_URL
-        # Use service token if available, otherwise fall back to user's token
-        token = MCP_SERVICE_TOKEN or user.get("mcp_token")
+        # Use user's personal token first; fall back to service token
+        token = user.get("mcp_token") or MCP_SERVICE_TOKEN
         if not token:
-            self.send_json(500, {"ok": False, "error": "No MCP token available. Please configure MCP_SERVICE_TOKEN in .env"})
-            return
+                self.send_json(500, {"ok": False, "error": "无法获取 MCP token"})
+                return
         result = McpClient(url, token).call_tool(tool, arguments)
         self.send_json(200, {"ok": True, "result": result})
 
@@ -590,6 +617,8 @@ class Handler(BaseHTTPRequestHandler):
                 self.send_header("Content-Type", "application/javascript; charset=utf-8")
             elif path.endswith(".css"):
                 self.send_header("Content-Type", "text/css; charset=utf-8")
+            elif path.endswith(".md"):
+                self.send_header("Content-Type", "text/markdown; charset=utf-8")
             else:
                 self.send_header("Content-Type", "application/octet-stream")
             self.send_header("Content-Length", str(len(body)))
@@ -598,6 +627,103 @@ class Handler(BaseHTTPRequestHandler):
             self.wfile.write(body)
         else:
             self.send_json(404, {"error": "not found"})
+
+    def handle_captcha(self) -> None:
+        import random
+        a = random.randint(1, 20)
+        b = random.randint(1, 20)
+        op = random.choice(["+", "-"])
+        question = f"{a} {op} {b} = ?"
+        answer = str(a + b if op == "+" else a - b)
+        cid = secrets.token_hex(8)
+        CAPTCHAS[cid] = {"answer": answer, "expires": time.time() + 300}
+        self.send_json(200, {"ok": True, "captcha_id": cid, "question": question})
+
+    def handle_register(self) -> None:
+        payload = self.read_json()
+        username = str(payload.get("username") or "").strip()
+        password = str(payload.get("password") or "")
+        captcha_id = str(payload.get("captcha_id") or "")
+        captcha_answer = str(payload.get("captcha_answer") or "")
+        if not username or not password or not captcha_id or not captcha_answer:
+            self.send_json(400, {"ok": False, "error": "请填写所有字段"})
+            return
+        # Check registration enabled
+        allow = self.get_system_setting("auth.allow_registration")
+        if str(allow).lower() != "true":
+            self.send_json(403, {"ok": False, "error": "注册功能暂未开放"})
+            return
+        # Verify captcha
+        cap = CAPTCHAS.pop(captcha_id, None)
+        if not cap or cap["expires"] < time.time():
+            self.send_json(400, {"ok": False, "error": "验证码已过期"})
+            return
+        if cap["answer"] != captcha_answer:
+            self.send_json(400, {"ok": False, "error": "验证码错误"})
+            return
+        # Check user exists
+        if self.get_user_from_db(username):
+            self.send_json(400, {"ok": False, "error": "用户名已存在"})
+            return
+        # Create user
+        self.create_user_in_db(username, hash_password(password))
+        self.send_json(200, {"ok": True, "message": "注册成功，请登录"})
+
+    def handle_admin_setting_get(self) -> None:
+        current = self.current_user()
+        if not current:
+            self.send_json(401, {"ok": False, "error": "login required"})
+            return
+        _, user = current
+        if user.get("username") not in ("admin", "admin"):
+            self.send_json(403, {"ok": False, "error": "admin only"})
+            return
+        from urllib.parse import parse_qs, urlparse
+        parsed = urlparse(self.path)
+        params = parse_qs(parsed.query)
+        key = params.get("key", [""])[0]
+        if not key:
+            self.send_json(400, {"ok": False, "error": "?key= required"})
+            return
+        val = self.get_system_setting(key)
+        self.send_json(200, {"ok": True, "key": key, "value": val})
+
+    def handle_admin_setting(self) -> None:
+        current = self.current_user()
+        if not current:
+            self.send_json(401, {"ok": False, "error": "login required"})
+            return
+        _, user = current
+        if user.get("username") not in ("admin", "admin"):
+            self.send_json(403, {"ok": False, "error": "admin only"})
+            return
+        payload = self.read_json()
+        key = payload.get("key")
+        value = payload.get("value")
+        if not key or value is None:
+            self.send_json(400, {"ok": False, "error": "key and value required"})
+            return
+        conn = get_db_connection()
+        try:
+            cur = conn.cursor()
+            cur.execute(
+                "INSERT INTO system_settings (key, value, description) VALUES (%s, %s, %s) ON CONFLICT (key) DO UPDATE SET value=%s, updated_at=NOW()",
+                (key, str(value), key, str(value)),
+            )
+            conn.commit()
+            self.send_json(200, {"ok": True})
+        finally:
+            conn.close()
+
+    def get_system_setting(self, key: str) -> str | None:
+        conn = get_db_connection()
+        try:
+            cur = conn.cursor()
+            cur.execute("SELECT value FROM system_settings WHERE key = %s", (key,))
+            row = cur.fetchone()
+            return row[0] if row else None
+        finally:
+            conn.close()
 
     def log_message(self, fmt: str, *args: Any) -> None:
         print(fmt % args)

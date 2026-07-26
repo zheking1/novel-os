@@ -15,11 +15,11 @@
     render() {
       const contentArea = document.getElementById('content-area');
       contentArea.innerHTML = `
-        <div class="space-y-4">
+        <div class="max-w-5xl mx-auto space-y-4">
           <div class="flex items-center justify-between">
             <div>
               <h1 class="text-2xl font-bold text-gray-800">${t('nav.chapters')}</h1>
-              <p class="text-gray-500 mt-1">管理小说章节</p>
+              <p class="text-gray-500 mt-1">管理小说章节（正文存储在本地文件）</p>
             </div>
             <button onclick="ChaptersPage.showCreateModal()" 
                     class="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors">
@@ -91,12 +91,29 @@
                     </div>
                   </div>
                   <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1">摘要</label>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">摘要（存入服务器）</label>
                     <textarea id="chapter-summary" rows="3"
                               class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"></textarea>
                   </div>
                   <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1">正文内容</label>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">本地文件路径</label>
+                    <div class="flex gap-2">
+                      <input type="text" id="chapter-filepath" readonly
+                             class="flex-1 px-3 py-2 border border-gray-300 rounded-lg bg-gray-50 text-gray-500 text-sm font-mono"
+                             placeholder="保存后将显示文件路径">
+                      <input type="file" id="chapter-file-picker" accept=".md,.txt" class="hidden" onchange="ChaptersPage.loadLocalFile(event)">
+                      <button type="button" onclick="document.getElementById('chapter-file-picker').click()"
+                              class="px-3 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 text-sm">
+                        选择文件
+                      </button>
+                    </div>
+                    <p class="text-xs text-gray-400 mt-1">点击"选择文件"从本地加载正文</p>
+                  </div>
+                  <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">
+                      正文内容
+                      <span class="text-xs text-gray-400 font-normal">（编辑后保存为本地文件）</span>
+                    </label>
                     <textarea id="chapter-content" rows="12"
                               class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 font-mono text-sm"></textarea>
                   </div>
@@ -105,6 +122,10 @@
                   <button type="button" onclick="ChaptersPage.hideModal()" 
                           class="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50">
                     ${t('common.cancel')}
+                  </button>
+                  <button type="button" onclick="ChaptersPage.downloadContent()"
+                          class="px-4 py-2 border border-gray-500 text-gray-700 rounded-lg hover:bg-gray-50 text-sm">
+                    下载正文文件
                   </button>
                   <button type="submit" 
                           class="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700">
@@ -129,8 +150,8 @@
           return;
         }
 
-        const result = await window.ApiClient.localChapter.list(project);
-        this.renderList(result || []);
+        const result = await window.ApiClient.callTool('local.chapter.list', { workspace, project });
+        this.renderList(result?.chapters || result || []);
       } catch (error) {
         console.error('[Chapters] Load error:', error);
         container.innerHTML = `<div class="p-8 text-center text-red-500">加载失败: ${error.message}</div>`;
@@ -153,7 +174,9 @@
 
       container.innerHTML = `
         <div class="divide-y divide-gray-200">
-          ${chapters.map(ch => `
+          ${chapters.map(ch => {
+            const filePath = ch.source_path || ch.local_file_path || `第${String(ch.chapter_no).padStart(2, '0')}章/ch${String(ch.chapter_no).padStart(2, '0')}_draft.md`;
+            return `
             <div class="p-4 hover:bg-gray-50 transition-colors">
               <div class="flex items-start justify-between">
                 <div class="flex-1 min-w-0">
@@ -168,19 +191,18 @@
                   <div class="flex items-center gap-4 mt-2 text-xs text-gray-400">
                     <span>字数: ${ch.word_count || 0}</span>
                     ${ch.volume_no ? `<span>卷: ${ch.volume_no}</span>` : ''}
+                    <span title="本地文件路径" class="font-mono">📁 ${filePath}</span>
                   </div>
                 </div>
                 <div class="flex items-center gap-2 ml-4">
-                  <button onclick="ChaptersPage.editChapter('${ch.chapter_no}')" 
-                          class="p-2 text-gray-400 hover:text-primary-600 hover:bg-primary-50 rounded transition-colors"
-                          title="编辑">
+                  <button onclick="ChaptersPage.editChapter(${ch.chapter_no})" 
+                          class="p-2 text-gray-400 hover:text-primary-600 hover:bg-primary-50 rounded transition-colors" title="编辑">
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
                     </svg>
                   </button>
                   <button onclick="ChaptersPage.viewChapter(${ch.chapter_no})" 
-                          class="p-2 text-gray-400 hover:text-green-600 hover:bg-green-50 rounded transition-colors"
-                          title="查看">
+                          class="p-2 text-gray-400 hover:text-green-600 hover:bg-green-50 rounded transition-colors" title="查看">
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
                       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
@@ -189,7 +211,7 @@
                 </div>
               </div>
             </div>
-          `).join('')}
+          `}).join('')}
         </div>
       `;
     },
@@ -203,6 +225,7 @@
       document.getElementById('chapter-volume').value = '';
       document.getElementById('chapter-summary').value = '';
       document.getElementById('chapter-content').value = '';
+      document.getElementById('chapter-filepath').value = '';
       document.getElementById('chapter-modal').classList.remove('hidden');
     },
 
@@ -211,60 +234,115 @@
     },
 
     async editChapter(chapterNo) {
-      try {
-        const project = window.AppState.currentProject;
-        const chapter = await window.ApiClient.localChapter.read(project, chapterNo);
-        
-        document.getElementById('chapter-modal-title').textContent = '编辑章节';
-        document.getElementById('chapter-number').value = chapter.chapter_no;
-        document.getElementById('chapter-title').value = chapter.title || '';
-        document.getElementById('chapter-status').value = chapter.status || 'draft';
-        document.getElementById('chapter-volume').value = chapter.volume_no || '';
-        document.getElementById('chapter-summary').value = chapter.summary || '';
-        document.getElementById('chapter-content').value = chapter.content || '';
-        document.getElementById('chapter-modal').classList.remove('hidden');
-      } catch (error) {
-        alert('加载章节失败: ' + error.message);
-      }
+      const workspace = window.AppState.currentWorkspace;
+      const project = window.AppState.currentProject;
+      
+      document.getElementById('chapter-modal-title').textContent = '编辑章节';
+      document.getElementById('chapter-number').value = chapterNo;
+      
+      // Load metadata
+      window.ApiClient.callTool('local.chapter.get', { workspace, project, chapter_no: chapterNo }).then(ch => {
+        if (ch && !ch.error) {
+          document.getElementById('chapter-title').value = ch.title || '';
+          document.getElementById('chapter-status').value = ch.status || 'draft';
+          document.getElementById('chapter-volume').value = ch.volume_no || '';
+          document.getElementById('chapter-summary').value = ch.summary || '';
+          document.getElementById('chapter-filepath').value = ch.source_path || ch.local_file_path || `第${String(chapterNo).padStart(2, '0')}章/ch${String(chapterNo).padStart(2, '0')}_draft.md`;
+        }
+      }).catch(() => {});
+      
+      document.getElementById('chapter-content').value = '';
+      document.getElementById('chapter-modal').classList.remove('hidden');
     },
 
     async viewChapter(chapterNo) {
-      try {
-        const project = window.AppState.currentProject;
-        const content = await window.ApiClient.localChapter.read(project, chapterNo);
-        
-        const container = document.getElementById('chapters-list-container');
+      const container = document.getElementById('chapters-list-container');
+      const workspace = window.AppState.currentWorkspace;
+      const project = window.AppState.currentProject;
+      
+      window.ApiClient.callTool('local.chapter.get', { workspace, project, chapter_no: chapterNo }).then(ch => {
+        const filePath = ch?.source_path || ch?.local_file_path || `第${String(chapterNo).padStart(2, '0')}章/ch${String(chapterNo).padStart(2, '0')}_draft.md`;
         container.innerHTML = `
           <div class="p-4 border-b border-gray-200">
             <div class="flex items-center justify-between">
-              <h3 class="font-medium text-gray-800">第${chapterNo}章</h3>
+              <div>
+                <h3 class="font-medium text-gray-800">第${chapterNo}章 ${ch?.title || ''}</h3>
+                <p class="text-sm text-gray-400 mt-1 font-mono">${filePath}</p>
+              </div>
               <button onclick="ChaptersPage.loadData()" class="text-sm text-primary-600 hover:underline">返回列表</button>
             </div>
           </div>
-          <div class="p-6 prose max-w-none">
-            <pre class="whitespace-pre-wrap text-sm">${content || '暂无内容'}</pre>
+          <div class="p-6">
+            <div class="flex gap-2 mb-4">
+              <input type="file" accept=".md,.txt" class="hidden" id="view-file-picker" onchange="ChaptersPage.loadViewContent(event)">
+              <button onclick="document.getElementById('view-file-picker').click()" 
+                      class="px-3 py-1.5 border border-gray-300 rounded text-sm hover:bg-gray-50">加载本地文件查看</button>
+            </div>
+            <div id="view-content" class="prose max-w-none">
+              <pre class="whitespace-pre-wrap text-sm text-gray-400">点击"加载本地文件查看"选择文件</pre>
+            </div>
           </div>
         `;
-      } catch (error) {
-        alert('加载失败: ' + error.message);
-      }
+      }).catch(() => {
+        container.innerHTML = '<div class="p-4 text-red-500">加载章节信息失败</div>';
+      });
+    },
+
+    loadViewContent(e) {
+      const file = e.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = (ev) => {
+        document.getElementById('view-content').innerHTML = `<pre class="whitespace-pre-wrap text-sm">${ev.target.result}</pre>`;
+      };
+      reader.readAsText(file);
+    },
+
+    loadLocalFile(e) {
+      const file = e.target.files[0];
+      if (!file) return;
+      document.getElementById('chapter-filepath').value = file.name;
+      const reader = new FileReader();
+      reader.onload = (ev) => {
+        document.getElementById('chapter-content').value = ev.target.result;
+      };
+      reader.readAsText(file);
+    },
+
+    downloadContent() {
+      const content = document.getElementById('chapter-content').value;
+      if (!content) { alert('正文内容为空'); return; }
+      const ch = document.getElementById('chapter-number').value || '00';
+      const filename = `ch${String(ch).padStart(2, '0')}_draft.md`;
+      const blob = new Blob([content], { type: 'text/markdown;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = filename; a.click();
+      URL.revokeObjectURL(url);
     },
 
     async saveChapter(e) {
       e.preventDefault();
+      const workspace = window.AppState.currentWorkspace;
       const project = window.AppState.currentProject;
-      const chapterNo = document.getElementById('chapter-number').value;
+      const chapterNo = parseInt(document.getElementById('chapter-number').value);
+      const content = document.getElementById('chapter-content').value;
+      const filePath = document.getElementById('chapter-filepath').value;
       
       const data = {
         title: document.getElementById('chapter-title').value,
         status: document.getElementById('chapter-status').value,
         volume_no: document.getElementById('chapter-volume').value ? parseInt(document.getElementById('chapter-volume').value) : undefined,
-        summary: document.getElementById('chapter-summary').value || undefined,
-        content: document.getElementById('chapter-content').value
+        summary: document.getElementById('chapter-summary').value || content.slice(0, 200).replace(/\n/g, ' '),
+        content: content
       };
 
       try {
-        await window.ApiClient.localChapter.write(project, parseInt(chapterNo), data.content);
+        await window.ApiClient.callTool('local.chapter.write', { 
+          workspace, project, chapter_no: chapterNo, 
+          content: data.content,
+          local_file_path: filePath || undefined
+        });
         this.hideModal();
         this.loadData();
       } catch (error) {

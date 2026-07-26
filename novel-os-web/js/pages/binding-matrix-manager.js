@@ -43,9 +43,9 @@
         const workspace = window.AppState?.currentWorkspace;
         
         const [genresResult, categoriesResult, matrixResult] = await Promise.all([
-          window.ApiClient.genre.list(),
-          workspace ? window.ApiClient.setting.list(workspace) : Promise.resolve([]),
-          window.ApiClient.callTool('genre.binding.matrix')
+          ApiClient.callTool('setting.genre.list', {}),
+          workspace ? ApiClient.callTool('setting.category.list', { workspace }) : Promise.resolve([]),
+          ApiClient.callTool('genre.binding.matrix', {})
         ]);
 
         this.genres = genresResult || [];
@@ -226,7 +226,7 @@
         }
 
         // 调用批量更新API
-        await window.ApiClient.callTool('genre.binding.bulk_upsert', { bindings });
+        await ApiClient.callTool('genre.binding.bulk_upsert', { bindings });
 
         window.AppCore.toast(t('common.success'), 'success');
         console.log('[BindingMatrixManager] Bindings saved:', bindings.length);

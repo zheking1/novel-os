@@ -43,6 +43,10 @@
               <option value="subtle">隐性</option>
               <option value="deep">深层</option>
             </select>
+            <button onclick="ForeshadowingListPage.checkOverdue()" 
+                    class="px-3 py-2 border border-orange-300 text-orange-600 rounded-lg hover:bg-orange-50 text-sm whitespace-nowrap">
+              ⏰ 检查逾期
+            </button>
           </div>
 
           <div id="foreshadow-list-container" class="bg-white rounded-lg shadow">
@@ -115,6 +119,24 @@
                       <input type="number" id="foreshadow-deadline" min="1"
                              class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500">
                     </div>
+                    <div>
+                      <label class="block text-sm font-medium text-gray-700 mb-1">回收截止卷</label>
+                      <input type="number" id="foreshadow-deadline-vol" min="1"
+                             class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500">
+                    </div>
+                    <div>
+                      <label class="block text-sm font-medium text-gray-700 mb-1">逾期策略</label>
+                      <select id="foreshadow-overdue" 
+                              class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500">
+                        <option value="warn">警告</option>
+                        <option value="escalate">升级</option>
+                        <option value="block">阻止生成</option>
+                      </select>
+                    </div>
+                  </div>
+                  <div class="flex items-center gap-2">
+                    <input type="checkbox" id="foreshadow-must-payoff" class="rounded border-gray-300">
+                    <label for="foreshadow-must-payoff" class="text-sm font-medium text-gray-700">必须回收（阻止后续生成直到此伏笔被回收）</label>
                   </div>
                   <div>
                     <label class="block text-sm font-medium text-gray-700 mb-1">状态</label>
@@ -155,8 +177,8 @@
           return;
         }
 
-        const result = await window.ApiClient.foreshadowing.list(workspace, project);
-        this.renderList(result || []);
+        const result = await window.ApiClient.callTool('plot.list_foreshadowing', { workspace, project });
+        this.renderList((result || []).filter(fs => fs.status !== 'deleted'));
       } catch (error) {
         console.error('[ForeshadowingList] Load error:', error);
         container.innerHTML = `<div class="p-8 text-center text-red-500">加载失败: ${error.message}</div>`;
@@ -206,23 +228,26 @@
                 <div class="flex items-center gap-2 ml-4">
                   ${fs.status === 'planted' ? `
                     <button onclick="ForeshadowingListPage.payoffForeshadow('${fs.id}')" 
-                            class="p-2 text-gray-400 hover:text-green-600 hover:bg-green-50 rounded transition-colors"
-                            title="回收">
+                            class="p-2 text-gray-400 hover:text-green-600 hover:bg-green-50 rounded transition-colors" title="回收伏笔">
                       <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
                       </svg>
                     </button>
                   ` : ''}
+                  <button onclick="ForeshadowingListPage.linkForeshadow('${fs.key}')" 
+                          class="p-2 text-gray-400 hover:text-purple-600 hover:bg-purple-50 rounded transition-colors" title="关联管理">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"/>
+                    </svg>
+                  </button>
                   <button onclick="ForeshadowingListPage.editForeshadow('${fs.id}')" 
-                          class="p-2 text-gray-400 hover:text-primary-600 hover:bg-primary-50 rounded transition-colors"
-                          title="编辑">
+                          class="p-2 text-gray-400 hover:text-primary-600 hover:bg-primary-50 rounded transition-colors" title="编辑">
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
                     </svg>
                   </button>
                   <button onclick="ForeshadowingListPage.deleteForeshadow('${fs.id}', '${fs.title}')" 
-                          class="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors"
-                          title="删除">
+                          class="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors" title="删除">
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
                     </svg>
@@ -245,6 +270,9 @@
       document.getElementById('foreshadow-description').value = '';
       document.getElementById('foreshadow-planted-chapter').value = '';
       document.getElementById('foreshadow-deadline').value = '';
+      document.getElementById('foreshadow-deadline-vol').value = '';
+      document.getElementById('foreshadow-overdue').value = 'warn';
+      document.getElementById('foreshadow-must-payoff').checked = false;
       document.getElementById('foreshadow-status').value = 'planted';
       document.getElementById('foreshadow-modal').classList.remove('hidden');
     },
@@ -257,7 +285,9 @@
       try {
         const workspace = window.AppState.currentWorkspace;
         const project = window.AppState.currentProject;
-        const fs = await window.ApiClient.foreshadowing.get(workspace, project, id);
+        const list = await window.ApiClient.callTool('plot.list_foreshadowing', { workspace, project, limit: 200 });
+        const fs = Array.isArray(list) ? list.find(i => i.id === id || i.key === id) : null;
+        if (!fs) throw new Error('伏笔不存在');
         
         document.getElementById('foreshadow-modal-title').textContent = '编辑伏笔';
         document.getElementById('foreshadow-id').value = fs.id;
@@ -268,6 +298,9 @@
         document.getElementById('foreshadow-description').value = fs.description || '';
         document.getElementById('foreshadow-planted-chapter').value = fs.planted_chapter_no || '';
         document.getElementById('foreshadow-deadline').value = fs.payoff_deadline_chapter || '';
+        document.getElementById('foreshadow-deadline-vol').value = fs.payoff_deadline_volume || '';
+        document.getElementById('foreshadow-overdue').value = fs.overdue_policy || 'warn';
+        document.getElementById('foreshadow-must-payoff').checked = fs.must_payoff || false;
         document.getElementById('foreshadow-status').value = fs.status || 'planted';
         document.getElementById('foreshadow-modal').classList.remove('hidden');
       } catch (error) {
@@ -289,15 +322,28 @@
         description: document.getElementById('foreshadow-description').value || undefined,
         planted_chapter_no: document.getElementById('foreshadow-planted-chapter').value ? parseInt(document.getElementById('foreshadow-planted-chapter').value) : undefined,
         payoff_deadline_chapter: document.getElementById('foreshadow-deadline').value ? parseInt(document.getElementById('foreshadow-deadline').value) : undefined,
+        payoff_deadline_volume: document.getElementById('foreshadow-deadline-vol').value ? parseInt(document.getElementById('foreshadow-deadline-vol').value) : undefined,
+        overdue_policy: document.getElementById('foreshadow-overdue').value,
+        must_payoff: document.getElementById('foreshadow-must-payoff').checked,
         status: document.getElementById('foreshadow-status').value
       };
 
+      const payload = data.description ? { description: data.description, planted_chapter_no: data.planted_chapter_no } : undefined;
+
       try {
-        if (id) {
-          await window.ApiClient.foreshadowing.update(workspace, project, id, data);
-        } else {
-          await window.ApiClient.foreshadowing.create(workspace, project, data);
-        }
+        await window.ApiClient.callTool('plot.upsert_foreshadowing', { 
+          workspace, project,
+          key: data.key,
+          title: data.title,
+          layer: data.layer,
+          importance: data.importance,
+          status: data.status,
+          payoff_deadline_chapter: data.payoff_deadline_chapter,
+          payoff_deadline_volume: data.payoff_deadline_volume,
+          overdue_policy: data.overdue_policy,
+          must_payoff: data.must_payoff,
+          payload
+        });
         this.hideModal();
         this.loadData();
       } catch (error) {
@@ -306,10 +352,15 @@
     },
 
     async deleteForeshadow(id, title) {
-      if (!confirm(`确定删除伏笔 "${title}" 吗？此操作不可恢复。`)) return;
+      if (!confirm(`确定删除伏笔 "${title}" 吗？`)) return;
       
       try {
-        await window.ApiClient.foreshadowing.delete(window.AppState.currentWorkspace, window.AppState.currentProject, id);
+        await window.ApiClient.callTool('foreshadowing.bulk_status_update', { 
+          workspace: window.AppState.currentWorkspace, 
+          project: window.AppState.currentProject,
+          ids: [id],
+          status: 'deleted'
+        });
         this.loadData();
       } catch (error) {
         alert('删除失败: ' + error.message);
@@ -321,7 +372,20 @@
       if (!chapter) return;
       
       try {
-        await window.ApiClient.foreshadowing.payoff(window.AppState.currentWorkspace, window.AppState.currentProject, id, parseInt(chapter));
+        const list = await window.ApiClient.callTool('plot.list_foreshadowing', { 
+          workspace: window.AppState.currentWorkspace, 
+          project: window.AppState.currentProject,
+          limit: 200
+        });
+        const fs = Array.isArray(list) ? list.find(i => i.id === id || i.key === id) : null;
+        if (!fs) { alert('未找到伏笔'); return; }
+        
+        await window.ApiClient.callTool('foreshadowing.payoff', { 
+          workspace: window.AppState.currentWorkspace, 
+          project: window.AppState.currentProject,
+          key: fs.key,
+          payoff_chapter_no: parseInt(chapter)
+        });
         this.loadData();
       } catch (error) {
         alert('回收失败: ' + error.message);
@@ -341,6 +405,42 @@
     getStatusLabel(status) {
       const labels = { planted: '已埋设', paid_off: '已回收', expired: '已过期', abandoned: '已废弃' };
       return labels[status] || status;
+    },
+
+    async linkForeshadow(key) {
+      const parentKey = prompt('输入父伏笔的 key（留空则无父级）:');
+      if (parentKey === null) return;
+      const triggerKeys = prompt('输入触发连锁回收的伏笔 key（逗号分隔，留空则无）:');
+      if (triggerKeys === null) return;
+      try {
+        await window.ApiClient.callTool('foreshadowing.link', {
+          workspace: window.AppState.currentWorkspace,
+          project: window.AppState.currentProject,
+          key,
+          parent_key: parentKey || undefined,
+          trigger_on_payoff_keys: triggerKeys ? triggerKeys.split(',').map(s => s.trim()).filter(Boolean) : undefined,
+        });
+        alert('关联设置成功');
+        this.loadData();
+      } catch (error) {
+        alert('关联失败: ' + error.message);
+      }
+    },
+
+    async checkOverdue() {
+      const workspace = window.AppState.currentWorkspace;
+      const project = window.AppState.currentProject;
+      try {
+        const result = await window.ApiClient.callTool('foreshadowing.check_overdue', { workspace, project, current_chapter_no: 999 });
+        const list = Array.isArray(result) ? result : (result?.overdue || []);
+        if (!list.length) {
+          alert('没有逾期的伏笔');
+          return;
+        }
+        alert(`发现 ${list.length} 个逾期伏笔:\n${list.slice(0, 10).map(f => `• ${f.title} (截止第${f.payoff_deadline_chapter}章)`).join('\n')}${list.length > 10 ? `\n...还有${list.length - 10}个` : ''}`);
+      } catch (error) {
+        alert('检查失败: ' + error.message);
+      }
     },
 
     getImportanceClass(importance) {

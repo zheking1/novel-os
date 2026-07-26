@@ -143,8 +143,7 @@
                           class="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50">
                     ${t('common.cancel')}
                   </button>
-                  <button type="submit" 
-                          class="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700">
+                  <button type="submit" id="template-save-btn" class="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700">
                     ${t('common.save')}
                   </button>
                 </div>
@@ -165,7 +164,7 @@
           container.innerHTML = `<div class="p-8 text-center text-gray-500">请先选择工作区</div>`;
           return;
         }
-        const result = await window.ApiClient[PAGE_CONFIG.apiNamespace].list(workspace, this.currentFilters);
+        const result = await window.ApiClient.callTool('prompt.template.list', { workspace, project: window.AppState.currentProject, ...this.currentFilters });
         if (Array.isArray(result)) {
           this.currentData = result;
         } else if (result?.templates) {
@@ -260,7 +259,7 @@
     async handleEdit(id) {
       try {
         const workspace = window.AppState.currentWorkspace;
-        const item = await window.ApiClient[PAGE_CONFIG.apiNamespace].get(workspace, id);
+        const item = await window.ApiClient.callTool('prompt.template.get', { workspace, project: window.AppState.currentProject, template_key: id });
         document.getElementById(`${PAGE_ID}-modal-title`).textContent = `编辑${PAGE_CONFIG.pageName}`;
         document.getElementById(`${PAGE_ID}-id`).value = id;
         PAGE_CONFIG.formFields.forEach(field => {
@@ -284,9 +283,9 @@
       });
       try {
         if (id) {
-          await window.ApiClient[PAGE_CONFIG.apiNamespace].update(workspace, id, data);
+          await window.ApiClient.callTool('prompt.template.upsert', { workspace, project: window.AppState.currentProject, template_key: id, ...data });
         } else {
-          await window.ApiClient[PAGE_CONFIG.apiNamespace].create(workspace, data);
+          await window.ApiClient.callTool('prompt.template.upsert', { workspace, project: window.AppState.currentProject, ...data });
         }
         this.hideModal();
         this.loadData();
@@ -299,7 +298,7 @@
     async handleDelete(id, name) {
       ModalDialog.confirm(`确定删除 "${name}" 吗？`, async () => {
         try {
-          await window.ApiClient[PAGE_CONFIG.apiNamespace].delete(window.AppState.currentWorkspace, id);
+          await window.ApiClient.callTool('prompt.template.delete', { workspace: window.AppState.currentWorkspace, project: window.AppState.currentProject, template_key: id });
           this.loadData();
           ModalDialog.alert('删除成功', 'success');
         } catch (error) {

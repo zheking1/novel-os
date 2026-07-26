@@ -125,6 +125,7 @@
      * @returns {string}
      */
     t(key, params = {}) {
+      if (!key) return '';
       const messages = this.messages[this.currentLang] || {};
 
       // 解析路径

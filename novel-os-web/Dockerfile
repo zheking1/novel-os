@@ -7,7 +7,7 @@ RUN apt-get update && apt-get install -y libpq-dev gcc && \
     pip install --no-cache-dir psycopg2-binary bcrypt && \
     apt-get remove -y gcc && apt-get autoremove -y && rm -rf /var/lib/apt/lists/*
 
-COPY server.py index.html spa.html /app/
+COPY server.py index.html spa.html AGENTS.md /app/
 COPY js/ /app/js/
 COPY css/ /app/css/
 COPY i18n/ /app/i18n/

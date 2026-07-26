@@ -1,0 +1,1 @@
+ALTER TABLE canon_documents ADD COLUMN IF NOT EXISTS is_deleted BOOLEAN NOT NULL DEFAULT false;

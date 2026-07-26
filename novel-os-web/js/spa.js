@@ -18,18 +18,14 @@ document.addEventListener('alpine:init', () => {
         itemLevel: { title: 'Item Levels', new: '+ New', edit: 'Edit', delete: 'Delete', save: 'Save', cancel: 'Cancel',
                       name: 'Name', desc: 'Description', order: 'Order', range: 'Range', loading: 'Loading...',
                       saved: 'Saved', deleted: 'Deleted', nameRequired: 'Name required', confirmDelete: 'Confirm delete?' },
-        genre: { title: 'Genre Manager' },
         category: { title: 'Category Manager' },
-        binding: { title: 'Genre Binding' },
         workspace: { selectWs: 'Select Workspace', selectPrj: 'Select Project' },
       },
       zh: {
         itemLevel: { title: '物品等级管理', new: '+ 新建', edit: '编辑', delete: '删除', save: '保存', cancel: '取消',
                       name: '名称', desc: '描述', order: '排序', range: '范围', loading: '加载中...',
                       saved: '已保存', deleted: '已删除', nameRequired: '请填写名称', confirmDelete: '确认删除？' },
-        genre: { title: '小说类型管理' },
         category: { title: '分类管理' },
-        binding: { title: '类型绑定' },
         workspace: { selectWs: '选择工作区', selectPrj: '选择项目' },
       }
     },
@@ -59,9 +55,7 @@ document.addEventListener('alpine:init', () => {
       {
         label: 'Management',
         items: [
-          { id: 'genre-manage', icon: '📖', title: this.t('genre.title') },
           { id: 'category-manage', icon: '📂', title: this.t('category.title') },
-          { id: 'binding', icon: '🔗', title: this.t('binding.title') },
         ]
       }
     ],

@@ -77,7 +77,7 @@ class PlotService:
                    ) AS contains_current_chapter
             FROM volumes v
             LEFT JOIN chapters c ON c.project_id = v.project_id AND c.volume_no = v.volume_no
-            WHERE v.project_id = $1
+            WHERE v.project_id = $1 AND v.is_deleted = false
               AND ($2::text[] IS NULL OR v.status = ANY($2::text[]))
             GROUP BY v.id
             ORDER BY v.volume_no
@@ -89,6 +89,47 @@ class PlotService:
             limit,
         )
         return rows_to_dicts(rows)
+
+    async def get_volume(
+        self,
+        project_id: str,
+        volume_no: int | None = None,
+        volume_id: str | None = None,
+    ) -> dict[str, Any] | None:
+        if volume_id:
+            row = await self._db.fetchrow(
+                """
+                SELECT v.id::text, v.volume_no, v.title, v.outline, v.status,
+                       v.start_chapter_no, v.end_chapter_no, v.summary, v.goals,
+                       v.metadata, v.created_at, v.updated_at,
+                       count(c.id)::int AS chapter_count
+                FROM volumes v
+                LEFT JOIN chapters c ON c.project_id = v.project_id AND c.volume_no = v.volume_no
+                WHERE v.id = $1 AND v.is_deleted = false
+                GROUP BY v.id
+                """,
+                volume_id,
+            )
+        elif volume_no is not None:
+            row = await self._db.fetchrow(
+                """
+                SELECT v.id::text, v.volume_no, v.title, v.outline, v.status,
+                       v.start_chapter_no, v.end_chapter_no, v.summary, v.goals,
+                       v.metadata, v.created_at, v.updated_at,
+                       count(c.id)::int AS chapter_count
+                FROM volumes v
+                LEFT JOIN chapters c ON c.project_id = v.project_id AND c.volume_no = v.volume_no
+                WHERE v.project_id = $1 AND v.volume_no = $2 AND v.is_deleted = false
+                GROUP BY v.id
+                """,
+                project_id,
+                volume_no,
+            )
+        else:
+            return None
+        if not row:
+            return None
+        return row_to_dict(row)
 
     async def upsert_plot_thread(
         self,
@@ -108,6 +149,17 @@ class PlotService:
         related_foreshadowing_ids: list[str] | None = None,
         metadata: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
+        # Validate volume_no exists if provided
+        if volume_no is not None:
+            vol = await self._db.fetchval("SELECT 1 FROM volumes WHERE project_id = $1 AND volume_no = $2 AND status != 'deleted'", project_id, volume_no)
+            if not vol:
+                raise ValueError(f"卷不存在: volume_no={volume_no}")
+        # Validate chapter numbers exist if provided（仅提示，不强制阻止章节创建前提供章节参考号）
+        for cn_field, cn_label in [(start_chapter_no, "start_chapter_no"), (current_chapter_no, "current_chapter_no"), (expected_next_chapter_no, "expected_next_chapter_no")]:
+            if cn_field is not None:
+                ch = await self._db.fetchval("SELECT 1 FROM chapters WHERE project_id = $1 AND chapter_no = $2", project_id, cn_field)
+                if not ch:
+                    logger.warning(f"plot.thread '{key}' references chapter {cn_label}={cn_field} which does not exist yet")
         row = await self._db.fetchrow(
             """
             INSERT INTO plot_threads (
@@ -184,7 +236,7 @@ class PlotService:
                      AND ($6 - COALESCE(last_advanced_chapter_no, start_chapter_no, 0)) >= stalled_after_chapters
                    ) AS is_stalled
             FROM plot_threads
-            WHERE project_id = $1
+            WHERE project_id = $1 AND is_deleted = false
               AND ($2::text[] IS NULL OR status = ANY($2::text[]))
               AND ($3::text[] IS NULL OR thread_type = ANY($3::text[]))
               AND ($4::text[] IS NULL OR importance = ANY($4::text[]))
@@ -221,6 +273,10 @@ class PlotService:
         expected_next_chapter_no: int | None = None,
         metadata: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
+        # Validate chapter exists
+        ch = await self._db.fetchrow("SELECT id FROM chapters WHERE project_id = $1 AND chapter_no = $2", project_id, chapter_no)
+        if ch is None:
+            raise ValueError(f"章节不存在: chapter_no={chapter_no}")
         row = await self._db.fetchrow(
             """
             UPDATE plot_threads
@@ -270,7 +326,7 @@ class PlotService:
                    related_foreshadowing_ids, metadata, created_at, updated_at,
                    ($2 - COALESCE(last_advanced_chapter_no, start_chapter_no, 0))::int AS stalled_by_chapters
             FROM plot_threads
-            WHERE project_id = $1
+            WHERE project_id = $1 AND is_deleted = false
               AND status NOT IN ('closed', 'resolved', 'archived')
               AND ($4::text[] IS NULL OR status = ANY($4::text[]))
               AND ($2 - COALESCE(last_advanced_chapter_no, start_chapter_no, 0)) >= COALESCE($3::int, stalled_after_chapters)
@@ -293,9 +349,26 @@ class PlotService:
         limit: int,
         layers: list[str] | None = None,
         overdue_at_chapter: int | None = None,
+        deadline_before_chapter: int | None = None,
     ) -> list[dict[str, Any]]:
+        conditions = [
+            "project_id = $1",
+            "is_deleted = false",
+            "($2::text[] IS NULL OR status = ANY($2::text[]))",
+            "($3::text[] IS NULL OR importance = ANY($3::text[]))",
+            "($6::text[] IS NULL OR layer = ANY($6::text[]))",
+        ]
+        params: list[Any] = [project_id, statuses, importance, limit, overdue_at_chapter, layers]
+        idx = 7
+
+        # Proximity filter: only include foreshadowing with payoff deadline within window
+        if deadline_before_chapter is not None:
+            conditions.append(f"(${idx}::int IS NULL OR payoff_deadline_chapter IS NULL OR payoff_deadline_chapter <= ${idx})")
+            params.append(deadline_before_chapter)
+            idx += 1
+
         rows = await self._db.fetch(
-            """
+            f"""
             SELECT id::text, key, title, status, importance, expected_payoff_range,
                    parent_foreshadowing_id::text, related_foreshadowing_ids,
                    trigger_on_payoff_ids, blocks_payoff_until_ids, layer, must_payoff,
@@ -308,10 +381,7 @@ class PlotService:
                    ) AS is_overdue,
                    payload, created_at, updated_at
             FROM foreshadowing
-            WHERE project_id = $1
-              AND ($2::text[] IS NULL OR status = ANY($2::text[]))
-              AND ($3::text[] IS NULL OR importance = ANY($3::text[]))
-              AND ($6::text[] IS NULL OR layer = ANY($6::text[]))
+            WHERE {' AND '.join(conditions)}
             ORDER BY
               CASE WHEN (
                 $5::int IS NOT NULL
@@ -328,12 +398,7 @@ class PlotService:
               updated_at DESC
             LIMIT $4
             """,
-            project_id,
-            statuses,
-            importance,
-            limit,
-            overdue_at_chapter,
-            layers,
+            *params,
         )
         return rows_to_dicts(rows)
 
@@ -586,7 +651,7 @@ class PlotService:
             async with conn.transaction():
                 current = await conn.fetchrow(
                     """
-                    SELECT id, key, trigger_on_payoff_ids
+                    SELECT id, key, status, trigger_on_payoff_ids
                     FROM foreshadowing
                     WHERE project_id = $1 AND key = $2
                     """,
@@ -595,6 +660,8 @@ class PlotService:
                 )
                 if current is None:
                     raise ValueError(f"Foreshadowing not found: {key}")
+                if current["status"] == "paid_off":
+                    raise ValueError(f"伏笔 '{key}' 已被回收，禁止重复回收")
                 if payoff_chapter_id is None and payoff_chapter_no is not None:
                     chapter = await conn.fetchrow(
                         "SELECT id FROM chapters WHERE project_id = $1 AND chapter_no = $2",
@@ -602,6 +669,8 @@ class PlotService:
                         payoff_chapter_no,
                     )
                     payoff_chapter_id = str(chapter["id"]) if chapter else None
+                if payoff_chapter_no is not None and payoff_chapter_id is None:
+                    raise ValueError(f"章节不存在: chapter_no={payoff_chapter_no}")
                 row = await conn.fetchrow(
                     """
                     UPDATE foreshadowing
@@ -695,3 +764,13 @@ class PlotService:
         if row is None:
             raise ValueError(f"User not found: {username}")
         return row_to_dict(row)
+
+    async def delete_thread(self, project_id: str, key: str) -> dict[str, Any]:
+        """软删除剧情线"""
+        row = await self._db.fetchrow(
+            "UPDATE plot_threads SET is_deleted = true WHERE project_id = $1 AND key = $2 RETURNING key, title",
+            project_id, key,
+        )
+        if not row:
+            raise ValueError(f"情节线不存在: {key}")
+        return {"deleted": True, "key": row["key"], "title": row["title"]}

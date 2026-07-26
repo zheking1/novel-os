@@ -38,7 +38,7 @@
      */
     async loadHealth() {
       try {
-        const result = await window.ApiClient.callTool('health.check');
+        const result = await window.ApiClient.callTool('admin.health');
         this.healthData = result;
         console.log('[HealthPage] Health data loaded:', this.healthData);
       } catch (error) {
@@ -137,7 +137,7 @@
     async testApi() {
       try {
         const startTime = Date.now();
-        await window.ApiClient.workspace.list();
+        await window.ApiClient.callTool('workspace.list', {});
         const duration = Date.now() - startTime;
         
         window.ModalDialog.alert(`API连接成功！响应时间: ${duration}ms`, 'success');

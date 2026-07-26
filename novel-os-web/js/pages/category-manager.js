@@ -43,7 +43,7 @@
           throw new Error(t('workspace.select'));
         }
 
-        const result = await window.ApiClient.setting.list(workspace);
+        const result = await ApiClient.callTool('setting.category.list', { workspace });
         this.categories = result || [];
         console.log('[CategoryManager] Categories loaded:', this.categories.length);
       } catch (error) {
@@ -232,7 +232,7 @@
           data.category_id = categoryId;
         }
 
-        await window.ApiClient.setting.upsert(workspace, data);
+        await ApiClient.callTool('setting.category.upsert', { workspace, ...data });
 
         // 关闭模态框
         window.ModalDialog.close();
@@ -266,7 +266,7 @@
         async () => {
           try {
             const workspace = window.AppState?.currentWorkspace;
-            await window.ApiClient.setting.delete(workspace, categoryId);
+            await ApiClient.callTool('setting.category.delete', { workspace, category_id: categoryId });
 
             await this.loadCategories();
             this.renderTable();

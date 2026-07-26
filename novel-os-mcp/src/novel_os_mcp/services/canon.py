@@ -196,7 +196,7 @@ class CanonService:
                    source_type, source_id, related_rule_ids, metadata,
                    created_by::text, updated_by::text, created_at, updated_at
             FROM canon_documents
-            WHERE project_id = $1
+            WHERE project_id = $1 AND is_deleted = false
               AND ($2::text[] IS NULL OR doc_type = ANY($2::text[]))
               AND ($3::text[] IS NULL OR status = ANY($3::text[]))
               AND ($4::text IS NULL OR review_status = $4)

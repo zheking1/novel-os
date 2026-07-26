@@ -19,6 +19,25 @@
      * 三级: item (菜单项)
      */
     menuDefinition: {
+      // ==================== 🏠 首页 ====================
+      home: {
+        id: 'home',
+        labelKey: '首页',
+        icon: '🏠',
+        order: 0,
+        requiresProject: false,
+        groups: {
+          home: {
+            id: 'home',
+            labelKey: '',
+            icon: '',
+            order: 0,
+            items: [
+              { id: 'home', labelKey: '首页', icon: '🏠', path: '/home' }
+            ]
+          }
+        }
+      },
       // ==================== 📚 项目管理 ====================
       project: {
         id: 'project',
@@ -49,7 +68,8 @@
             items: [
               { id: 'plot-volumes', labelKey: 'nav.volumes', icon: '📚', path: '/project/volumes' },
               { id: 'plot-threads', labelKey: 'nav.threads', icon: '🧵', path: '/project/threads' },
-              { id: 'foreshadowing-list', labelKey: 'nav.foreshadowList', icon: '🔮', path: '/project/foreshadowing' }
+              { id: 'foreshadowing-list', labelKey: 'nav.foreshadowList', icon: '🔮', path: '/project/foreshadowing' },
+              { id: 'chapter-plans', labelKey: '章节大纲', icon: '📋', path: '/project/chapter-plans' }
             ]
           },
           // 生成与审查
@@ -86,10 +106,20 @@
             icon: '💻',
             order: 5,
             items: [
-              { id: 'knowledge-pack', labelKey: 'nav.knowledgePack', icon: '📦', path: '/project/knowledge-pack' },
-              { id: 'local-projects', labelKey: 'nav.localProjects', icon: '📁', path: '/project/local-projects' },
-              { id: 'local-chapters', labelKey: 'nav.localChapters', icon: '📄', path: '/project/local-chapters' },
-              { id: 'local-pipeline', labelKey: 'nav.localPipeline', icon: '🔄', path: '/project/local-pipeline' }
+              { id: 'local-projects', labelKey: 'nav.localProjects', icon: '📁', path: '/project/local-projects' }
+            ]
+          },
+          // 分析
+          'project-analysis': {
+            id: 'project-analysis',
+            labelKey: 'nav.analysisGroup',
+            icon: '📊',
+            order: 6,
+            items: [
+              { id: 'arc-characters', labelKey: 'nav.arcCharacters', icon: '📈', path: '/project/arc' },
+              { id: 'pacing-analysis', labelKey: 'nav.pacingAnalysis', icon: '⏱️', path: '/project/pacing' },
+              { id: 'arc-tracking', labelKey: 'nav.arcTracking', icon: '📋', path: '/project/arc-tracking' },
+              { id: 'world-snapshot', labelKey: 'nav.worldSnapshot', icon: '🌐', path: '/project/world-snapshot' }
             ]
           }
         }
@@ -112,12 +142,18 @@
             requiresProject: false,
             items: [
               { id: 'uk-manage', labelKey: 'nav.ukManage', icon: '📖', path: '/knowledge/uk-manage' },
+              { id: 'kb-genres', labelKey: 'nav.kbGenres', icon: '🎨', path: '/knowledge/genres' },
+              { id: 'global-rules', labelKey: '全局规则', icon: '🌐', path: '/knowledge/global-rules', requiresAdmin: true },
+              { id: 'kb-relations', labelKey: 'nav.kbRelations', icon: '🔗', path: '/knowledge/relations' },
+              { id: 'kb-init', labelKey: 'nav.kbInit', icon: '🚀', path: '/knowledge/init' },
+              { id: 'materials', labelKey: 'nav.materials', icon: '📎', path: '/knowledge/materials' },
               { id: 'auto-search', labelKey: 'nav.autoSearch', icon: '🔍', path: '/knowledge/auto-search' },
               { id: 'knowledge-graph', labelKey: 'nav.knowledgeGraph', icon: '🕸️', path: '/knowledge/graph' },
               { id: 'knowledge-stats', labelKey: 'nav.knowledgeStats', icon: '📊', path: '/knowledge/stats' },
-              { id: 'genre-manage', labelKey: 'genre.title', icon: '🎭', path: '/knowledge/genre' },
-              { id: 'category-manage', labelKey: 'category.title', icon: '📂', path: '/knowledge/category' },
-              { id: 'binding-matrix', labelKey: 'binding.title', icon: '🔗', path: '/knowledge/binding' }
+              { id: 'style-profiles', labelKey: 'nav.styleProfiles', icon: '📋', path: '/knowledge/style-profiles' },
+              { id: 'style-analysis', labelKey: 'nav.styleAnalysis', icon: '🔬', path: '/knowledge/style-analysis' },
+              { id: 'style-drift', labelKey: 'nav.styleDrift', icon: '📊', path: '/knowledge/style-drift' },
+              { id: 'category-manage', labelKey: 'category.title', icon: '📂', path: '/knowledge/category' }
             ]
           },
           // 知识审查
@@ -129,7 +165,34 @@
             requiresProject: false,
             items: [
               { id: 'knowledge-review', labelKey: 'nav.knowledgeReview', icon: '📋', path: '/knowledge/review' },
-              { id: 'knowledge-expiry', labelKey: 'nav.knowledgeExpiry', icon: '⏰', path: '/knowledge/expiry' }
+              { id: 'knowledge-expiry', labelKey: 'nav.knowledgeExpiry', icon: '⏰', path: '/knowledge/expiry' },
+              { id: 'expectations', labelKey: 'nav.expectations', icon: '🎯', path: '/knowledge/expectations' }
+            ]
+          },
+          // 知识搜索
+          'knowledge-search': {
+            id: 'knowledge-search',
+            labelKey: 'nav.knowledgeSearchGroup',
+            icon: '🔎',
+            order: 3,
+            requiresProject: false,
+            items: [
+              { id: 'kb-search', labelKey: 'nav.kbSearch', icon: '🔍', path: '/knowledge/search' },
+              { id: 'auto-search', labelKey: 'nav.autoSearch', icon: '🤖', path: '/knowledge/auto-search' }
+            ]
+          },
+          // 系统进化
+          'knowledge-evolution': {
+            id: 'knowledge-evolution',
+            labelKey: 'nav.evolutionGroup',
+            icon: '📈',
+            order: 4,
+            requiresProject: false,
+            items: [
+              { id: 'discussion-room', labelKey: '讨论室', icon: '🏠', path: '/knowledge/discussion' },
+              { id: 'system-evolution', labelKey: 'nav.systemEvolution', icon: '📊', path: '/knowledge/evolution', requiresAdmin: true },
+              { id: 'evolution-logs', labelKey: '进化日志', icon: '📜', path: '/knowledge/evolution-logs', requiresAdmin: true },
+              { id: 'system-notifications', labelKey: 'nav.notifications', icon: '🔔', path: '/knowledge/notifications' }
             ]
           }
         }
@@ -151,7 +214,9 @@
             order: 0,
             requiresProject: false,
             items: [
-              { id: 'project-manage', labelKey: 'nav.projectManage', icon: '📂', path: '/projects' }
+              { id: 'project-manage', labelKey: 'nav.projectManage', icon: '📂', path: '/projects' },
+              { id: 'workspace-manage', labelKey: 'nav.workspaceManage', icon: '🏢', path: '/system/workspaces' },
+              { id: 'member-manage', labelKey: 'nav.memberManage', icon: '👥', path: '/system/members' }
             ]
           },
           // 模型配置
@@ -163,6 +228,8 @@
             requiresProject: false,
             items: [
               { id: 'model-profiles', labelKey: 'nav.modelProfiles', icon: '⚙️', path: '/system/model-profiles' },
+              { id: 'model-routes', labelKey: 'nav.modelRoutes', icon: '📍', path: '/system/model-routes' },
+              { id: 'model-rate-limits', labelKey: 'nav.modelRateLimits', icon: '⏱️', path: '/system/model-rate-limits' },
               { id: 'model-cost', labelKey: 'nav.costReport', icon: '💰', path: '/system/cost' }
             ]
           },
@@ -225,8 +292,10 @@
             requiresProject: false,
             items: [
               { id: 'system-connection', labelKey: 'nav.connection', icon: '🌐', path: '/system/connection' },
+              { id: 'api-keys', labelKey: 'nav.apiKeys', icon: '🔑', path: '/system/api-keys' },
+              { id: 'review-council', label: '审核委员会', icon: '🛡️', path: '/system/review-council' },
               { id: 'system-account', labelKey: 'nav.account', icon: '👤', path: '/system/account' },
-              { id: 'system-users', labelKey: 'nav.users', icon: '👥', path: '/system/users' },
+              { id: 'system-users', labelKey: 'nav.users', icon: '👥', path: '/system/users', requiresAdmin: true },
               { id: 'system-debug', labelKey: 'nav.debug', icon: '🐛', path: '/system/debug' }
             ]
           }
@@ -318,6 +387,7 @@
           const items = [];
 
           for (const item of group.items) {
+            if (item.requiresAdmin && !options.isAdmin) continue;
             items.push({
               ...item,
               label: t(item.labelKey) || item.label,
@@ -500,7 +570,7 @@
         }
       }
       return null;
-    }
+    },
   };
 
   window.MenuManager = MenuManager;

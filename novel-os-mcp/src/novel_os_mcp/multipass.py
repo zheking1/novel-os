@@ -94,23 +94,21 @@ class MultiPassService:
         metadata: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         """Record a generation pass result."""
-        async with self._db.acquire() as conn:
-            async with conn.transaction():
-                row = await conn.fetchrow(
-                    """
-                    INSERT INTO generation_passes
-                      (project_id, chapter_no, pass_number, pass_type, content, metadata)
-                    VALUES ($1, $2, $3, $4, $5, $6::jsonb)
-                    RETURNING id::text, chapter_no, pass_number, pass_type, content, metadata, created_at
-                    """,
-                    project_id,
-                    chapter_no,
-                    pass_number,
-                    pass_type,
-                    content,
-                    json_dumps(metadata or {}),
-                )
-        return row_to_dict(row)
+        row = await self._db.fetchrow(
+            """
+            INSERT INTO generation_passes
+              (project_id, chapter_no, pass_number, pass_type, content, metadata)
+            VALUES ($1, $2, $3, $4, $5, $6::jsonb)
+            RETURNING id::text, chapter_no, pass_number, pass_type, content, metadata, created_at
+            """,
+            project_id,
+            chapter_no,
+            pass_number,
+            pass_type,
+            content,
+            json_dumps(metadata or {}),
+        )
+        return row_to_dict(row) if row else {}
 
     async def get_generation_passes(
         self,
@@ -182,7 +180,7 @@ class MultiPassService:
             SELECT c.chapter_no, c.title, s.content
             FROM chapters c
             JOIN chapter_summaries s ON s.chapter_id = c.id AND s.summary_type = 'chapter'
-            WHERE c.project_id = $1 AND c.chapter_no < $2
+            WHERE c.project_id = $1 AND c.chapter_no < $2::int
             ORDER BY c.chapter_no DESC LIMIT 5
             """,
             project_id,
@@ -201,7 +199,7 @@ class MultiPassService:
                 FROM state_entities e
                 JOIN state_snapshots s ON s.entity_id = e.id AND s.is_current = true
                 WHERE e.project_id = $1
-                  AND e.name = ANY({placeholders})
+                  AND e.name IN ({placeholders})
                 """,
                 project_id,
                 *entities_in_content,
@@ -242,6 +240,12 @@ class MultiPassService:
     ) -> dict[str, Any]:
         """Run the full 4-pass pipeline and record all passes."""
         results = {}
+
+        # Defense: if plan is a string, wrap it
+        if isinstance(plan, str):
+            plan = {"summary": plan}
+        if not isinstance(plan, dict):
+            plan = {"summary": str(plan)}
 
         pass1 = await self.create_generation_pass(
             project_id, chapter_no, 1, "planning",

@@ -16,19 +16,24 @@
         </div>
       `;
       await this.loadData();
+      return true;
     },
 
     async loadData() {
       const container = document.getElementById('stats-content');
       try {
-        const [ukStats, catStats] = await Promise.all([
-          window.ApiClient.kb.getUkStats().catch(() => null),
-          window.ApiClient.kbCategories.list().catch(() => [])
+        const ws = window.AppState.currentWorkspace;
+        const proj = window.AppState.currentProject;
+        const args = {};
+        if (ws) args.workspace = ws;
+        if (proj) args.project = proj;
+
+        const [ukStats] = await Promise.all([
+          window.ApiClient.callTool('kb.uk.stats', args).catch(() => null)
         ]);
 
         let html = '<div class="grid grid-cols-1 md:grid-cols-3 gap-6">';
-        
-        // UK Stats
+
         if (ukStats) {
           html += `
             <div class="bg-white rounded-lg shadow p-6">
@@ -44,22 +49,6 @@
                 </div>`;
             });
           }
-        }
-
-        // Category Stats
-        if (catStats && catStats.length > 0) {
-          html += `
-            <div class="bg-white rounded-lg shadow p-6 md:col-span-3">
-              <h3 class="font-semibold text-gray-700 mb-4">分类统计</h3>
-              <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
-                ${catStats.map(c => `
-                  <div class="text-center p-3 bg-gray-50 rounded">
-                    <div class="text-xl font-bold text-gray-800">${c.item_count || 0}</div>
-                    <div class="text-sm text-gray-500">${c.name}</div>
-                  </div>
-                `).join('')}
-              </div>
-            </div>`;
         }
 
         html += '</div>';

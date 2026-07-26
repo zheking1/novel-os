@@ -20,17 +20,19 @@ from .pacing import PacingService
 from .style_fingerprint import StyleFingerprintService
 from .embedding import EmbeddingService, RerankService
 from .kb_service import KBService
+from .services.gatekeeper import GatekeeperService
 from .services import (
     ArchiveService, BackupService, CanonService, ComplianceService,
-    ContextService, GlobalSettingsService, KnowledgeService, MemoryService,
+    ContextService, GlobalSettingsService, MemoryService,
     ModelCostService, PlotService, ReferenceService, ReviewService,
     RulesService, SyncService, VectorIndexService, WorkflowService,
-    WorkspaceService,
+    WorkspaceService, KnowledgeAuditService, KnowledgeCouncilService,
 )
 from .vector import VectorIndex
 from .p8_services import RelationshipGraphService
 from .local_service import LocalService
 from .skill_service import SkillService
+from .llm_client import LLMClient
 
 logger = logging.getLogger("novel_os_mcp.deps")
 
@@ -50,6 +52,10 @@ vector_index = VectorIndex(settings)
 embedding_service = EmbeddingService(db)
 rerank_service = RerankService(db)
 memory_service = MemoryService(db, embedding_service=embedding_service, vector_index=vector_index)
+character_arc_service = CharacterArcService(db)
+causality_service = CausalityService(db)
+pacing_service = PacingService(db)
+style_fingerprint_service = StyleFingerprintService(db)
 context_service = ContextService(
     db, memory_service, rules_service, plot_service,
     embedding_service=embedding_service,
@@ -69,7 +75,6 @@ vector_index_service = VectorIndexService(db)
 cache_service = CacheService(settings)
 archive_service = ArchiveService(db)
 backup_service = BackupService(db)
-knowledge_service = KnowledgeService(db)
 kb_service = KBService(db)
 prompt_template_service = PromptTemplateService(db)
 context_weight_service = ContextWeightService(db)
@@ -78,16 +83,21 @@ reader_expectation_service = ReaderExpectationService(db)
 chapter_annotation_service = ChapterAnnotationService(db)
 proper_noun_service = ProperNounService(db)
 fulltext_search_service = FulltextSearchService(db)
-context_compression_service = ContextCompressionService(db)
+llm_client = LLMClient(db)
+context_compression_service = ContextCompressionService(db, llm_client)
 multipass_service = MultiPassService(db)
-character_arc_service = CharacterArcService(db)
-causality_service = CausalityService(db)
 novelty_service = NoveltyService(db, vector_index)
-pacing_service = PacingService(db)
-style_fingerprint_service = StyleFingerprintService(db)
 graph_service = RelationshipGraphService(db)
 local_service = LocalService(db)
 skill_service = SkillService(db)
+knowledge_audit_service = KnowledgeAuditService(db, llm_client)
+knowledge_council_service = KnowledgeCouncilService(db, llm_client)
+
+gatekeeper_service = GatekeeperService(db)
+
+# Initialize AI reviewer with LLM client
+from .services.ai_reviewer import init_ai_reviewer
+init_ai_reviewer(llm_client)
 
 # Health / degradation (special init)
 _health_service = DependencyHealthService(settings)

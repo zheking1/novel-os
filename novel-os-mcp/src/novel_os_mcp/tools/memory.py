@@ -48,6 +48,9 @@ async def state_entity_upsert(
     entity_type: str,
     name: str,
     aliases: list[str] | None = None,
+    summary: str | None = None,
+    description: str | None = None,
+    portrait_url: str | None = None,
     profile: dict[str, Any] | None = None,
     lifecycle_status: str = "active",
     importance: str = "medium",
@@ -70,6 +73,9 @@ async def state_entity_upsert(
         entity_type=entity_type,
         name=name,
         aliases=aliases,
+        summary=summary,
+        description=description,
+        portrait_url=portrait_url,
         profile=profile or {},
         lifecycle_status=lifecycle_status,
         importance=importance,
@@ -228,6 +234,25 @@ async def state_snapshot_list(
         current_chapter_no=current_chapter_no,
         include_expired=include_expired,
         limit=limit,
+    )
+
+
+@mcp.tool(name="state.snapshot.at_chapter")
+async def state_snapshot_at_chapter(
+    workspace: str,
+    project: str,
+    entity_name: str,
+    chapter_no: int,
+) -> dict[str, Any]:
+    """查询实体在指定章节时的状态。返回该章节时刻的完整状态快照，用于上下文回溯。"""
+    principal = await get_principal("read")
+    logger.info("state_snapshot_at_chapter called: %s @ ch%d", entity_name, chapter_no)
+    validate_required(locals(), "workspace", "project", "entity_name", "chapter_no")
+    project_id = await auth.resolve_project_id(workspace, project, principal)
+    return await memory_service.get_snapshot_at_chapter(
+        project_id=project_id,
+        entity_name=entity_name,
+        chapter_no=chapter_no,
     )
 
 

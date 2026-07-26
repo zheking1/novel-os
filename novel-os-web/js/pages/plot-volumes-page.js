@@ -94,13 +94,18 @@
                     <textarea id="volume-outline" rows="6"
                               class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"></textarea>
                   </div>
+                  <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">卷目标（每行一个）</label>
+                    <textarea id="volume-goals" rows="3" placeholder="主角拜入师门&#10;结识重要伙伴&#10;揭示世界观设定"
+                              class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"></textarea>
+                  </div>
                 </div>
                 <div class="mt-6 flex justify-end gap-3">
                   <button type="button" onclick="PlotVolumesPage.hideModal()" 
                           class="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50">
                     ${t('common.cancel')}
                   </button>
-                  <button type="submit" 
+                  <button type="submit" id="volume-save-btn"
                           class="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700">
                     ${t('common.save')}
                   </button>
@@ -123,8 +128,8 @@
           return;
         }
 
-        const result = await window.ApiClient.volume.list(workspace, project);
-        this.renderList(result || []);
+        const result = await window.ApiClient.callTool('volume.list', { workspace, project });
+        this.renderList(Array.isArray(result) ? result.filter(v => v.status !== 'archived' && v.status !== 'deleted') : []);
       } catch (error) {
         console.error('[PlotVolumes] Load error:', error);
         container.innerHTML = `<div class="p-8 text-center text-red-500">加载失败: ${error.message}</div>`;
@@ -164,8 +169,9 @@
                   ${vol.summary ? `<p class="text-sm text-gray-500 mt-2 line-clamp-2">${vol.summary}</p>` : ''}
                   <div class="flex items-center gap-4 mt-2 text-xs text-gray-400">
                     ${vol.start_chapter_no ? `<span>章节: ${vol.start_chapter_no} - ${vol.end_chapter_no || '?'}</span>` : ''}
-                    ${vol.goal_count ? `<span>目标: ${vol.goal_count}个</span>` : ''}
+                    ${vol.goals && vol.goals.length ? `<span>目标: ${vol.goals.length}个</span>` : ''}
                   </div>
+                  ${vol.goals && vol.goals.length ? `<div class="flex flex-wrap gap-1 mt-2">${vol.goals.slice(0, 5).map(g => `<span class="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded">${g}</span>`).join('')}${vol.goals.length > 5 ? `<span class="text-xs text-gray-400">+${vol.goals.length - 5}</span>` : ''}</div>` : ''}
                 </div>
                 <div class="flex items-center gap-2 ml-4">
                   <button onclick="PlotVolumesPage.editVolume('${vol.id}')" 
@@ -200,6 +206,7 @@
       document.getElementById('volume-status').value = 'planned';
       document.getElementById('volume-summary').value = '';
       document.getElementById('volume-outline').value = '';
+      document.getElementById('volume-goals').value = '';
       document.getElementById('volume-modal').classList.remove('hidden');
     },
 
@@ -211,7 +218,9 @@
       try {
         const workspace = window.AppState.currentWorkspace;
         const project = window.AppState.currentProject;
-        const vol = await window.ApiClient.volume.get(workspace, project, id);
+        const list = await window.ApiClient.callTool('volume.list', { workspace, project });
+        const vol = Array.isArray(list) ? list.find(v => v.id === id || v.volume_no.toString() === id) : null;
+        if (!vol) throw new Error('卷不存在');
         
         document.getElementById('volume-modal-title').textContent = '编辑卷';
         document.getElementById('volume-id').value = vol.id;
@@ -222,6 +231,7 @@
         document.getElementById('volume-status').value = vol.status || 'planned';
         document.getElementById('volume-summary').value = vol.summary || '';
         document.getElementById('volume-outline').value = vol.outline || '';
+        document.getElementById('volume-goals').value = (vol.goals || []).join('\n');
         document.getElementById('volume-modal').classList.remove('hidden');
       } catch (error) {
         alert('加载卷失败: ' + error.message);
@@ -241,15 +251,12 @@
         end_chapter_no: document.getElementById('volume-end-chapter').value ? parseInt(document.getElementById('volume-end-chapter').value) : undefined,
         status: document.getElementById('volume-status').value,
         summary: document.getElementById('volume-summary').value || undefined,
-        outline: document.getElementById('volume-outline').value || undefined
+        outline: document.getElementById('volume-outline').value || undefined,
+        goals: document.getElementById('volume-goals').value ? document.getElementById('volume-goals').value.split('\n').filter(Boolean) : undefined
       };
 
       try {
-        if (id) {
-          await window.ApiClient.volume.update(workspace, project, id, data);
-        } else {
-          await window.ApiClient.volume.create(workspace, project, data);
-        }
+        await window.ApiClient.callTool('volume.upsert', { workspace, project, ...data });
         this.hideModal();
         this.loadData();
       } catch (error) {
@@ -258,10 +265,29 @@
     },
 
     async deleteVolume(id, volumeNo) {
-      if (!confirm(`确定删除第${volumeNo}卷吗？此操作不可恢复。`)) return;
+      if (!confirm(`确定删除第${volumeNo}卷吗？将标记为已删除状态。`)) return;
       
       try {
-        await window.ApiClient.volume.delete(window.AppState.currentWorkspace, window.AppState.currentProject, id);
+        // 获取卷信息
+        const vol = await window.ApiClient.callTool('volume.list', { 
+          workspace: window.AppState.currentWorkspace, 
+          project: window.AppState.currentProject 
+        });
+        const volume = vol.find(v => v.id === id);
+        
+        if (!volume) {
+          alert('卷不存在');
+          return;
+        }
+        
+        // 使用 upsert 更新状态为 deleted
+        await window.ApiClient.callTool('volume.upsert', { 
+          workspace: window.AppState.currentWorkspace, 
+          project: window.AppState.currentProject,
+          volume_no: volume.volume_no,
+          title: volume.title,
+          status: 'deleted'
+        });
         this.loadData();
       } catch (error) {
         alert('删除失败: ' + error.message);

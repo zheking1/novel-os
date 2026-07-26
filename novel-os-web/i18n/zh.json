@@ -15,6 +15,8 @@
 
     "projectMgmtGroup": "项目管理",
     "projectManage": "项目列表",
+    "workspaceManage": "工作区管理",
+    "memberManage": "成员管理",
 
     "settingsGroup": "设定管理",
     "canonList": "Canon文档",
@@ -46,8 +48,18 @@
     "localChapters": "本地章节",
     "localPipeline": "本地流水线",
 
+    "analysisGroup": "分析",
+    "arcCharacters": "角色弧光",
+    "pacingAnalysis": "节奏分析",
+    "arcTracking": "弧光追踪",
+    "worldSnapshot": "世界观快照",
+
     "knowledgeMgmtGroup": "知识管理",
     "ukManage": "知识条目",
+    "kbGenres": "题材策略",
+    "kbRelations": "实体关系",
+    "kbInit": "知识初始化",
+    "materials": "参考素材",
     "autoSearch": "自动搜索",
     "knowledgeGraph": "知识图谱",
     "knowledgeStats": "知识统计",
@@ -55,9 +67,19 @@
     "knowledgeReviewGroup": "知识审查",
     "knowledgeReview": "审核列表",
     "knowledgeExpiry": "过期监控",
+    "expectations": "读者期待",
+
+    "knowledgeSearchGroup": "知识搜索",
+    "kbSearch": "全文检索",
+
+    "evolutionGroup": "系统进化",
+    "systemEvolution": "系统进化管理",
+    "notifications": "通知中心",
 
     "modelGroup": "模型配置",
     "modelProfiles": "模型配置",
+    "modelRoutes": "路由规则",
+    "modelRateLimits": "速率限制",
     "costReport": "费用报表",
 
     "templateGroup": "模板管理",
@@ -66,6 +88,11 @@
 
     "skillGroup": "Skill管理",
     "skillManage": "Skill管理",
+
+    "styleGroup": "风格控制",
+    "styleProfiles": "文风档案",
+    "styleAnalysis": "文风分析",
+    "styleDrift": "文风漂移",
 
     "dataGroup": "数据管理",
     "syncStatus": "同步状态",
@@ -81,6 +108,7 @@
     "systemInfo": "系统信息",
     "connection": "连接测试",
     "account": "账户信息",
+    "apiKeys": "API Key 管理",
     "users": "用户管理",
     "debug": "调试工具"
   },

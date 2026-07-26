@@ -140,6 +140,15 @@
 
         // 发送请求
         const response = await fetch(url, fetchOptions);
+
+        // 401 handling
+        if (response.status === 401) {
+          console.warn('[ApiClient] Session expired, reloading...');
+          localStorage.removeItem('novel-workspace');
+          localStorage.removeItem('novel-project');
+          window.location.reload();
+          return null;
+        }
         
         // 解析响应
         const result = await response.json();
@@ -214,6 +223,23 @@
      * @param {Object} options - 选项
      */
     async callTool(tool, args = {}, options = {}) {
+      // Auto-invalidate on write operations
+      const WRITE_OPS = ['create', 'update', 'delete', 'upsert', 'record', 'fulfill'];
+      if (WRITE_OPS.some(op => tool.includes(op)) && window.CacheManager) {
+        const prefix = tool.split('.')[0];
+        window.CacheManager.invalidatePrefix(prefix);
+      }
+
+      // Auto-cache read-only tools via CacheManager
+      const READ_ONLY = ['list', 'get', 'search', 'whoami', 'health', 'stats', 'tree'];
+      const isReadOnly = READ_ONLY.some(pat => tool.includes(pat));
+      const skipCache = options.skipCache || args._skip_cache;
+
+      if (isReadOnly && !skipCache && window.CacheManager) {
+        const cacheKey = `${tool}:${JSON.stringify(args)}`;
+        return window.CacheManager.getOrFetch(cacheKey, () => this.post('/tool', { tool, arguments: args }, options));
+      }
+
       return this.post('/tool', { tool, arguments: args }, options);
     },
 
@@ -346,28 +372,45 @@
 
     modelProfile: {
       async list(workspace, options = {}) {
-        const project = window.AppState?.currentProject;
-        return ApiClient.callTool('model.profile.list', { workspace, project, ...options }, options);
+        return ApiClient.callTool('model.profile.list', options);
       },
       
       async get(workspace, profileKey, options = {}) {
-        const project = window.AppState?.currentProject;
-        return ApiClient.callTool('model.profile.list', { workspace, project, profile_key: profileKey }, options);
+        return ApiClient.callTool('model.profile.list', { profile_key: profileKey }, options);
       },
       
       async create(workspace, data, options = {}) {
-        const project = window.AppState?.currentProject;
-        return ApiClient.callTool('model.profile.upsert', { workspace, project, ...data }, options);
+        return ApiClient.callTool('model.profile.upsert', data, options);
       },
       
       async update(workspace, profileKey, data, options = {}) {
-        const project = window.AppState?.currentProject;
-        return ApiClient.callTool('model.profile.upsert', { workspace, project, profile_key: profileKey, ...data }, options);
+        return ApiClient.callTool('model.profile.upsert', { profile_key: profileKey, ...data }, options);
       },
       
       async delete(workspace, profileKey, options = {}) {
-        const project = window.AppState?.currentProject;
-        return ApiClient.callTool('model.profile.upsert', { workspace, project, profile_key: profileKey, status: 'inactive' }, options);
+        return ApiClient.callTool('model.profile.upsert', { profile_key: profileKey, status: 'inactive' }, options);
+      }
+    },
+
+    localChapter: {
+      async list(project, options = {}) {
+        const workspace = window.AppState?.currentWorkspace;
+        const result = await ApiClient.callTool('local.chapter.list', { workspace, project, ...options });
+        return result?.chapters || [];
+      },
+      async get(project, chapterNo, options = {}) {
+        const workspace = window.AppState?.currentWorkspace;
+        return ApiClient.callTool('local.chapter.get', { workspace, project, chapter_no: chapterNo }, options);
+      },
+      async read(project, chapterNo, options = {}) {
+        const workspace = window.AppState?.currentWorkspace;
+        const result = await ApiClient.callTool('local.chapter.get', { workspace, project, chapter_no: chapterNo }, options);
+        const contentResult = await ApiClient.callTool('local.chapter.read', { workspace, project, chapter_no: chapterNo });
+        return { ...result, content: contentResult?.content || '' };
+      },
+      async write(project, chapterNo, content, options = {}) {
+        const workspace = window.AppState?.currentWorkspace;
+        return ApiClient.callTool('local.chapter.write', { workspace, project, chapter_no: chapterNo, content }, options);
       }
     }
   };

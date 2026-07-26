@@ -16,12 +16,19 @@
         </div>
       `;
       await this.loadData();
+      return true;
     },
 
     async loadData() {
       const container = document.getElementById('conflicts-content');
       try {
-        const conflicts = await window.ApiClient.request('GET', '/sync/conflicts').catch(() => []);
+        const ws = window.AppState.currentWorkspace;
+        const proj = window.AppState.currentProject;
+        const args = {};
+        if (ws) args.workspace = ws;
+        if (proj) args.project = proj;
+        const result = await window.ApiClient.callTool('sync.list_conflicts', args).catch(() => []);
+        const conflicts = Array.isArray(result) ? result : (result?.conflicts || []);
         if (!conflicts || conflicts.length === 0) {
           container.innerHTML = `<div class="p-8 text-center text-gray-500">暂无冲突 🎉</div>`;
           return;
@@ -51,7 +58,12 @@
 
     async resolve(id, action) {
       try {
-        await window.ApiClient.request('POST', `/sync/conflicts/${id}/resolve`, { action });
+        const ws = window.AppState.currentWorkspace;
+        const proj = window.AppState.currentProject;
+        const args = { conflict: { id }, action };
+        if (ws) args.workspace = ws;
+        if (proj) args.project = proj;
+        await window.ApiClient.callTool('sync.resolve_conflict', args);
         await this.loadData();
       } catch (e) { alert('解决失败: ' + e.message); }
     }

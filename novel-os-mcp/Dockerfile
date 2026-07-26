@@ -9,7 +9,8 @@ ENV PIP_TRUSTED_HOST=pypi.tuna.tsinghua.edu.cn
 WORKDIR /app
 
 COPY pyproject.toml README.md ./
-RUN mkdir -p src/novel_os_mcp && \
+RUN pip install --no-cache-dir hatchling && \
+    mkdir -p src/novel_os_mcp && \
     printf "__version__ = '0.1.0'\n" > src/novel_os_mcp/__init__.py && \
     pip install --no-cache-dir -e .
 

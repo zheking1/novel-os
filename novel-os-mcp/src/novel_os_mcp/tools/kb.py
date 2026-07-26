@@ -1,8 +1,8 @@
-import logging
+﻿import logging
 from typing import Any
 
 from ..mcp_core import mcp
-from ..deps import db, auth, kb_service, knowledge_service
+from ..deps import db, auth, kb_service
 from ..tool_auth import get_principal, validate_required, validate_length
 
 logger = logging.getLogger("novel_os_mcp.tools.kb")
@@ -181,7 +181,7 @@ async def kb_entity_list_relations(
 
 @mcp.tool(name="kb.uk.search")
 async def kb_uk_search(
-    query: str,
+    query: str | None = None,
     category_slug: str | None = None,
     genre: str | None = None,
     era: str | None = None,
@@ -270,6 +270,8 @@ async def kb_uk_stats(genre: str | None = None) -> dict[str, Any]:
 
 @mcp.tool(name="kb.pk.upsert")
 async def kb_pk_upsert(
+    workspace: str,
+    project: str,
     project_id: str,
     category: str,
     key: str,
@@ -280,6 +282,7 @@ async def kb_pk_upsert(
 ) -> dict[str, Any]:
     """创建或更新项目知识。类别：world_rule/character/faction/plot/world_state/timeline。"""
     principal = await get_principal("write")
+    project_id = await auth.resolve_project_id(workspace, project, principal, access="write")
     logger.info("kb_pk_upsert called")
     validate_required(locals(), "key", "value")
     return await kb_service.pk_upsert(
@@ -289,43 +292,55 @@ async def kb_pk_upsert(
 
 
 @mcp.tool(name="kb.pk.get")
-async def kb_pk_get(project_id: str, category: str, key: str) -> dict[str, Any] | None:
+async def kb_pk_get(workspace: str,
+    project: str,
+    project_id: str, category: str, key: str) -> dict[str, Any] | None:
     """获取单条项目知识。"""
     principal = await get_principal("read")
+    project_id = await auth.resolve_project_id(workspace, project, principal, access="read")
     logger.info("kb_pk_get called")
-    validate_required(locals(), "project_id", "category", "key")
+    validate_required(locals(), "workspace", "project", "project_id", "category", "key")
     return await kb_service.pk_get(project_id=project_id, category=category, key=key)
 
 
 @mcp.tool(name="kb.pk.list")
-async def kb_pk_list(project_id: str, category: str | None = None) -> list[dict[str, Any]]:
+async def kb_pk_list(workspace: str,
+    project: str,
+    project_id: str, category: str | None = None) -> list[dict[str, Any]]:
     """列出项目知识条目。可按类别过滤。"""
     principal = await get_principal("read")
+    project_id = await auth.resolve_project_id(workspace, project, principal, access="read")
     logger.info("kb_pk_list called")
-    validate_required(locals(), "project_id")
+    validate_required(locals(), "workspace", "project", "project_id")
     return await kb_service.pk_list(project_id=project_id, category=category)
 
 
 @mcp.tool(name="kb.pk.delete")
-async def kb_pk_delete(project_id: str, category: str, key: str) -> bool:
+async def kb_pk_delete(workspace: str,
+    project: str,
+    project_id: str, category: str, key: str) -> bool:
     """删除项目知识条目。"""
     principal = await get_principal("write")
+    project_id = await auth.resolve_project_id(workspace, project, principal, access="write")
     logger.info("kb_pk_delete called")
-    validate_required(locals(), "project_id", "category", "key")
+    validate_required(locals(), "workspace", "project", "project_id", "category", "key")
     return await kb_service.pk_delete(project_id=project_id, category=category, key=key)
 
 
 @mcp.tool(name="kb.world.get")
-async def kb_world_get(project_id: str, chapter_no: int | None = None) -> dict[str, Any] | None:
+async def kb_world_get(workspace: str,
+    project: str, chapter_no: int | None = None) -> dict[str, Any] | None:
     """获取世界状态快照。不传 chapter_no 返回最新版本。"""
     principal = await get_principal("read")
+    project_id = await auth.resolve_project_id(workspace, project, principal, access="read")
     logger.info("kb_world_get called")
-    validate_required(locals(), "project_id")
     return await kb_service.world_get_state(project_id=project_id, chapter_no=chapter_no)
 
 
 @mcp.tool(name="kb.world.update")
 async def kb_world_update(
+    workspace: str,
+    project: str,
     project_id: str,
     chapter_no: int,
     world_state: dict,
@@ -338,8 +353,9 @@ async def kb_world_update(
 ) -> dict[str, Any]:
     """更新指定章节的世界状态快照。"""
     principal = await get_principal("write")
+    project_id = await auth.resolve_project_id(workspace, project, principal, access="write")
     logger.info("kb_world_update called")
-    validate_required(locals(), "project_id", "chapter_no", "world_state")
+    validate_required(locals(), "workspace", "project", "project_id", "chapter_no", "world_state")
     return await kb_service.world_update_state(
         project_id=project_id, chapter_no=chapter_no, world_state=world_state,
         story_time=story_time, story_year=story_year, story_era=story_era,
@@ -349,17 +365,22 @@ async def kb_world_update(
 
 
 @mcp.tool(name="kb.world.list")
-async def kb_world_list(project_id: str, limit: int = 10) -> list[dict[str, Any]]:
+async def kb_world_list(workspace: str,
+    project: str,
+    project_id: str, limit: int = 10) -> list[dict[str, Any]]:
     """列出最近的世界状态快照。"""
     principal = await get_principal("read")
+    project_id = await auth.resolve_project_id(workspace, project, principal, access="read")
     logger.info("kb_world_list called")
-    validate_required(locals(), "project_id")
+    validate_required(locals(), "workspace", "project", "project_id")
     return await kb_service.world_list_snapshots(project_id=project_id, limit=limit)
 
 
 @mcp.tool(name="kb.search.create_job")
 async def kb_search_create_job(
     query_text: str,
+    workspace: str,
+    project: str,
     project_id: str | None = None,
     category_slug: str | None = None,
     chapter_no: int | None = None,
@@ -367,6 +388,7 @@ async def kb_search_create_job(
 ) -> dict[str, Any]:
     """创建知识自动搜索任务。后续执行 web_search 后调用 kb.auto.store。"""
     principal = await get_principal("read")
+    project_id = await auth.resolve_project_id(workspace, project, principal, access="read")
     logger.info("kb_search_create_job called")
     validate_required(locals(), "query_text")
     return await kb_service.search_create_job(
@@ -391,6 +413,8 @@ async def kb_search_complete_job(
 @mcp.tool(name="kb.gap.create")
 async def kb_gap_create(
     description: str,
+    workspace: str,
+    project: str,
     project_id: str | None = None,
     gap_type: str = "missing_knowledge",
     entity_name: str | None = None,
@@ -399,6 +423,7 @@ async def kb_gap_create(
 ) -> dict[str, Any]:
     """创建知识缺口记录。用于追踪缺失的知识条目。"""
     principal = await get_principal("write")
+    project_id = await auth.resolve_project_id(workspace, project, principal, access="write")
     logger.info("kb_gap_create called")
     validate_required(locals(), "description")
     return await kb_service.gap_create(
@@ -409,10 +434,13 @@ async def kb_gap_create(
 
 @mcp.tool(name="kb.gap.list")
 async def kb_gap_list(
+    workspace: str,
+    project: str,
     project_id: str | None = None, resolved: bool = False
 ) -> list[dict[str, Any]]:
     """列出知识缺口。可按项目和解决状态过滤。"""
     principal = await get_principal("read")
+    project_id = await auth.resolve_project_id(workspace, project, principal, access="read")
     logger.info("kb_gap_list called")
     return await kb_service.gap_list(project_id=project_id, resolved=resolved)
 
@@ -462,68 +490,140 @@ async def kb_genre_keywords(
 
 @mcp.tool(name="kb.genre.preheat")
 async def kb_genre_preheat(
+    workspace: str,
+    project: str,
     project_id: str,
     genre: str,
 ) -> dict[str, Any]:
     """预加载题材相关的 UK 条目到 project_knowledge，加速上下文检索。"""
     principal = await get_principal(None)
     logger.info("kb_genre_preheat called")
-    validate_required(locals(), "project_id", "genre")
+    validate_required(locals(), "workspace", "project", "project_id", "genre")
     return await kb_service.genre_preheat(project_id=project_id, genre=genre)
 
 
-@mcp.tool(name="kb.auto.search")
-async def kb_auto_search(
-    query: str,
-    category_slug: str | None = None,
-    genre_tags: list[str] | None = None,
-    project_id: str | None = None,
-    chapter_no: int | None = None,
+@mcp.tool(name="kb.genre.update")
+async def kb_genre_update(
+    genre: str,
+    included_categories: list[str] | None = None,
+    excluded_categories: list[str] | None = None,
+    description: str | None = None,
 ) -> dict[str, Any]:
-    """步骤1：创建自动搜索任务。返回 job_id，执行 web_search 后调用 kb.auto.store。"""
-    principal = await get_principal("read")
-    logger.info("kb_auto_search called")
-    return await kb_service.auto_search_and_organize(
-        query=query, category_slug=category_slug, genre_tags=genre_tags,
-        project_id=project_id, chapter_no=chapter_no,
+    """更新题材知识配置，包括启用的分类、排除的分类等。"""
+    principal = await get_principal("write")
+    logger.info("kb_genre_update called for genre: %s", genre)
+    validate_required(locals(), "genre")
+    return await kb_service.genre_update_config(
+        genre=genre,
+        included_categories=included_categories,
+        excluded_categories=excluded_categories,
+        description=description,
     )
 
 
-@mcp.tool(name="kb.auto.store")
-async def kb_auto_store(
-    job_id: str,
-    search_results: list[dict],
+@mcp.tool(name="kb.genre.create")
+async def kb_genre_create(
+    slug: str,
+    name: str,
+    description: str | None = None,
+    typical_elements: list[str] | None = None,
+    target_audience: str | None = None,
+    platform_tags: list[str] | None = None,
+    aliases: list[str] | None = None,
+    included_categories: list[str] | None = None,
+    excluded_categories: list[str] | None = None,
+) -> dict[str, Any]:
+    """创建新题材。slug 为唯一标识，name 为显示名称。"""
+    principal = await get_principal("write")
+    logger.info("kb_genre_create called: %s", slug)
+    validate_required(locals(), "slug", "name")
+    return await kb_service.genre_create(
+        slug=slug, name=name, description=description,
+        typical_elements=typical_elements, target_audience=target_audience,
+        platform_tags=platform_tags, aliases=aliases,
+        included_categories=included_categories, excluded_categories=excluded_categories,
+    )
+
+
+@mcp.tool(name="kb.genre.delete")
+async def kb_genre_delete(
+    slug: str,
+) -> dict[str, Any]:
+    """删除题材及其知识配置。"""
+    principal = await get_principal("write")
+    logger.info("kb_genre_delete called: %s", slug)
+    validate_required(locals(), "slug")
+    return await kb_service.genre_delete(slug=slug)
+
+
+@mcp.tool(name="kb.auto.search_and_store")
+async def kb_auto_search_and_store(
+    query: str,
+    search_results: list[dict[str, Any]],
+    workspace: str,
+    project: str,
+    project_id: str | None = None,
     category_slug: str | None = None,
     genre_tags: list[str] | None = None,
+    chapter_no: int | None = None,
 ) -> dict[str, Any]:
-    """步骤2：将 web_search 结果存入 universal_knowledge。传入 [{title, url, snippet}] 格式。"""
+    """一步完成：创建搜索任务 → 存储 web_search 结果 → 完成任务。
+
+    Args:
+        query: 搜索关键词
+        search_results: web_search 结果，[{title, url, snippet}]
+        category_slug: 知识分类 slug
+        genre_tags: 题材标签
+        project_id: 关联项目（可选）
+        chapter_no: 关联章节（可选）
+
+    Returns:
+        {ok, job_id, entries_created, results_count}
+    """
     principal = await get_principal("write")
-    logger.info("kb_auto_store called")
-    validate_required(locals(), "job_id", "search_results")
-    return await kb_service.organize_and_store(
-        job_id=job_id, search_results=search_results,
+    project_id = await auth.resolve_project_id(workspace, project, principal, access="write")
+    logger.info("kb_auto_search_and_store called: query=%s", query)
+    validate_required(locals(), "query", "search_results")
+    return await kb_service.search_and_store(
+        query=query, search_results=search_results,
         category_slug=category_slug, genre_tags=genre_tags,
+        project_id=project_id, chapter_no=chapter_no,
     )
 
 
 @mcp.tool(name="kb.gap.detect")
 async def kb_gap_detect(
+    workspace: str,
+    project: str,
     project_id: str,
     chapter_plan: str | None = None,
     chapter_no: int | None = None,
 ) -> dict[str, Any]:
     """从章节大纲检测知识缺口。提取实体并检查是否存在于知识库。"""
     principal = await get_principal("read")
+    project_id = await auth.resolve_project_id(workspace, project, principal, access="read")
     logger.info("kb_gap_detect called")
-    validate_required(locals(), "project_id")
+    validate_required(locals(), "workspace", "project", "project_id")
     return await kb_service.detect_gaps(
         project_id=project_id, chapter_plan=chapter_plan, chapter_no=chapter_no,
     )
 
 
+@mcp.tool(name="kb.gap.analyze")
+async def kb_gap_analyze(
+    genre: str,
+) -> dict[str, Any]:
+    """分析题材知识缺口。返回每个分类已有UK条目数、是否需补充、优先级。"""
+    principal = await get_principal("read")
+    logger.info("kb_gap_analyze called: %s", genre)
+    validate_required(locals(), "genre")
+    return await kb_service.gap_analyze(genre=genre)
+
+
 @mcp.tool(name="kb.world.auto_update")
 async def kb_world_auto_update(
-    project_id: str,
+    workspace: str,
+    project: str,
     chapter_no: int,
     generated_content: str,
     story_time: str | None = None,
@@ -531,20 +631,40 @@ async def kb_world_auto_update(
     story_era: str | None = None,
 ) -> dict[str, Any]:
     """章节生成后自动更新世界状态。分析内容并更新 world_snapshots 和 state_entities。"""
-    principal = await get_principal("read")
+    principal = await get_principal("write")
     logger.info("kb_world_auto_update called")
-    validate_required(locals(), "project_id", "chapter_no", "generated_content")
+    validate_required(locals(), "workspace", "project", "chapter_no", "generated_content")
+    project_id = await auth.resolve_project_id(workspace, project, principal, access="write")
     import re
     import json as json_module
-    # Extract character names from content (simple heuristic)
-    char_names = re.findall(r'[\u4e00-\u9fff]{2,4}(?:哥|姐|弟|妹|兄|叔|伯|爷|娘|先生|女士|大人|将军|陛下)', generated_content)
-    char_names = list(set(char_names))[:10]
+    from ..deps import memory_service
 
-    # Build world state update
+    # Extract character names from content (simple heuristic: 2-4 Chinese chars + honorific)
+    char_names = re.findall(r'[\u4e00-\u9fff]{2,4}(?:哥|姐|弟|妹|兄|叔|伯|爷|娘|先生|女士|大人|将军|陛下)', generated_content)
+    # Also extract bare 2-3 char names that appear frequently
+    all_names = re.findall(r'[\u4e00-\u9fff]{2,3}', generated_content)
+    from collections import Counter
+    freq_names = [n for n, c in Counter(all_names).items() if c >= 3 and n not in '什么 怎么 这么 因为 所以 然后 但是 虽然 如果 而且 或者 不过 只是 还是 就是 不是 是的 可以 没有 已经 知道 看到 想到 觉得 以为 开始 起来 出来 下来 回来 进来 过来 起来 上去 下去 进去 出去 回去 找到 得到 看到 听到 想到 感到'.split()]
+    char_names = list(set(char_names + freq_names))[:10]
+
+    # Extract location names (simple heuristic: 2-4 chars ending with common location suffixes)
+    loc_names = re.findall(r'[\u4e00-\u9fff]{2,4}(?:山|谷|城|镇|村|宫|殿|塔|寺|观|洞|府|门|派|宗|教|国|洲|海|湖|河|原|林|岭|峰|崖|关|堡)', generated_content)
+    loc_names = list(set(loc_names))[:5]
+
+    # Extract key events (sentences containing event keywords)
+    event_sentences = re.findall(r'[^。！？]*?(?:终于|突然|发现|遇到|决定|开始|结束|击败|获得|失去|来到|离开|创建|毁灭|宣布|签订)[^。！？]*[。！？]', generated_content)
+    key_events = [s.strip() for s in event_sentences[:3]]
+
+    # Build structured world state
     world_state = {
-        "last_chapter_summary": generated_content[:500],
+        "summary": generated_content[:300],
+        "active_locations": loc_names,
+        "key_events": key_events,
         "characters_mentioned": char_names,
+        "story_time": story_time or "",
     }
+    # Remove empty fields
+    world_state = {k: v for k, v in world_state.items() if v}
 
     # Update world snapshot
     snapshot = await kb_service.world_update_state(
@@ -557,435 +677,75 @@ async def kb_world_auto_update(
         character_count=len(char_names),
     )
 
-    # Update state_entities for mentioned characters
+    # Update state_entities for mentioned characters: auto-create + update chapter fields
+    entities_created = 0
     entities_updated = 0
     for name in char_names:
         try:
-            # Check if entity exists
             existing = await kb_service._db.fetchrow(
-                "SELECT id FROM state_entities WHERE project_id = $1 AND name = $2",
+                "SELECT id, first_seen_chapter_no, last_seen_chapter_no FROM state_entities WHERE project_id = $1 AND entity_type = 'character' AND name = $2",
                 project_id, name,
             )
             if existing:
-                # Update snapshot
+                # Update last_seen_chapter_no (and first_seen if null)
+                await kb_service._db.execute(
+                    """UPDATE state_entities SET
+                         last_seen_chapter_no = $3,
+                         first_seen_chapter_no = COALESCE(first_seen_chapter_no, $3),
+                         updated_at = now()
+                       WHERE id = $1""",
+                    existing["id"], project_id, chapter_no,
+                )
+                # Insert snapshot
                 await kb_service._db.execute(
                     """INSERT INTO state_snapshots (project_id, entity_id, is_current, state, effective_chapter_no, source_type)
-                       SELECT $1, id, true, $3::jsonb, $4, 'auto_update'
-                       FROM state_entities WHERE project_id = $1 AND id = $2
-                       ON CONFLICT DO NOTHING""",
+                       VALUES ($1, $2, true, $3::jsonb, $4, 'auto_update')""",
                     project_id, existing["id"],
                     json_module.dumps({"last_seen": f"chapter_{chapter_no}", "mentions": generated_content.count(name)}),
                     chapter_no,
                 )
                 entities_updated += 1
-        except Exception:
-            logger.debug("Failed to update state snapshot for character: %s", name)
+            else:
+                # Auto-create entity
+                summary_text = generated_content[:100].replace('\n', ' ') if len(generated_content) > 100 else generated_content.replace('\n', ' ')
+                row = await kb_service._db.fetchrow(
+                    """INSERT INTO state_entities (project_id, entity_type, name, lifecycle_status, importance, summary, first_seen_chapter_no, last_seen_chapter_no, source_type)
+                       VALUES ($1, 'character', $2, 'active', 'medium', $3, $4, $4, 'auto_update')
+                       ON CONFLICT (project_id, entity_type, name) DO UPDATE SET last_seen_chapter_no = $4, updated_at = now()
+                       RETURNING id""",
+                    project_id, name, summary_text, chapter_no,
+                )
+                # Create initial snapshot
+                if row:
+                    await kb_service._db.execute(
+                        """INSERT INTO state_snapshots (project_id, entity_id, is_current, state, effective_chapter_no, source_type)
+                           VALUES ($1, $2, true, $3::jsonb, $4, 'auto_update')""",
+                        project_id, row["id"],
+                        json_module.dumps({"first_seen": f"chapter_{chapter_no}", "status": "auto_created"}),
+                        chapter_no,
+                    )
+                    entities_created += 1
+        except Exception as e:
+            logger.debug("Failed to update entity for character '%s': %s", name, e)
+
+    # Also update the user-facing description: try extracting an alias from the first mention
+    try:
+        for name in char_names:
+            # Find contextual alias: look for "XX（人称YY）" or "XX(又称YY)" patterns
+            alias_match = re.search(rf'{re.escape(name)}\s*[（(]\s*(?:又称|人称|又名|别名)[：:]\s*([^）)]+)[）)]', generated_content)
+            if alias_match:
+                alias = alias_match.group(1).strip()
+                await kb_service._db.execute(
+                    "UPDATE state_entities SET aliases = array_append(aliases, $1) WHERE project_id = $2 AND name = $3 AND NOT ($1 = ANY(aliases))",
+                    alias, project_id, name,
+                )
+    except Exception:
+        pass
 
     return {
         "snapshot": snapshot,
         "characters_found": char_names,
+        "entities_created": entities_created,
         "entities_updated": entities_updated,
     }
 
-
-# ============================================================
-# Knowledge Base System (KB) - Review Tools
-# ============================================================
-
-@mcp.tool(name="knowledge.category.list")
-async def knowledge_category_list(
-    include_inactive: bool = False,
-) -> list[dict[str, Any]]:
-    """列出所有知识分类"""
-    principal = await get_principal("read")
-    logger.info("knowledge_category_list called")
-    return await knowledge_service.list_categories(include_inactive=include_inactive)
-
-
-@mcp.tool(name="knowledge.category.get")
-async def knowledge_category_get(
-    category_id: str | None = None,
-    slug: str | None = None,
-) -> dict[str, Any]:
-    """获取单个知识分类"""
-    principal = await get_principal("read")
-    logger.info("knowledge_category_get called")
-    return await knowledge_service.get_category(category_id=category_id, slug=slug)
-
-
-@mcp.tool(name="knowledge.category.stats")
-async def knowledge_category_stats() -> list[dict[str, Any]]:
-    """获取分类统计（每个分类的知识条目数）"""
-    principal = await get_principal("read")
-    logger.info("knowledge_category_stats called")
-    return await knowledge_service.get_category_stats()
-
-
-@mcp.tool(name="knowledge.category.upsert")
-async def knowledge_category_upsert(
-    slug: str,
-    name: str,
-    name_en: str | None = None,
-    description: str | None = None,
-    icon: str | None = None,
-    color: str | None = None,
-    sort_order: int | None = None,
-    parent_id: str | None = None,
-    is_system: bool = False,
-) -> dict[str, Any]:
-    """创建或更新知识分类（需要管理员权限）"""
-    principal = await get_principal("write")
-    logger.info("knowledge_category_upsert called")
-    validate_required(locals(), "slug", "name")
-    if "admin" not in principal.scopes:
-        raise PermissionError("分类管理需要管理员权限（admin scope）")
-    return await knowledge_service.upsert_category(
-        slug=slug,
-        name=name,
-        name_en=name_en,
-        description=description,
-        icon=icon,
-        color=color,
-        sort_order=sort_order,
-        parent_id=parent_id,
-        is_system=is_system,
-    )
-
-
-@mcp.tool(name="knowledge.category.delete")
-async def knowledge_category_delete(
-    category_id: str | None = None,
-    slug: str | None = None,
-) -> bool:
-    """删除知识分类（需要管理员权限）"""
-    principal = await get_principal("write")
-    logger.info("knowledge_category_delete called")
-    if "admin" not in principal.scopes:
-        raise PermissionError("分类管理需要管理员权限（admin scope）")
-    return await knowledge_service.delete_category(category_id=category_id, slug=slug)
-
-
-@mcp.tool(name="knowledge.item.list")
-async def knowledge_item_list(
-    category_slug: str | None = None,
-    source: str | None = None,
-    level: str | None = None,
-    status: str | None = None,
-    limit: int = 100,
-    offset: int = 0,
-) -> list[dict[str, Any]]:
-    """列出知识条目"""
-    principal = await get_principal("read")
-    logger.info("knowledge_item_list called")
-    return await knowledge_service.list_items(
-        category_slug=category_slug,
-        source=source,
-        level=level,
-        status=status,
-        limit=limit,
-        offset=offset,
-    )
-
-
-@mcp.tool(name="knowledge.item.get")
-async def knowledge_item_get(
-    item_id: str | None = None,
-    code: str | None = None,
-    increment_view: bool = True,
-) -> dict[str, Any]:
-    """获取单个知识条目详情"""
-    principal = await get_principal("read")
-    logger.info("knowledge_item_get called")
-    item = await knowledge_service.get_item(item_id=item_id, code=code)
-    if item and increment_view:
-        await knowledge_service.increment_view_count(item["id"])
-    return item
-
-
-@mcp.tool(name="knowledge.item.search")
-async def knowledge_item_search(
-    query: str,
-    category_slug: str | None = None,
-    applicable_genre: str | None = None,
-    applicable_skill: str | None = None,
-    limit: int = 20,
-) -> list[dict[str, Any]]:
-    """搜索知识条目"""
-    principal = await get_principal("read")
-    logger.info("knowledge_item_search called")
-    return await knowledge_service.search_items(
-        query=query,
-        category_slug=category_slug,
-        applicable_genre=applicable_genre,
-        applicable_skill=applicable_skill,
-        limit=limit,
-    )
-
-
-@mcp.tool(name="knowledge.item.upsert")
-async def knowledge_item_upsert(
-    code: str,
-    title: str,
-    content: str,
-    summary: str | None = None,
-    detail: str | None = None,
-    examples: str | None = None,
-    counter_examples: str | None = None,
-    metadata: dict[str, Any] | None = None,
-    category_slug: str | None = None,
-    source: str = "manual",
-    source_file: str | None = None,
-    applicable_genres: list[str] | None = None,
-    applicable_skills: list[str] | None = None,
-    level: str = "knowledge",
-    status: str = "active",
-) -> dict[str, Any]:
-    """创建或更新知识条目"""
-    principal = await get_principal("write")
-    logger.info("knowledge_item_upsert called")
-    validate_required(locals(), "code", "title", "content")
-    return await knowledge_service.upsert_item(
-        code=code,
-        title=title,
-        content=content,
-        summary=summary,
-        detail=detail,
-        examples=examples,
-        counter_examples=counter_examples,
-        metadata=metadata,
-        category_slug=category_slug,
-        source=source,
-        source_file=source_file,
-        applicable_genres=applicable_genres,
-        applicable_skills=applicable_skills,
-        level=level,
-        status=status,
-    )
-
-
-@mcp.tool(name="knowledge.item.delete")
-async def knowledge_item_delete(
-    item_id: str | None = None,
-    code: str | None = None,
-) -> bool:
-    """删除知识条目"""
-    principal = await get_principal("write")
-    logger.info("knowledge_item_delete called")
-    return await knowledge_service.delete_item(item_id=item_id, code=code)
-
-
-@mcp.tool(name="knowledge.stats")
-async def knowledge_stats() -> dict[str, Any]:
-    """获取知识库统计"""
-    principal = await get_principal("read")
-    logger.info("knowledge_stats called")
-    return await knowledge_service.get_stats()
-
-
-@mcp.tool(name="knowledge.bulk_import")
-async def knowledge_bulk_import(
-    items: list[dict[str, Any]],
-    source: str = "bulk_import",
-) -> dict[str, Any]:
-    """批量导入知识条目（需要管理员权限）"""
-    principal = await get_principal("write")
-    logger.info("knowledge_bulk_import called")
-    validate_required(locals(), "items")
-    if "admin" not in principal.scopes:
-        raise PermissionError("批量导入需要管理员权限（admin scope）")
-    return await knowledge_service.bulk_import(items=items, source=source)
-
-
-@mcp.tool(name="knowledge.user.list")
-async def knowledge_user_list(
-    category_slug: str | None = None,
-    status: str | None = None,
-    review_status: str | None = None,
-    limit: int = 100,
-    offset: int = 0,
-) -> list[dict[str, Any]]:
-    """列出当前用户的私有知识条目"""
-    principal = await get_principal("read")
-    logger.info("knowledge_user_list called")
-    user_id = await _get_user_id(principal.username)
-    return await knowledge_service.get_user_items(
-        user_id=user_id,
-        category_slug=category_slug,
-        status=status,
-        review_status=review_status,
-        limit=limit,
-        offset=offset,
-    )
-
-
-@mcp.tool(name="knowledge.user.get")
-async def knowledge_user_get(
-    item_id: str,
-) -> dict[str, Any]:
-    """获取当前用户的单个私有知识条目"""
-    principal = await get_principal("read")
-    logger.info("knowledge_user_get called")
-    validate_required(locals(), "item_id")
-    user_id = await _get_user_id(principal.username)
-    return await knowledge_service.get_user_item(user_id=user_id, item_id=item_id)
-
-
-@mcp.tool(name="knowledge.user.upsert")
-async def knowledge_user_upsert(
-    title: str,
-    content: str,
-    item_id: str | None = None,
-    code: str | None = None,
-    summary: str | None = None,
-    detail: str | None = None,
-    examples: str | None = None,
-    counter_examples: str | None = None,
-    metadata: dict[str, Any] | None = None,
-    category_slug: str | None = None,
-    base_knowledge_id: str | None = None,
-    applicable_genres: list[str] | None = None,
-    applicable_skills: list[str] | None = None,
-    level: str = "knowledge",
-    status: str = "active",
-) -> dict[str, Any]:
-    """创建或更新当前用户的私有知识条目"""
-    principal = await get_principal("write")
-    logger.info("knowledge_user_upsert called")
-    validate_required(locals(), "title", "content")
-    user_id = await _get_user_id(principal.username)
-    return await knowledge_service.upsert_user_item(
-        user_id=user_id,
-        title=title,
-        content=content,
-        item_id=item_id,
-        code=code,
-        summary=summary,
-        detail=detail,
-        examples=examples,
-        counter_examples=counter_examples,
-        metadata=metadata,
-        category_slug=category_slug,
-        base_knowledge_id=base_knowledge_id,
-        applicable_genres=applicable_genres,
-        applicable_skills=applicable_skills,
-        level=level,
-        status=status,
-    )
-
-
-@mcp.tool(name="knowledge.user.delete")
-async def knowledge_user_delete(
-    item_id: str,
-) -> bool:
-    """删除当前用户的私有知识条目"""
-    principal = await get_principal("write")
-    logger.info("knowledge_user_delete called")
-    validate_required(locals(), "item_id")
-    user_id = await _get_user_id(principal.username)
-    return await knowledge_service.delete_user_item(user_id=user_id, item_id=item_id)
-
-
-@mcp.tool(name="knowledge.user.create_from_base")
-async def knowledge_user_create_from_base(
-    base_knowledge_id: str,
-) -> dict[str, Any]:
-    """从公共知识条目创建用户私有副本"""
-    principal = await get_principal("write")
-    logger.info("knowledge_user_create_from_base called")
-    validate_required(locals(), "base_knowledge_id")
-    user_id = await _get_user_id(principal.username)
-    return await knowledge_service.create_from_base(user_id=user_id, base_knowledge_id=base_knowledge_id)
-
-
-@mcp.tool(name="knowledge.user.submit_review")
-async def knowledge_user_submit_review(
-    item_id: str,
-    reason: str,
-) -> dict[str, Any]:
-    """提交用户知识条目进行审核"""
-    principal = await get_principal("write")
-    logger.info("knowledge_user_submit_review called")
-    validate_required(locals(), "item_id", "reason")
-    user_id = await _get_user_id(principal.username)
-    return await knowledge_service.submit_for_review(user_id=user_id, item_id=item_id, reason=reason)
-
-
-@mcp.tool(name="knowledge.user.stats")
-async def knowledge_user_stats() -> dict[str, Any]:
-    """获取当前用户的知识统计"""
-    principal = await get_principal("read")
-    logger.info("knowledge_user_stats called")
-    user_id = await _get_user_id(principal.username)
-    return await knowledge_service.get_user_stats(user_id=user_id)
-
-
-@mcp.tool(name="knowledge.review.list")
-async def knowledge_review_list(
-    review_status: str | None = None,
-    submitter_id: str | None = None,
-    limit: int = 50,
-    offset: int = 0,
-) -> list[dict[str, Any]]:
-    """列出审核列表（管理员权限）"""
-    principal = await get_principal("read")
-    logger.info("knowledge_review_list called")
-    if "admin" not in principal.scopes:
-        raise PermissionError("审核管理需要管理员权限（admin scope）")
-    return await knowledge_service.list_review_items(
-        review_status=review_status,
-        submitter_id=submitter_id,
-        limit=limit,
-        offset=offset,
-    )
-
-
-@mcp.tool(name="knowledge.review.get")
-async def knowledge_review_get(
-    review_id: str,
-) -> dict[str, Any]:
-    """获取审核详情（管理员权限）"""
-    principal = await get_principal("read")
-    logger.info("knowledge_review_get called")
-    if "admin" not in principal.scopes:
-        raise PermissionError("审核管理需要管理员权限（admin scope）")
-    return await knowledge_service.get_review_detail(review_id=review_id)
-
-
-@mcp.tool(name="knowledge.review.approve")
-async def knowledge_review_approve(
-    review_id: str,
-    comment: str | None = None,
-) -> dict[str, Any]:
-    """审核通过（管理员权限）"""
-    principal = await get_principal("write")
-    logger.info("knowledge_review_approve called")
-    validate_required(locals(), "review_id")
-    if "admin" not in principal.scopes:
-        raise PermissionError("审核通过需要管理员权限（admin scope）")
-    reviewer_id = await _get_user_id(principal.username)
-    return await knowledge_service.approve_review(reviewer_id=reviewer_id, review_id=review_id, comment=comment)
-
-
-@mcp.tool(name="knowledge.review.reject")
-async def knowledge_review_reject(
-    review_id: str,
-    comment: str,
-) -> dict[str, Any]:
-    """审核拒绝（管理员权限）"""
-    principal = await get_principal("write")
-    logger.info("knowledge_review_reject called")
-    validate_required(locals(), "review_id", "comment")
-    if "admin" not in principal.scopes:
-        raise PermissionError("审核拒绝需要管理员权限（admin scope）")
-    reviewer_id = await _get_user_id(principal.username)
-    return await knowledge_service.reject_review(reviewer_id=reviewer_id, review_id=review_id, comment=comment)
-
-
-@mcp.tool(name="knowledge.review.stats")
-async def knowledge_review_stats() -> dict[str, Any]:
-    """获取审核统计（管理员权限）"""
-    principal = await get_principal("read")
-    logger.info("knowledge_review_stats called")
-    if "admin" not in principal.scopes:
-        raise PermissionError("审核统计需要管理员权限（admin scope）")
-    return await knowledge_service.get_review_stats()
