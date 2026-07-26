@@ -54,7 +54,7 @@ class MultiPassService:
                 row = await conn.fetchrow(
                     """
                     INSERT INTO chapter_plans (project_id, chapter_no, plan, status)
-                    VALUES ($1, $2, $3::jsonb, 'active')
+                    VALUES ($1, $2::int, $3::jsonb, 'active')
                     RETURNING id::text, chapter_no, plan, status, created_at
                     """,
                     project_id,

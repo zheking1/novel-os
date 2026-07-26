@@ -640,11 +640,27 @@ async def pacing_record_emotion(
     word_count: int | None = None,
     metadata: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
-    """记录章节情绪/紧张度数据。用于追踪每章的节奏类型、紧张度和情绪强度。"""
+    """记录章节情绪/紧张度数据。
+
+    Args:
+        tension: 紧张度 0.0-1.0（0=平和，1=极度紧张）
+        emotion: 情绪类型，如 joy/sadness/anger/fear 等
+        emotion_intensity: 情绪强度 0.0-1.0（0=无，1=极强）
+        pacing_type: 节奏类型，必须是: buildup/climax/breather/transition/climax_buildup/resolution/normal
+    """
     principal = await get_principal("write")
     project_id = await auth.resolve_project_id(workspace, project, principal, access="write")
     logger.info("pacing.record_emotion called")
     validate_required(locals(), "workspace", "project", "project_id", "chapter_no", "tension", "emotion", "emotion_intensity")
+
+    # Auto-clamp values to valid range
+    tension = max(0.0, min(1.0, tension))
+    emotion_intensity = max(0.0, min(1.0, emotion_intensity))
+
+    # Validate pacing_type against allowed enum
+    VALID_PACING = {'buildup', 'climax', 'breather', 'transition', 'climax_buildup', 'resolution', 'normal'}
+    if pacing_type not in VALID_PACING:
+        raise ValueError(f"pacing_type 取值必须是: {', '.join(sorted(VALID_PACING))}，当前值为 '{pacing_type}'")
     return await pacing_service.record_chapter_emotion(
         project_id=project_id,
         chapter_no=chapter_no,
@@ -1429,8 +1445,13 @@ async def pipeline_generate(
 ) -> dict[str, Any]:
     """记录生成内容到系统。
 
-    AI 工具自行生成内容时，传入 content 直接存入（只存摘要/字数，不存全文）。
-    需要系统调用配置的模型进行 review 时，传入 user_prompt。
+    两条路径二选一：
+    1. 传 content — AI 自行生成的内容，系统只存摘要/字数
+    2. 传 user_prompt — 系统调用配置的模型生成
+
+    Args:
+        content: AI 工具已生成的内容（与 user_prompt 二选一，至少传一个）
+        user_prompt: 用户提示词（与 content 二选一，至少传一个）
 
     Args:
         workspace: 工作区

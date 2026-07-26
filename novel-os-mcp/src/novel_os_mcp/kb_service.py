@@ -499,6 +499,10 @@ class KBService:
         chapter_no: int | None = None,
         tags: list[str] | None = None,
     ) -> dict:
+        try:
+            value_json = json_dumps(value)
+        except (TypeError, ValueError) as e:
+            raise ValueError(f"value 参数无法序列化为 JSON: {e}. 请传入 dict 对象而非手写 JSON 字符串。")
         row = await self._db.fetchrow(
             """
             INSERT INTO project_knowledge (project_id, category, key, value, description, chapter_no, tags)
@@ -510,7 +514,7 @@ class KBService:
             RETURNING id::text, project_id::text, category, key, value,
                       description, chapter_no, tags, status, created_at, updated_at
             """,
-            project_id, category, key, json_dumps(value),
+            project_id, category, key, value_json,
             description, chapter_no, tags or [],
         )
         return row_to_dict(row)

@@ -92,7 +92,7 @@ async def discussion_room_create_session(
     if not model_keys or len(model_keys) < 2:
         return {"ok": False, "error": "讨论模型不足。请至少贡献2个模型到讨论池（模型配置页中勾选'贡献给讨论室'），或联系管理员配置全局讨论模型。"}
 
-    session_id = str(uuid.uuid4())[:8]
+    session_id = str(uuid.uuid4())
     control_model = model_keys[0]
     disc_models = model_keys[1:]
 
