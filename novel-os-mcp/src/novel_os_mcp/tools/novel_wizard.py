@@ -126,15 +126,20 @@ async def novel_wizard_start() -> dict[str, Any]:
         "questions": [workspace_question, workspace_new_question] + DEFAULT_QUESTIONS,
         "message": "请根据以下问题收集用户信息。先询问工作区选择，完成后调用 novel.wizard.generate",
         "workflow_guide": {
-            "phase": "初始化项目",
-            "current_step": 1,
-            "total_steps": 3,
-            "next_tool": "novel.wizard.generate",
-            "description": "用户回答完所有问题后，调用 novel.wizard.generate 生成设定预览",
-            "workflow": [
-                {"step": 1, "tool": "novel.wizard.start", "status": "done", "desc": "获取问题列表"},
-                {"step": 2, "tool": "novel.wizard.generate", "status": "pending", "desc": "传入用户答案，生成设定预览"},
-                {"step": 3, "tool": "novel.wizard.commit", "status": "pending", "desc": "用户确认后创建项目"},
+            "mode": "strict",
+            "steps": [
+                {
+                    "step_no": 1, "name": "收集用户回答",
+                    "tool": "_agent_display",
+                    "params": {"instruction": "向用户依次询问以下问题，收集完整答案。工作区：列出已有工作区让用户选或新建。书名：中文书名。题材：玄幻/都市/历史/科幻等。一句话梗概：核心冲突。世界观设定：时代背景、修炼体系等。主人公：姓名、特点。篇幅：100-200万字/200-400万字等。基调：热血爽文/暗黑压抑/轻松搞笑等"},
+                    "next": "wait_user_confirm",
+                },
+                {
+                    "step_no": 2, "name": "生成设定预览",
+                    "tool": "novel.wizard.generate",
+                    "params": {"wizard_id": wizard_id, "answers": "$from_step_1"},
+                    "next": "next_step",
+                },
             ],
         },
     }
@@ -254,15 +259,26 @@ async def novel_wizard_generate(
         },
         "message": "以上是根据用户回答生成的初始设定。请展示给用户确认。",
         "workflow_guide": {
-            "phase": "初始化项目",
-            "current_step": 2,
-            "total_steps": 3,
-            "next_tool": "novel.wizard.commit",
-            "description": "用户确认设定后，调用 novel.wizard.commit 创建项目。需传入 workspace, project_slug, preview, wizard_id，若为新建工作区需 workspace_action='new'+workspace_name",
-            "workflow": [
-                {"step": 1, "tool": "novel.wizard.start", "status": "done", "desc": "获取问题列表"},
-                {"step": 2, "tool": "novel.wizard.generate", "status": "done", "desc": "生成设定预览"},
-                {"step": 3, "tool": "novel.wizard.commit", "status": "pending", "desc": "用户确认后创建项目"},
+            "mode": "strict",
+            "steps": [
+                {
+                    "step_no": 1, "name": "展示设定预览并等用户确认",
+                    "tool": "_agent_display",
+                    "params": {"instruction": "展示以下设定预览给用户：书名、题材、梗概、世界观、主人公、篇幅、基调。包含推荐的系统配置（风格/模板/模型）。用户确认后进入下一步。"},
+                    "next": "wait_user_confirm",
+                },
+                {
+                    "step_no": 2, "name": "创建项目",
+                    "tool": "novel.wizard.commit",
+                    "params": {
+                        "wizard_id": wizard_id,
+                        "workspace": "$from_answers.workspace",
+                        "project_slug": "$from_answers.project_slug",
+                        "preview": "$preview",
+                        "confirm": True,
+                    },
+                    "next": "next_step",
+                },
             ],
         },
     }
@@ -444,15 +460,14 @@ async def novel_wizard_commit(
             f"3. 全部完成后开始写作章节",
         ],
         "workflow_guide": {
-            "phase": "世界构建",
-            "current_step": 3,
-            "total_steps": 3,
-            "next_tool": "novel.wizard.build_world",
-            "description": "项目已创建。下一步调用 novel.wizard.build_world 启动全自动构建流程：卷纲→深挖→检查→大纲",
-            "workflow": [
-                {"step": 1, "tool": "novel.wizard.start", "status": "done", "desc": "获取问题列表"},
-                {"step": 2, "tool": "novel.wizard.generate", "status": "done", "desc": "生成设定预览"},
-                {"step": 3, "tool": "novel.wizard.commit", "status": "done", "desc": "创建项目"},
+            "mode": "strict",
+            "steps": [
+                {
+                    "step_no": 1, "name": "启动世界构建",
+                    "tool": "novel.wizard.build_world",
+                    "params": {"workspace": workspace, "project": project_slug},
+                    "next": "next_step",
+                },
             ],
         },
         "local_dir_hint": {
@@ -1641,23 +1656,29 @@ def _build_world_steps(
                     "data_source": "knowledge-entries",
                     "output_type": "knowledge",
                 },
-                "post_action": "read_summary",
                 "next": "next_step",
             },
             {
-                "step_no": 4, "name": "应用讨论室结果",
+                "step_no": 4, "name": "等待讨论完成",
+                "tool": "discussion_room.get_updates",
+                "params": {"session_id": "$from_step_3"},
+                "next": "wait_for_async",
+                "poll": {"interval": 5, "max_retries": 40, "field": "status", "until": "status == 'completed'"},
+            },
+            {
+                "step_no": 5, "name": "应用讨论室结果",
                 "tool": "discussion_room.apply_results",
                 "params": {"session_id": "$from_step_3"},
                 "next": "next_step",
             },
             {
-                "step_no": 5, "name": "预加载通用知识",
+                "step_no": 6, "name": "预加载通用知识",
                 "tool": "kb.genre.preheat",
                 "params": {"workspace": ws_slug, "project": prj_slug, "project_id": project_id, "genre": genre},
                 "next": "next_step",
             },
             {
-                "step_no": 6, "name": "重新调用 build_world 推进到下一阶段",
+                "step_no": 7, "name": "重新调用 build_world 推进到下一阶段",
                 "tool": "novel.wizard.build_world",
                 "params": {"workspace": ws_slug, "project": prj_slug},
                 "next": "next_step",
@@ -1729,7 +1750,7 @@ def _build_world_steps(
                 "next": "next_step",
             },
             {
-                "step_no": 7, "name": "讨论室把关",
+                "step_no": 7, "name": "启动讨论室把关",
                 "tool": "discussion_room.create_session",
                 "params": {
                     "workspace": ws_slug, "project": prj_slug,
@@ -1737,12 +1758,24 @@ def _build_world_steps(
                     "data_source": "entities",
                     "output_type": "review",
                 },
-                "post_action": "read_summary",
-                "condition": "summary 包含'不完备' → 回步骤2；包含'完备' → 下一步",
                 "next": "next_step",
             },
             {
-                "step_no": 8, "name": "重新调用 build_world 推进到下一卷或下一阶段",
+                "step_no": 8, "name": "等待讨论完成",
+                "tool": "discussion_room.get_updates",
+                "params": {"session_id": "$from_step_7"},
+                "next": "wait_for_async",
+                "poll": {"interval": 5, "max_retries": 40, "field": "status", "until": "status == 'completed'"},
+            },
+            {
+                "step_no": 9, "name": "读取审查结论并决定下一步",
+                "tool": "discussion_room.get_session",
+                "params": {"session_id": "$from_step_7"},
+                "condition": "summary 包含'不完备' → 回到步骤2补缺；包含'完备' → 下一步",
+                "next": "next_step",
+            },
+            {
+                "step_no": 10, "name": "重新调用 build_world 推进到下一卷或下一阶段",
                 "tool": "novel.wizard.build_world",
                 "params": {"workspace": ws_slug, "project": prj_slug},
                 "display_before": f"第{current_volume}卷完成：地点X个 角色Y个 势力Z个 伏笔W个（统计后填入实际数字）\nAgent诊断 ✓ / 讨论室 ✓",
