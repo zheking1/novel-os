@@ -8,15 +8,27 @@
 
 | 任务 | 入口 | 流程 |
 |------|------|------|
-| 创建新小说 | `novel.wizard.start` | start → generate → build_world（build_world 一次调用，不拆） |
+| 创建新小说 | `novel.wizard.start` | start → generate → build_world 循环（见下方详情） |
 | 生成/续写章节 | `prepare_chapter_context` | 上下文 → 生成 → 审核修订（最多 3 轮）→ 提交 |
 | 审核章节 | `review.start_job` | 审核 → 修订循环 → 通过 |
 | 润色章节 | `pipeline.generate(task_type="polish")` | 直接润色 |
 
 严格流程内的禁止事项：
-- 禁止擅自拆分工具调用（build_world 就是一个调，不拆成列清单→确认→写入）
 - 禁止把多角色/多实体拆成逐个确认（批量 upsert 即可）
-- 禁止脱离 flow_guide 自行判断下一步
+- 禁止脱离 workflow_guide 自行判断下一步
+- 禁止在阶段之间停下来问用户"要不要继续"
+
+### build_world 5 阶段循环（每阶段完成后立即调 build_world 推进）
+
+```
+build_world → 阶段1：卷纲框架 → 完成后立即调 build_world
+build_world → 阶段2：知识库预热 → 完成后立即调 build_world
+build_world → 阶段3：逐卷深挖 → 完成后立即调 build_world
+build_world → 阶段4：全局检查 → 完成后立即调 build_world
+build_world → 阶段5：章节大纲 → 返回"所有阶段已完成"即结束
+```
+
+**关键规则：每完成一个阶段的工作，必须立即再次调用 `build_world`，不允许停下来问用户。只有 build_world 返回 `all_done` 或 workflow_guide 明确结束才算完成。**
 
 ### 探索/查询模式 — 以下任务无固定流程，但必须完成三步闭环：
 
