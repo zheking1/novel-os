@@ -22,29 +22,60 @@ async def review_start_job(
     logger.info("review_start_job called")
     validate_required(locals(), "workspace", "project", "chapter_no", "dimensions")
     project_id = await auth.resolve_project_id(workspace, project, principal, access="write")
-    # 自动注入 AI 痕迹检测维度（所有审核员都需检查）
     if "ai_detection" not in dimensions:
         dimensions = dimensions + ["ai_detection"]
-    result = await review_service.start_job(
-        project_id=project_id,
-        chapter_no=chapter_no,
-        local_files=local_files or [],
-        dimensions=dimensions,
-        username=principal.username,
+
+    # ===== 改用讨论室审核模式 =====
+    from ..services.review import ReviewService
+    svc = ReviewService(db)
+
+    # 1. 收集审核上下文（角色、伏笔、规则等）
+    context = await svc._gather_review_context(project_id, chapter_no)
+
+    # 2. 获取委员会模型列表
+    models = await svc._get_council_models(principal.username)
+    if not models or len(models) < 2:
+        raise ValueError("审核委员会模型不足（至少2个），请先在系统信息→审核委员会页面配置")
+
+    # 3. 构建审核话题
+    topic = f"审核第{chapter_no}章章节内容。从以下维度评估：{', '.join(dimensions)}。\n\n"
+    topic += f"【本章正文】\n{context.get('chapter_content', '（无内容）')[:8000]}\n\n"
+    topic += f"【前情摘要】\n{context.get('previous_summaries', '（无）')}\n\n"
+    topic += f"【角色状态】\n{context.get('character_states', '（无）')}\n\n"
+    topic += f"【活跃伏笔】\n{context.get('foreshadowings', '（无）')}\n\n"
+    topic += f"【活跃规则】\n{context.get('rules', '（无）')}\n\n"
+    topic += f"【世界状态】\n{context.get('world_state', '（无）')}\n\n"
+    topic += f"审核模式：各模型对本章进行多维度审查，达成共识。如有异议请逐条说明理由。"
+
+    # 4. 启动讨论室
+    from .discussion_room import discussion_room_create_session
+    session_result = await discussion_room_create_session(
+        workspace=workspace, project=project,
+        topic=topic, output_type="review",
     )
-    result["workflow_guide"] = {
-        "phase": "章节审核",
-        "next_tool": "review.submit_model_report",
-        "description": f"审核任务已创建。等待各模型提交审核报告。所有报告提交后调用 review.aggregate 汇总",
-        "workflow": [
-            {"step": 1, "tool": "review.start_job", "status": "done", "desc": "创建审核任务"},
-            {"step": 2, "tool": "review.submit_model_report", "status": "pending", "desc": "各模型提交审核报告"},
-            {"step": 3, "tool": "review.aggregate", "status": "pending", "desc": "汇总审核结果"},
-            {"step": 4, "tool": "review.submit_evolution_proposals", "status": "pending", "desc": "提取进化提案"},
-            {"step": 5, "tool": "workflow.learn_from_review", "status": "pending", "desc": "从审核结果学习"},
-        ],
+
+    # 5. 创建 review_job 标记（关联讨论室会话）
+    review_job = await svc._create_review_job_record(project_id, chapter_no, dimensions, session_result["session_id"])
+
+    return {
+        "session_id": session_result["session_id"],
+        "review_job_id": review_job.get("job_id"),
+        "control_model": session_result.get("control_model"),
+        "discussion_models": session_result.get("discussion_models"),
+        "dimensions": dimensions,
+        "message": "审核已提交讨论室进行多模型辩论。请定时调用 discussion_room.get_session(session_id) 查看进度。讨论完成后根据结论修订正文。",
+        "workflow_guide": {
+            "phase": "章节审核（讨论室模式）",
+            "next_tool": "discussion_room.get_session",
+            "description": "讨论室进行中，调用 get_session 查看进度和结论",
+            "workflow": [
+                {"step": 1, "tool": "review.start_job", "status": "done", "desc": "创建审核任务并启动讨论室"},
+                {"step": 2, "tool": "discussion_room.get_session", "status": "pending", "desc": "查看讨论进度和结论"},
+                {"step": 3, "tool": "[Agent修订正文]", "status": "pending", "desc": "根据结论修订后重新审核或进入润色"},
+                {"step": 4, "tool": "review.aggregate", "status": "pending", "desc": "讨论完成后汇总"},
+            ],
+        },
     }
-    return result
 
 
 @mcp.tool(name="review.upsert_council_config")
@@ -205,37 +236,54 @@ async def review_aggregate(
     review_job_id: str,
     create_revision_tasks: bool = True,
 ) -> dict[str, Any]:
-    """汇总审核结果。合并多个模型的审核报告，生成综合评分和修订建议。"""
+    """汇总审核结果——读取讨论室的审查结论并展示。"""
     principal = await get_principal("write")
     logger.info("review_aggregate called")
     validate_required(locals(), "workspace", "project", "review_job_id")
     project_id = await auth.resolve_project_id(workspace, project, principal, access="write")
-    result = await review_service.aggregate(
-        project_id=project_id,
-        review_job_id=review_job_id,
-        create_revision_tasks=create_revision_tasks,
+
+    # 从 review_jobs 中获取关联的讨论室 session_id
+    job = await db.fetchrow(
+        "SELECT session_id, chapter_no FROM review_jobs WHERE id = $1", review_job_id,
     )
-    result["workflow_guide"] = {
-        "phase": "章节审核",
-        "review_round": 1,
-        "max_rounds": 3,
-        "next_tool": "workflow.submit_chapter_commit",
-        "description": "审核完成。如果还有 findings 需要修改，修订正文后重新调用 review.start_job（最多3轮）。审核通过后，调 pipeline.generate(task_type='polish', content=正文) 用系统润色模型润色，然后 submit_chapter_commit 提交。",
-        "loop_instruction": "如果 aggregate 结果中有 severity>=warning 的 findings → 修订正文 → 再次 review.start_job。无意见或达到第3轮 → 润色 → 提交",
-        "next_steps": [
-            {"tool": "review.start_job", "condition": "有 findings 需要修改", "desc": "修订后重新审核（最多3轮）"},
-            {"tool": "pipeline.generate", "condition": "审核通过", "desc": "用系统 polish 模型润色正文"},
-            {"tool": "workflow.submit_chapter_commit", "condition": "润色完成", "desc": "提交章节"},
-        ],
-        "workflow": [
-            {"step": 1, "tool": "review.start_job", "status": "done", "desc": "创建审核任务"},
-            {"step": 2, "tool": "review.submit_model_report", "status": "done", "desc": "各模型提交审核报告"},
-            {"step": 3, "tool": "review.aggregate", "status": "done", "desc": "汇总审核结果"},
-            {"step": 4, "tool": "[修订正文 | 润色]", "status": "pending", "desc": "有意见→修订→重新审核；通过→润色"},
-            {"step": 5, "tool": "workflow.submit_chapter_commit", "status": "pending", "desc": "提交章节"},
-        ],
+    if not job or not job.get("session_id"):
+        raise ValueError(f"审核任务 {review_job_id} 未关联讨论室会话")
+
+    # 读取讨论室结果
+    from .discussion_room import discussion_room_get_session
+    discussion = await discussion_room_get_session(session_id=job["session_id"])
+
+    summary = discussion.get("summary", "")
+    consensus = discussion.get("consensus_reached", False)
+    phase = discussion.get("phase", "unknown")
+
+    return {
+        "review_job_id": review_job_id,
+        "session_id": job["session_id"],
+        "consensus_reached": consensus,
+        "phase": phase,
+        "summary": summary,
+        "workflow_guide": {
+            "phase": "章节审核",
+            "review_round": 1,
+            "max_rounds": 3,
+            "next_tool": "workflow.submit_chapter_commit",
+            "description": "讨论室审核完成。如果 consensus_reached=true 且无意见→润色→提交。否则修订正文后重新调用 review.start_job",
+            "loop_instruction": "如果 summary 中有明确的问题指出需要修改 → 修订正文 → 再次 review.start_job。无意见 → 润色 → 提交",
+            "next_steps": [
+                {"tool": "review.start_job", "condition": "有修改意见", "desc": "修订后重新审核（最多3轮）"},
+                {"tool": "pipeline.generate", "condition": "审核通过", "desc": "用系统 polish 模型润色"},
+                {"tool": "workflow.submit_chapter_commit", "condition": "润色完成", "desc": "提交章节"},
+            ],
+            "workflow": [
+                {"step": 1, "tool": "review.start_job", "status": "done", "desc": "创建审核任务并启动讨论室"},
+                {"step": 2, "tool": "discussion_room.get_session", "status": "done", "desc": "查看讨论进度"},
+                {"step": 3, "tool": "review.aggregate", "status": "done", "desc": "汇总讨论室结论"},
+                {"step": 4, "tool": "[修订正文 | 润色]", "status": "pending", "desc": "有意见→修订→重新审核；通过→润色"},
+                {"step": 5, "tool": "workflow.submit_chapter_commit", "status": "pending", "desc": "提交章节"},
+            ],
+        },
     }
-    return result
 
 
 @mcp.tool(name="review.extract_rule_proposals")

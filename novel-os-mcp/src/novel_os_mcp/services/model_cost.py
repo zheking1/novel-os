@@ -342,7 +342,7 @@ class ModelCostService:
             SET display_name = $3, provider = $4, model_name = $5, task_types = $6,
                 tier = $7, default_params = $8, cost_config = $9, rate_limit_config = $10,
                 is_default = $11, status = $12, metadata = $13, updated_at = NOW()
-            RETURNING id::text, uuid, profile_key, display_name, provider, model_name,
+            RETURNING id::text, profile_key, display_name, provider, model_name,
                       task_types, tier, default_params, cost_config, rate_limit_config,
                       is_default, status, metadata, created_at, updated_at
             """,
@@ -352,7 +352,6 @@ class ModelCostService:
             merged["tier"], json_dumps(merged["default_params"]),
             json_dumps(merged["cost_config"]), json_dumps(merged["rate_limit_config"]),
             merged["is_default"], merged["status"], json_dumps(merged["metadata"]),
-            merged["user_id"],
         )
         result = row_to_dict(row) if row else {}
         if is_contributed is not None:
@@ -376,7 +375,7 @@ class ModelCostService:
             SELECT r.profile_key, r.conditions, r.fallback_profile_keys,
                    mp.provider, mp.model_name, mp.default_params, mp.cost_config
             FROM model_route_rules r
-            JOIN model_profiles mp ON r.profile_key = mp.profile_key AND (mp.project_id = $1 OR mp.project_id IS NULL)
+            JOIN model_profiles mp ON r.profile_key = mp.profile_key
             WHERE r.project_id = $1 AND r.task_type = $2 AND r.status = 'active'
             ORDER BY r.priority DESC
             LIMIT 1
@@ -457,7 +456,7 @@ class ModelCostService:
                    r.conditions, r.fallback_profile_keys, r.status, r.metadata, r.created_at, r.updated_at,
                    mp.display_name as profile_display_name, mp.provider, mp.model_name
             FROM model_route_rules r
-            JOIN model_profiles mp ON r.profile_key = mp.profile_key AND mp.project_id = r.project_id
+            JOIN model_profiles mp ON r.profile_key = mp.profile_key
             WHERE {' AND '.join(conditions)}
             ORDER BY r.priority DESC, r.task_type
             """,

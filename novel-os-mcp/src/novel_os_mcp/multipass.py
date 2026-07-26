@@ -98,7 +98,7 @@ class MultiPassService:
             """
             INSERT INTO generation_passes
               (project_id, chapter_no, pass_number, pass_type, content, metadata)
-            VALUES ($1, $2, $3, $4, $5, $6::jsonb)
+            VALUES ($1, $2::int, $3, $4, $5, $6::jsonb)
             RETURNING id::text, chapter_no, pass_number, pass_type, content, metadata, created_at
             """,
             project_id,

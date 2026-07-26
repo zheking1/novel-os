@@ -356,11 +356,11 @@ async def _apply_proposal(proposal_id: str) -> dict[str, Any]:
             project_id = content.get("project_id")
             if project_id:
                 await db.execute(
-                    """INSERT INTO model_profiles (project_id, profile_key, provider, model_name, task_types, status)
-                       VALUES ($1, $2, $3, $4, $5::text[], 'active')
-                       ON CONFLICT (project_id, profile_key) DO UPDATE SET
+                    """INSERT INTO model_profiles (profile_key, provider, model_name, task_types, status)
+                       VALUES ($1, $2, $3, $4::text[], 'active')
+                       ON CONFLICT (user_id, profile_key) DO UPDATE SET
                        model_name = EXCLUDED.model_name""",
-                    project_id, profile_key, content.get("provider", "custom"),
+                    profile_key, content.get("provider", "custom"),
                     content.get("model_name", ""), content.get("task_types", ["review"]),
                 )
 

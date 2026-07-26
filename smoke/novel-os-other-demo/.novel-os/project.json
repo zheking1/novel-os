@@ -1,9 +1,0 @@
-{
-  "mcp_url": "http://${NAS_HOST}:48083/mcp",
-  "workspace": "default",
-  "project": "smoke_other",
-  "title": "Smoke Other Novel",
-  "client_id": "codex-local",
-  "api_token": "nos_iUMce_oq2eJCiv2dOS8YTCglZHJ1L_fFF2A7vGam1Po",
-  "local_root": "D:\\Project\\novels codex\\smoke\\novel-os-other-demo"
-}

@@ -198,6 +198,82 @@ class ReviewService:
         )
         return rows_to_dicts(rows)
 
+    async def _gather_review_context(self, project_id: str, chapter_no: int) -> dict[str, str]:
+        """收集审核所需的上下文：角色、伏笔、规则、世界状态等。"""
+        ctx = {}
+
+        # 前三章摘要
+        summaries = await self._db.fetch(
+            "SELECT c.chapter_no, s.content FROM chapter_summaries s JOIN chapters c ON c.id = s.chapter_id WHERE s.project_id = $1 ORDER BY c.chapter_no DESC LIMIT 3",
+            project_id,
+        )
+        ctx["previous_summaries"] = "\n".join([f"第{s['chapter_no']}章: {s['content'][:300]}" for s in summaries]) if summaries else "（无）"
+
+        # 角色状态
+        chars = await self._db.fetch(
+            "SELECT name, profile FROM state_entities WHERE project_id = $1 AND entity_type = 'character' AND lifecycle_status = 'active' LIMIT 10",
+            project_id,
+        )
+        ctx["character_states"] = "\n".join([
+            f"{c['name']}: {ensure_json_value(c.get('profile') or {}).get('personality', '')[:100]}"
+            for c in chars
+        ]) if chars else "（无活跃角色）"
+
+        # 活跃伏笔
+        foreshadow = await self._db.fetch(
+            "SELECT title, status, importance, expected_payoff_range FROM foreshadowing WHERE project_id = $1 AND is_deleted = false AND status NOT IN ('paid_off', 'abandoned', 'archived') LIMIT 15",
+            project_id,
+        )
+        ctx["foreshadowings"] = "\n".join([f"  {f['title']} ({f['status']}, {f['importance']})" for f in foreshadow]) if foreshadow else "（无）"
+
+        # 活跃规则
+        rules = await self._db.fetch(
+            "SELECT title, content, severity FROM canon_rules WHERE project_id = $1 AND status = 'active' LIMIT 15",
+            project_id,
+        )
+        ctx["rules"] = "\n".join([f"  [{r['severity']}] {r['title']}: {r['content'][:200]}" for r in rules]) if rules else "（无）"
+
+        # 世界状态
+        world = await self._db.fetchrow(
+            "SELECT world_state, story_era FROM world_snapshots WHERE project_id = $1 ORDER BY chapter_no DESC LIMIT 1",
+            project_id,
+        )
+        if world:
+            ws = ensure_json_value(world.get("world_state") or {})
+            ctx["world_state"] = f"时代: {world['story_era'] or '未知'} | 世界状态: {json.dumps(ws, ensure_ascii=False)[:300]}"
+        else:
+            ctx["world_state"] = "（无）"
+
+        return ctx
+
+    async def _get_council_models(self, username: str) -> list[str]:
+        """获取活跃审核委员会的模型列表。"""
+        council = await self._db.fetchrow(
+            "SELECT config FROM review_council_configs WHERE user_id = $1 AND is_active = true ORDER BY created_at DESC LIMIT 1",
+            username,
+        )
+        if not council:
+            return []
+        cfg = council["config"]
+        if isinstance(cfg, str):
+            cfg = json.loads(cfg)
+        reviewers = cfg.get("reviewers", cfg.get("models", []))
+        return [r["model"] for r in reviewers if isinstance(r, dict) and r.get("model")]
+
+    async def _create_review_job_record(self, project_id: str, chapter_no: int, dimensions: list[str], session_id: str) -> dict:
+        """创建一个 review_job 记录，关联讨论室会话。"""
+        ch = await self._db.fetchrow("SELECT id FROM chapters WHERE project_id = $1 AND chapter_no = $2", project_id, chapter_no)
+        chapter_id = ch["id"] if ch else None
+        row = await self._db.fetchrow(
+            """INSERT INTO review_jobs (project_id, chapter_id, chapter_no, status, config, session_id)
+               VALUES ($1, $2, $3, 'running', $4::jsonb, $5)
+               RETURNING id::text as job_id""",
+            project_id, chapter_id, chapter_no,
+            json.dumps({"dimensions": dimensions, "report_count": 0, "avg_score": 0}),
+            session_id,
+        )
+        return dict(row) if row else {"job_id": "unknown"}
+
     async def start_job(self, **kwargs) -> dict[str, Any]:
         """启动审核任务"""
         logger.info(f"start_job called with: {kwargs}")
@@ -324,13 +400,19 @@ class ReviewService:
 
     async def list_jobs(self, project_id: str, status: str = "active", limit: int = 50, offset: int = 0) -> list[dict[str, Any]]:
         rows = await self._db.fetch(
-            """SELECT id::text, project_id::text, chapter_id::text, chapter_no, status,
+            """SELECT id::text, project_id::text, chapter_id::text, status,
                       dimensions, models, report_count, avg_score, pass_status, created_at, updated_at
                FROM review_jobs WHERE project_id = $1 AND ($2::text IS NULL OR status = $2)
                ORDER BY created_at DESC LIMIT $3 OFFSET $4""",
             project_id, status, limit, offset,
         )
-        return rows_to_dicts(rows)
+        result = []
+        for r in rows:
+            d = dict(r)
+            ch = await self._db.fetchrow("SELECT chapter_no FROM chapters WHERE id = $1", r["chapter_id"])
+            d["chapter_no"] = ch["chapter_no"] if ch else None
+            result.append(d)
+        return result
 
     async def submit_model_report(self, **kwargs) -> dict[str, Any]:
         logger.info(f"submit_model_report called")

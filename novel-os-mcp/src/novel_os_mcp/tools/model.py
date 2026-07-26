@@ -44,7 +44,8 @@ async def model_profile_upsert(
         is_default=is_default,
         status=status,
         metadata=metadata,
-        username=principal.username,
+username=principal.username,
+        is_contributed=is_contributed,
     )
 
 

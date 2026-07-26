@@ -463,7 +463,9 @@ A: 「设定管理」面向普通用户的 Canon 文档/实体/规则；「知�
     async loadHistory() {
       try {
         const res = await window.ApiClient.callTool('discussion_room.list_sessions', {
-          workspace: 'default', project: 'xiyu-tieqi', limit: 20,
+          workspace: window.AppState.currentWorkspace || 'default',
+          project: window.AppState.currentProject || '',
+          limit: 20,
         });
         const list = document.getElementById('disc-history-list');
         const sessions = res.sessions || [];
@@ -670,8 +672,8 @@ A: 「设定管理」面向普通用户的 Canon 文档/实体/规则；「知�
 
       try {
         const res = await window.ApiClient.callTool('discussion_room.create_session', {
-          workspace: 'default',
-          project: 'xiyu-tieqi',
+          workspace: window.AppState.currentWorkspace || 'default',
+          project: window.AppState.currentProject || '',
           topic: topic,
           model_keys: models,
           rate_limit_delay: delay,

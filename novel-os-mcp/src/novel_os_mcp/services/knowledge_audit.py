@@ -134,8 +134,8 @@ class KnowledgeAuditService:
         available = []
         for mk in model_keys:
             row = await self._db.fetchrow(
-                "SELECT 1 FROM model_profiles WHERE project_id=$1 AND profile_key=$2 AND status='active'",
-                project_id, mk,
+                "SELECT 1 FROM model_profiles WHERE profile_key=$1 AND status='active'",
+                mk,
             )
             if row:
                 available.append(mk)

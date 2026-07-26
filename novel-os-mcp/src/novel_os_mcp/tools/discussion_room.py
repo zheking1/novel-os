@@ -680,7 +680,7 @@ async def _query_data(project_id: str, source: str, **filters) -> list[dict]:
 
         elif source == "docs":
             rows = await db.fetch(
-                "SELECT doc_type, key, title FROM canon_docs WHERE project_id=$1 AND status='active' LIMIT 30",
+                "SELECT doc_type, key, title FROM canon_documents WHERE project_id=$1 AND status='active' LIMIT 30",
                 project_id,
             )
             return [dict(r) for r in rows]

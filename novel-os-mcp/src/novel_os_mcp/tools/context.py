@@ -364,8 +364,7 @@ async def workflow_get_chapter_generation_prompt(
 
     # 5. 模型列表
     model_rows = await db.fetch(
-        "SELECT profile_key, display_name, task_types, provider, model_name, rate_limit_config, tier FROM model_profiles WHERE project_id = $1 AND status = 'active' ORDER BY is_default DESC, tier",
-        project_id,
+        "SELECT profile_key, display_name, task_types, provider, model_name, rate_limit_config, tier FROM model_profiles WHERE status = 'active' ORDER BY is_default DESC, tier"
     )
     model_list = [{
         "key": r["profile_key"],
@@ -536,10 +535,9 @@ pipeline.run_full(
 )
 ```
 
-### 步骤 7：审核-修订循环（一直审到无意见为止）
+### 步骤 7：审核-修订循环（讨论室多模型辩论模式）
 
-
-7.1 启动审核任务
+7.1 启动审核任务（自动创建讨论室）
 ```
 review.start_job(
   workspace: "{workspace}",
@@ -548,34 +546,21 @@ review.start_job(
   dimensions: {json.dumps(dims, ensure_ascii=False)}
 )
 ```
-→ 输出 review_job_id
+→ 系统自动收集审核上下文 → 启动讨论室多模型辩论
+→ 输出 session_id 和 review_job_id
 
-7.2 提交审核报告
-
-**每个模型同时审核两个维度**：分配的创作维度 + AI 痕迹检测
-
-**串行模式**（1个模型 OR 有频率限制）：
+7.2 查看讨论结果
 ```
-review.submit_model_report(..., model_id="{review_models[0]['key'] if review_models else 'ds-v32'}", content="请从【设定一致性/逻辑连贯 + AI痕迹】角度审核：\n\n{{正文}}")
-```
-
-**并行模式**（>=2 模型 且 无频率限制）：
-```
-review.submit_model_report(..., model_id="{review_models[0]['key'] if review_models else 'ds-v32'}", content="请从【文笔质量 + AI痕迹】角度审核：\n\n{{正文}}")
+review.aggregate(review_job_id="<7.1的review_job_id>")
+→ 或 discussion_room.get_session(session_id="<7.1的session_id>")
+→ 读取 summary 获取审查结论
 ```
 
-7.3 聚合
-```
-review.aggregate(
-  workspace: "{workspace}",
-  project: "{project_slug}",
-  review_job_id: "步骤7.1的job_id"
-)
-```
-→ 有意见 → 修订正文 → 回到 7.1（最多3轮）
-→ 无意见 → 步骤 7.5
+7.3 根据结论处理
+→ 有修改意见 → 修订正文 → 回到 7.1（最多3轮）
+→ 无意见 → 7.4 润色
 
-7.5 系统润色（审核通过后）
+7.4 系统润色
 ```
 pipeline.generate(
   workspace: "{workspace}",
@@ -583,7 +568,7 @@ pipeline.generate(
   chapter_no: {chapter_no},
   task_type: "polish",
   content: "正文全文",
-  user_prompt: "请润色以下章节，提升文笔质量，保持风格一致"
+  user_prompt: "请润色以下章节，提升文笔质量"
 )
 ```
 → 系统自动选 polish 模型生成润色版 → 保存到 {folder_name}/{pol_name}

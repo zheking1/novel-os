@@ -1,8 +1,0 @@
-{
-  "id": "090c270d-9e55-4019-9b7e-a2dd3bfd8525",
-  "report_type": "consensus",
-  "score": "82.00",
-  "findings": "{\"high_count\": 0, \"model_count\": 1, \"top_findings\": [{\"target\": \"auction warning\", \"evidence\": \"The letter warns that the auction decides control of the city, but the protagonist's personal risk is still abstract.\", \"model_id\": \"manual-reviewer\", \"severity\": \"medium\", \"dimension\": \"reader_pull\", \"suggestion\": \"Add one consequence that directly threatens the protagonist if they ignore the auction.\"}], \"average_score\": 82.0, \"blocking_count\": 0, \"model_summaries\": [{\"summary\": \"The opening has a clear hook, but the auction threat needs a sharper immediate cost.\", \"model_id\": \"manual-reviewer\"}]}",
-  "summary": "Aggregated 1 model reports.",
-  "created_at": "2026-06-22T08:13:43.986267Z"
-}

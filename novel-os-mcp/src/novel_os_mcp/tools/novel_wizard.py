@@ -1600,7 +1600,7 @@ async def novel_wizard_build_world(
 │ 步骤4: 讨论室最终把关（每卷只调一次！）                    │
 │   → discussion_room.create_session(                       │
 │        workspace="{ws_slug}", project="{prj_slug}",        │
-│        topic="审查第N卷'{卷标题}'设定完备性",               │
+│        topic="审查第N卷'{{卷标题}}'设定完备性",               │
 │        data_source="entities",                           │
 │        output_type="review"                                │
 │      )                                                    │

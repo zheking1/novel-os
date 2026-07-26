@@ -20,17 +20,17 @@ class LLMClient:
         self._clients: dict[str, httpx.AsyncClient] = {}
 
     async def _get_config(self, project_id: str, task_type: str) -> dict[str, Any] | None:
-        """Find the best model profile for the given task_type. Models are user-level, project_id is optional."""
+        """Find the best model profile for the given task_type. Models are user-level."""
         row = await self._db.fetchrow(
             """
             SELECT profile_key, provider, model_name, default_params, tier
             FROM model_profiles
-            WHERE (project_id = $1 OR project_id IS NULL) AND status = 'active'
-              AND $2 = ANY(task_types)
+            WHERE status = 'active'
+              AND $1 = ANY(task_types)
             ORDER BY is_default DESC, tier
             LIMIT 1
             """,
-            project_id, task_type,
+            task_type,
         )
         return dict(row) if row else None
 
@@ -81,8 +81,6 @@ class LLMClient:
         # Only append path if not already a full endpoint URL
         url = api_url.rstrip("/")
         if not url.endswith("/chat/completions"):
-            if not url.endswith("/v1"):
-                url += "/v1"
             url += "/chat/completions"
 
         client = await self._get_client(url)
@@ -147,8 +145,8 @@ class LLMClient:
         config = await self._db.fetchrow(
             """SELECT profile_key, provider, model_name, default_params
                FROM model_profiles
-               WHERE project_id = $1 AND profile_key = $2 AND status = 'active'""",
-            project_id, profile_key,
+               WHERE profile_key = $1 AND status = 'active'""",
+            profile_key,
         )
         if not config:
             raise ValueError(f"Model profile '{profile_key}' not found or inactive")
@@ -165,8 +163,6 @@ class LLMClient:
 
         url = api_url.rstrip("/")
         if not url.endswith("/chat/completions"):
-            if not url.endswith("/v1"):
-                url += "/v1"
             url += "/chat/completions"
 
         client = await self._get_client(url)

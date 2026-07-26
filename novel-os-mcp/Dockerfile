@@ -9,10 +9,10 @@ ENV PIP_TRUSTED_HOST=pypi.tuna.tsinghua.edu.cn
 WORKDIR /app
 
 COPY pyproject.toml README.md ./
-RUN pip install --no-cache-dir hatchling && \
+RUN pip install --no-cache-dir --default-timeout=300 --retries 10 hatchling && \
     mkdir -p src/novel_os_mcp && \
     printf "__version__ = '0.1.0'\n" > src/novel_os_mcp/__init__.py && \
-    pip install --no-cache-dir -e .
+    pip install --no-cache-dir --default-timeout=300 --retries 10 -e .
 
 COPY src ./src
 
