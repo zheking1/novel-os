@@ -20,7 +20,7 @@ async def review_start_job(
 ) -> dict[str, Any]:
     """启动审核任务。必须传入 chapter_content（章节全文），系统不存全文，需 agent 从 pipeline.generate 结果中提取传入。"""
     principal = await get_principal("write")
-    logger.info("review_start_job called")
+    logger.info("review.start_job: ws=%s prj=%s ch=%d dims=%s content_len=%d", workspace, project, chapter_no, dimensions, len(chapter_content or ""))
     validate_required(locals(), "workspace", "project", "chapter_no", "dimensions")
     project_id = await auth.resolve_project_id(workspace, project, principal, access="write")
     if "ai_detection" not in dimensions:

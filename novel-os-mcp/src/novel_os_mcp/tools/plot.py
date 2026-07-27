@@ -169,7 +169,7 @@ async def plot_thread_advance(
 ) -> dict[str, Any]:
     """推进情节线到指定章节。更新进度、状态和预期下一章。"""
     principal = await get_principal("write")
-    logger.info("plot_thread_advance called")
+    logger.info("plot.thread.advance: ws=%s prj=%s key=%s ch=%d", workspace, project, key, chapter_no)
     validate_required(locals(), "workspace", "project", "key")
     project_id = await auth.resolve_project_id(workspace, project, principal, access="write")
     return await plot_service.advance_plot_thread(
@@ -267,7 +267,7 @@ async def plot_upsert_foreshadowing(
 ) -> dict[str, Any]:
     """创建或更新伏笔。管理伏笔的埋设、关联、回收和层级关系。"""
     principal = await get_principal("write")
-    logger.info("plot_upsert_foreshadowing called")
+    logger.info("plot.upsert_foreshadowing: ws=%s prj=%s key=%s title=%s status=%s", workspace, project, key, title, status)
     validate_required(locals(), "key", "title")
     project_id = await auth.resolve_project_id(workspace, project, principal, access="write")
     return await plot_service.upsert_foreshadowing(

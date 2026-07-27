@@ -20,7 +20,8 @@ async def arc_record_emotion(
     intensity: float,
     cause: str | None = None,
 ) -> dict[str, Any]:
-    """记录角色情感状态。用于追踪角色在特定章节的情感变化，包含情感类型、强度和触发原因。"""
+    """记录角色的情绪状态变化。"""
+    logger.info("arc.record_emotion: ws=%s prj=%s ch=%d char=%s emotion=%s intensity=%.2f", workspace, project, chapter_no, character_name, emotion, intensity)
     principal = await get_principal("write")
     project_id = await auth.resolve_project_id(workspace, project, principal, access="write")
     logger.info("arc.record_emotion called")
@@ -47,7 +48,8 @@ async def arc_record_relationship(
     new_relation: str,
     cause: str | None = None,
 ) -> dict[str, Any]:
-    """记录角色关系变化。追踪两个角色之间关系的转变，记录旧关系、新关系及变化原因。"""
+    """记录角色关系变化。"""
+    logger.info("arc.record_relationship: ws=%s prj=%s ch=%d char=%s target=%s %s->%s", workspace, project, chapter_no, character_name, target_name, old_relation, new_relation)
     principal = await get_principal("write")
     project_id = await auth.resolve_project_id(workspace, project, principal, access="write")
     logger.info("arc.record_relationship called")
@@ -73,8 +75,10 @@ async def arc_record_power(
     old_level: str,
     new_level: str,
     method: str | None = None,
+    note: str | None = None,
 ) -> dict[str, Any]:
-    """记录角色实力等级变化。追踪修为/技能等级的提升或降低，记录变化方式。"""
+    """记录角色实力变化。"""
+    logger.info("arc.record_power: ws=%s prj=%s ch=%d char=%s %s->%s", workspace, project, chapter_no, character_name, old_level, new_level)
     principal = await get_principal("write")
     project_id = await auth.resolve_project_id(workspace, project, principal, access="write")
     logger.info("arc.record_power called")
@@ -101,7 +105,8 @@ async def arc_record_personality(
     new_value: Any,
     reason: str | None = None,
 ) -> dict[str, Any]:
-    """记录角色性格特质变化。追踪性格特征从旧值到新值的转变，记录变化原因。"""
+    """记录角色性格变化。"""
+    logger.info("arc.record_personality: ws=%s prj=%s ch=%d char=%s trait=%s", workspace, project, chapter_no, character_name, trait)
     principal = await get_principal("write")
     project_id = await auth.resolve_project_id(workspace, project, principal, access="write")
     logger.info("arc.record_personality called")
@@ -649,8 +654,8 @@ async def pacing_record_emotion(
         pacing_type: 节奏类型，必须是: buildup/climax/breather/transition/climax_buildup/resolution/normal
     """
     principal = await get_principal("write")
+    logger.info("pacing.record_emotion: ws=%s prj=%s ch=%d tension=%.2f emotion=%s intensity=%.2f type=%s", workspace, project, chapter_no, tension, emotion, emotion_intensity, pacing_type)
     project_id = await auth.resolve_project_id(workspace, project, principal, access="write")
-    logger.info("pacing.record_emotion called")
     validate_required(locals(), "workspace", "project", "project_id", "chapter_no", "tension", "emotion", "emotion_intensity")
 
     # Auto-clamp values to valid range
@@ -1469,17 +1474,17 @@ async def pipeline_generate(
         生成结果，包含 text、model、usage 等
     """
     principal = await get_principal("write")
-    logger.info("pipeline_generate called: task=%s ch=%d", task_type, chapter_no)
+    logger.info("pipeline.generate: ws=%s prj=%s ch=%d task=%s save_pass=%s has_content=%s", workspace, project, chapter_no, task_type, save_pass, bool(content))
     validate_required(locals(), "workspace", "project", "chapter_no")
     project_id = await auth.resolve_project_id(workspace, project, principal, access="write")
 
-# AI 工具已提供内容 → 直接保存，跳过 LLM
-        if content:
-            result = {
-                "text": content,
-                "model": "ai_tool",
-                "usage": {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0},
-            }
+    # AI 工具已提供内容 → 直接保存，跳过 LLM
+    if content:
+        result = {
+            "text": content,
+            "model": "ai_tool",
+            "usage": {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0},
+        }
     else:
         # 走系统配置的模型（review/analysis 等）
         if not user_prompt:
