@@ -1473,20 +1473,13 @@ async def pipeline_generate(
     validate_required(locals(), "workspace", "project", "chapter_no")
     project_id = await auth.resolve_project_id(workspace, project, principal, access="write")
 
-    # AI 工具已提供内容 → 直接保存，跳过 LLM
-    if content:
-        result = {
-            "text": content,
-            "model": "ai_tool",
-            "usage": {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0},
-        }
-        # Auto-extract knowledge from content
-        try:
-            extraction = await _extract_knowledge_from_content(project_id, chapter_no, content)
-            result["knowledge_extraction"] = extraction
-        except Exception as e:
-            logger.warning("Knowledge extraction failed: %s", e)
-            result["knowledge_extraction"] = {"status": "error", "reason": str(e)}
+# AI 工具已提供内容 → 直接保存，跳过 LLM
+        if content:
+            result = {
+                "text": content,
+                "model": "ai_tool",
+                "usage": {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0},
+            }
     else:
         # 走系统配置的模型（review/analysis 等）
         if not user_prompt:
