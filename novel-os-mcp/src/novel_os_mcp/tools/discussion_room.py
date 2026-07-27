@@ -630,7 +630,10 @@ async def discussion_room_apply_results(
         msg += f"，{len(schema_changes)} 条结构变更待手动处理"
     if errors:
         msg += f"，{len(errors)} 条失败"
-    return {"ok": True, "message": msg, "proposal_id": str(proposal_id), "applied": len(applied_items), "schema_changes": len(schema_changes), "errors": len(errors)}
+    result = {"ok": True, "message": msg, "proposal_id": str(proposal_id), "applied": len(applied_items), "schema_changes": len(schema_changes), "errors": len(errors)}
+    # Ensure all values are JSON-safe
+    import json as _json, uuid as _uuid
+    return _json.loads(_json.dumps(result, default=lambda o: str(o) if isinstance(o, _uuid.UUID) else repr(o)))
 
 
 @mcp.tool(name="discussion_room.delete_session")
