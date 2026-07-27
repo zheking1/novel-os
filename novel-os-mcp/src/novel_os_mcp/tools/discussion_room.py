@@ -299,6 +299,44 @@ async def discussion_room_apply_results(
         except json.JSONDecodeError:
             pass
 
+    # Auto-categorize UK entries via LLM classification
+    if items:
+        uk_items = [(i, it) for i, it in enumerate(items) if {it.get("type", "knowledge")}.intersection({"knowledge", None})]
+        if uk_items:
+            cats = await db.fetch("SELECT id, slug, name, parent_id FROM ref_categories ORDER BY parent_id NULLS FIRST, name")
+            cat_list = [{"id": c["id"], "name": c["name"], "parent": c["parent_id"]} for c in cats]
+            classify_prompt = (
+                "你是知识库分类助手。已知分类列表：\n" + json.dumps(cat_list, ensure_ascii=False) +
+                "\n\n待分类条目：\n" + json.dumps(
+                    [{"index": idx, "topic": it.get("name", it.get("topic", "")), "desc": (it.get("description", it.get("content", "")) or "")[:300]}
+                     for idx, it in uk_items], ensure_ascii=False
+                ) +
+                "\n\n对每个条目，返回最佳分类ID。如果已有分类都匹配不上，建议新建分类（new_name+parent_id）。" +
+                "\n输出 JSON: [{\"index\":0,\"category_id\":\"uuid\"},{\"index\":1,\"action\":\"new\",\"parent_id\":\"uuid\",\"slug\":\"xxx\",\"name\":\"xxx\"}]"
+            )
+            # Use contributed model for classification
+            from ..deps import llm_client
+            try:
+                ctrl_models = await _pick_contributed_models(db, principal.username)
+                class_model = ctrl_models[0] if ctrl_models else "ds-v4-flash"
+                resp = await llm_client.chat_with_profile(
+                    principal.username, class_model,
+                    [{"role": "user", "content": classify_prompt}],
+                    temperature=0.1, max_tokens=2048,
+                )
+                classified = json.loads(resp.get("text", "[]").strip().lstrip("```json").rstrip("```").strip())
+                if isinstance(classified, list):
+                    classified_map = {}
+                    for cls in classified:
+                        idx = cls.get("index")
+                        if idx is not None and 0 <= idx < len(uk_items):
+                            classified_map[idx] = cls
+                    for idx, it in enumerate(uk_items):
+                        if idx in classified_map:
+                            it[1]["_classified"] = classified_map[idx]
+            except Exception:
+                pass
+
     # Extract schema changes from summary (admin review only — not executed)
     schema_changes = []
     m_schema = re.search(r'```schema\s*(\{.*?\})\s*```', row["summary"], re.DOTALL)
@@ -350,12 +388,34 @@ async def discussion_room_apply_results(
 
         try:
             if table == "universal_knowledge":
-                uk_cat = item.get("category_slug", category)[:50]
-                # Find category_id
-                cat_row = await db.fetchrow(
-                    "SELECT id FROM ref_categories WHERE slug=$1 LIMIT 1", uk_cat,
-                )
-                cat_id = cat_row["id"] if cat_row else None
+                # Use LLM-classified category if available
+                classified = item.get("_classified", {})
+                cat_id = classified.get("category_id")
+
+                # If LLM suggested new category, create it
+                if not cat_id and classified.get("action") == "new":
+                    try:
+                        new_slug = classified.get("slug", item_name[:50].replace(" ", "-"))
+                        new_name = classified.get("name", item_name[:100])
+                        new_parent = classified.get("parent_id")
+                        cat_id = str(uuid.uuid4())
+                        await db.execute(
+                            "INSERT INTO ref_categories (id, slug, name, parent_id) VALUES ($1,$2,$3,$4) ON CONFLICT (slug) DO UPDATE SET name=EXCLUDED.name",
+                            cat_id, new_slug, new_name, new_parent,
+                        )
+                    except Exception:
+                        pass
+
+                # Fallback: lookup by slug
+                if not cat_id:
+                    uk_cat = item.get("category_slug", category)[:50]
+                    cat_row = await db.fetchrow("SELECT id FROM ref_categories WHERE slug=$1 LIMIT 1", uk_cat)
+                    cat_id = cat_row["id"] if cat_row else None
+
+                # Final fallback: first-category lookup
+                if not cat_id:
+                    cat_row = await db.fetchrow("SELECT id FROM ref_categories WHERE name=$1 LIMIT 1", uk_cat)
+                    cat_id = cat_row["id"] if cat_row else None
                 # Backup
                 old = await db.fetchrow(
                     "SELECT content, summary FROM universal_knowledge WHERE topic=$1",

@@ -404,7 +404,7 @@ class KBService:
         params: list[Any] = []
         idx = 0
         for k, v in fields.items():
-            if k in ("topic", "content", "summary", "era", "source", "source_url", "status"):
+            if k in ("topic", "content", "summary", "era", "source", "source_url", "status", "category_id"):
                 idx += 1
                 set_clauses.append(f"{k} = ${idx}")
                 params.append(v)
