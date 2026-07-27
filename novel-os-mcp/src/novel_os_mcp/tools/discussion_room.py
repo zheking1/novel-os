@@ -590,6 +590,12 @@ async def _update_phase(session_id: str, phase: str, round_num: int = 0, **kwarg
     await db.execute(
         f"UPDATE discussion_sessions SET {','.join(sets)} WHERE id=$1", *params,
     )
+    # 讨论室完成后，自动同步关联的 review_job 状态
+    if phase == "completed" and kwargs.get("status") == "completed":
+        await db.execute(
+            "UPDATE review_jobs SET status = 'aggregated', aggregated_at = NOW(), updated_at = NOW() WHERE session_id = $1",
+            session_id,
+        )
 
 
 async def _query_data(project_id: str, source: str, **filters) -> list[dict]:
