@@ -121,9 +121,17 @@ async def novel_wizard_start() -> dict[str, Any]:
         "placeholder": "留空则用 default",
     }
     
+    # 动态加载基调选项
+    tone_rows = await db.fetch("SELECT name, slug, description FROM ref_tones WHERE is_active = true ORDER BY sort_order")
+    tone_options = [r["name"] for r in tone_rows] if tone_rows else ["热血爽文", "暗黑压抑", "轻松搞笑"]
+    questions = list(DEFAULT_QUESTIONS)
+    for q in questions:
+        if q["id"] == "tone_style":
+            q["options"] = tone_options
+
     return {
         "wizard_id": wizard_id,
-        "questions": [workspace_question, workspace_new_question] + DEFAULT_QUESTIONS,
+        "questions": [workspace_question, workspace_new_question] + questions,
         "message": "请根据以下问题收集用户信息。先询问工作区选择，完成后调用 novel.wizard.generate",
         "workflow_guide": {
             "mode": "strict",
@@ -284,39 +292,39 @@ async def novel_wizard_generate(
     }
 
 
-def _generate_rules_by_tone(tone_style: str) -> list[dict]:
-    """根据故事基调生成初始规则。"""
-    rules = [
-        {
-            "rule_type": "global",
-            "title": "禁止事项",
-            "content": "主角不能死亡，世界观设定不能自相矛盾",
-            "severity": "critical",
-        },
-    ]
-    
-    if tone_style == "热血爽文":
-        rules.append({
-            "rule_type": "style",
-            "title": "节奏控制",
-            "content": "每章必须有爽点或反转，保持高密度情节推进",
-            "severity": "warning",
-        })
-    elif tone_style == "暗黑压抑":
-        rules.append({
-            "rule_type": "style",
-            "title": "氛围营造",
-            "content": "保持压抑紧张的氛围，适当穿插希望之光避免读者弃书",
-            "severity": "info",
-        })
-    elif tone_style == "轻松搞笑":
-        rules.append({
-            "rule_type": "style",
-            "title": "幽默元素",
-            "content": "适当加入轻松幽默的对话和情节，避免过度沉重的描写",
-            "severity": "info",
-        })
-    
+async def _generate_rules_by_tone(tone_style: str) -> list[dict]:
+    """根据故事基调从 DB 加载创作规则。"""
+    # Try matching tone by name first, then slug
+    tone_row = await db.fetchrow(
+        "SELECT slug FROM ref_tones WHERE name = $1 AND is_active = true", tone_style,
+    )
+    tone_slug = tone_row["slug"] if tone_row else None
+    if not tone_slug:
+        tone_row = await db.fetchrow(
+            "SELECT slug FROM ref_tones WHERE slug = $1 AND is_active = true", tone_style,
+        )
+        tone_slug = tone_row["slug"] if tone_row else None
+
+    rules = [{
+        "rule_type": "global",
+        "title": "禁止事项",
+        "content": "主角不能死亡，世界观设定不能自相矛盾",
+        "severity": "critical",
+    }]
+
+    if tone_slug:
+        tone_rules = await db.fetch(
+            "SELECT rule_type, title, content, severity FROM ref_tone_rules WHERE tone_slug = $1 ORDER BY sort_order",
+            tone_slug,
+        )
+        for r in tone_rules:
+            rules.append({
+                "rule_type": r["rule_type"],
+                "title": r["title"],
+                "content": r["content"],
+                "severity": r.get("severity", "warning"),
+            })
+
     return rules
 
 
