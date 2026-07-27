@@ -169,9 +169,9 @@
                   ${vol.summary ? `<p class="text-sm text-gray-500 mt-2 line-clamp-2">${vol.summary}</p>` : ''}
                   <div class="flex items-center gap-4 mt-2 text-xs text-gray-400">
                     ${vol.start_chapter_no ? `<span>章节: ${vol.start_chapter_no} - ${vol.end_chapter_no || '?'}</span>` : ''}
-                    ${vol.goals && vol.goals.length ? `<span>目标: ${vol.goals.length}个</span>` : ''}
+                    ${Array.isArray(vol.goals) && vol.goals.length ? `<span>目标: ${vol.goals.length}个</span>` : ''}
                   </div>
-                  ${vol.goals && vol.goals.length ? `<div class="flex flex-wrap gap-1 mt-2">${vol.goals.slice(0, 5).map(g => `<span class="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded">${g}</span>`).join('')}${vol.goals.length > 5 ? `<span class="text-xs text-gray-400">+${vol.goals.length - 5}</span>` : ''}</div>` : ''}
+                  ${Array.isArray(vol.goals) && vol.goals.length ? `<div class="flex flex-wrap gap-1 mt-2">${vol.goals.slice(0, 5).map(g => `<span class="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded">${g}</span>`).join('')}${vol.goals.length > 5 ? `<span class="text-xs text-gray-400">+${vol.goals.length - 5}</span>` : ''}</div>` : ''}
                 </div>
                 <div class="flex items-center gap-2 ml-4">
                   <button onclick="PlotVolumesPage.editVolume('${vol.id}')" 

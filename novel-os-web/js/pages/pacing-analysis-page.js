@@ -62,8 +62,8 @@
         
         // Load pacing data
         const [curve, blueprint] = await Promise.all([
-          window.ApiClient.callTool('pacing.get_curve', { workspace: window.AppState.currentWorkspace, project: window.AppState.currentProject, volume_no: this.currentVolume }).catch(() => []),
-          window.ApiClient.callTool('pacing.get_blueprint', { workspace: window.AppState.currentWorkspace, project: window.AppState.currentProject, volume_no: this.currentVolume }).catch(() => null)
+          window.ApiClient.callTool('pacing.get_curve', { workspace: window.AppState.currentWorkspace, project: window.AppState.currentProject, project_id: projectId, volume_no: this.currentVolume }).catch(() => []),
+          window.ApiClient.callTool('pacing.get_blueprint', { workspace: window.AppState.currentWorkspace, project: window.AppState.currentProject, project_id: projectId, volume_no: this.currentVolume }).catch(() => null)
         ]);
 
         const pacingData = curve && curve.data ? curve.data : (curve?.curve || (Array.isArray(curve) ? curve : []));
@@ -112,7 +112,7 @@
               <span class="font-medium text-gray-800">${blueprint.target_tension}</span>
             </div>
           ` : ''}
-          ${blueprint.goals ? `
+          ${Array.isArray(blueprint.goals) && blueprint.goals.length > 0 ? `
             <div class="py-1">
               <span class="text-gray-600">目标:</span>
               <ul class="mt-1 ml-4 list-disc text-gray-800">

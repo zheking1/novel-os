@@ -41,7 +41,7 @@
 
         // Load arc summaries for all chars
         const arcPromises = chars.map(c => 
-          window.ApiClient.callTool('arc.get_summary_for_context', { workspace: window.AppState.currentWorkspace, project: window.AppState.currentProject, character_name: c.name, current_chapter: 999, max_tokens: 100 }).catch(() => null)
+          window.ApiClient.callTool('arc.get_summary_for_context', { workspace: window.AppState.currentWorkspace, project: window.AppState.currentProject, project_id: pid, character_name: c.name, current_chapter: 999, max_tokens: 100 }).catch(() => null)
         );
         const arcs = await Promise.all(arcPromises);
 

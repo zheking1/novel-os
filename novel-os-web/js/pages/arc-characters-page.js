@@ -71,10 +71,10 @@
 
         // Load arc data
         const [latestState, rawTimeline, rawPower, relationships] = await Promise.all([
-          window.ApiClient.callTool('arc.get_latest_state', { workspace, project, character_name: this.currentCharacter }).catch(() => null),
-          window.ApiClient.callTool('arc.get_emotion_timeline', { workspace, project, character_name: this.currentCharacter }).catch(() => []),
-          window.ApiClient.callTool('arc.get_power_progression', { workspace, project, character_name: this.currentCharacter }).catch(() => []),
-          window.ApiClient.callTool('arc.get_relationship_evolution', { workspace, project, character_name: this.currentCharacter }).catch(() => [])
+          window.ApiClient.callTool('arc.get_latest_state', { workspace, project, project_id: projectId, character_name: this.currentCharacter }).catch(() => null),
+          window.ApiClient.callTool('arc.get_emotion_timeline', { workspace, project, project_id: projectId, character_name: this.currentCharacter }).catch(() => []),
+          window.ApiClient.callTool('arc.get_power_progression', { workspace, project, project_id: projectId, character_name: this.currentCharacter }).catch(() => []),
+          window.ApiClient.callTool('arc.get_relationship_evolution', { workspace, project, project_id: projectId, character_name: this.currentCharacter }).catch(() => [])
         ]);
         const emotionTimeline = Array.isArray(rawTimeline) ? rawTimeline : (rawTimeline?.timeline || []);
         const powerProgression = Array.isArray(rawPower) ? rawPower : (rawPower?.progression || []);
