@@ -24,7 +24,7 @@
 |---------|------|
 | `next_step` | 立即执行下一步 |
 | `wait_user_confirm` | 暂停，等用户回应后继续 |
-| `wait_for_async` | 不停调该 step 的 `poll.tool`，每 `poll.interval` 秒一次，直到 `poll.field` 满足 `poll.until` 或超 `poll.max_retries` 次 |
+| `wait_for_async` | 不停调该 step 的 `poll.tool`，每 `poll.interval` 秒一次，直到 `poll.field` 满足 `poll.until` 或超 `poll.max_retries` 次。**禁止绕过，禁止手动替代，禁止等不及就跳。** |
 | `repeat_until_done` | 批量步骤，循环执行直到全部完成 |
 
 ### 条件跳转 goto_step

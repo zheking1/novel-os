@@ -1658,12 +1658,13 @@ def _build_world_steps(
                 },
                 "next": "next_step",
             },
-            {
-                "step_no": 4, "name": "等待讨论完成",
+{
+                "step_no": 8, "name": "等待讨论完成",
                 "tool": "discussion_room.get_updates",
-                "params": {"session_id": "$from_step_3"},
+                "params": {"session_id": "$from_step_7"},
                 "next": "wait_for_async",
-                "poll": {"interval": 5, "max_retries": 40, "field": "status", "until": "status == 'completed'"},
+                "poll": {"interval": 5, "max_retries": 240, "field": "status", "until": "status IN ('completed','partial')"},
+                "note": "⚠️ 禁止跳过。讨论室的设定完备性审查是必须环节，不通过不能进入下一步。等多久都要等。",
             },
             {
                 "step_no": 5, "name": "应用讨论室结果",

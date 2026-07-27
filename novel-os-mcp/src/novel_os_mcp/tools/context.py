@@ -109,6 +109,7 @@ async def workflow_prepare_chapter_context(
                 "params": {"session_id": "$from_step_7.session_id"},
                 "next": "wait_for_async",
                 "poll": {"interval": 5, "max_retries": 240, "field": "status", "until": "status IN ('completed','partial')"},
+                "note": "⚠️ 禁止跳过。审核是必须环节，不通过不能提交。等多久都要等。",
             },
             {
                 "step_no": 9, "name": "获取审核结论",
