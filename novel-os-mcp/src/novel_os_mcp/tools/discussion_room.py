@@ -46,7 +46,7 @@ async def _pick_contributed_models(db, user_id: str) -> list[str]:
             continue
         picked.append(r["profile_key"])
         seen_cores.add(core)
-        if len(picked) >= 3:
+        if len(picked) >= 4:
             break
     return picked
 
@@ -127,22 +127,46 @@ async def discussion_room_create_session(
 
 @mcp.tool(name="discussion_room.get_updates")
 async def discussion_room_get_updates(session_id: str) -> dict[str, Any]:
-    """获取讨论会话的最新状态。"""
+    """获取讨论会话的最新状态（轻量轮询，不含全量 responses）。"""
+    import datetime
     row = await db.fetchrow(
-        "SELECT * FROM discussion_sessions WHERE id = $1", session_id,
+        "SELECT status, phase, round, consensus_reached, summary, control_model, discussion_models, responses, updated_at FROM discussion_sessions WHERE id = $1", session_id,
     )
     if not row:
         return {"error": "session not found"}
+
+    resp_list = json.loads(row["responses"]) if isinstance(row["responses"], str) else (row["responses"] or [])
+    all_models = [row["control_model"]] + list(row["discussion_models"] or [])
+    model_status = {}
+    for m in all_models:
+        model_responses = [r for r in resp_list if r.get("model") == m]
+        model_status[m] = {
+            "responded": len(model_responses),
+            "last_at": model_responses[-1].get("timestamp") if model_responses else None,
+        }
+
+    # Detect stall: >3 minutes since last update, still running
+    stale_seconds = (datetime.datetime.utcnow() - row["updated_at"]).total_seconds()
+    if stale_seconds > 180 and row["status"] == "running":
+        stalled = True
+        stalled_msg = f"讨论室已 {int(stale_seconds/60)} 分钟无新响应，可能某个模型卡住了"
+    else:
+        stalled = False
+        stalled_msg = ""
+
     return {
         "session_id": session_id,
+        "status": row["status"],
         "phase": row["phase"],
         "round": row["round"],
-        "responses": row["responses"] if isinstance(row["responses"], list) else json.loads(row["responses"]),
         "consensus_reached": row["consensus_reached"],
-        "summary": row["summary"],
-        "status": row["status"],
+        "summary": row["summary"][:200] if row["summary"] else "",
         "control_model": row["control_model"],
         "discussion_models": row["discussion_models"],
+        "model_status": model_status,
+        "response_count": len(resp_list),
+        "stalled": stalled,
+        "stalled_msg": stalled_msg,
     }
 
 
