@@ -104,6 +104,7 @@
                   <option value="genres">🎨 题材策略</option>
                   <option value="relations">🔗 实体关系</option>
                   <option value="materials">📎 参考素材</option>
+                  <option value="tones">🎭 基调与文风</option>
                 </optgroup>
               </select>
               <button onclick="DiscussionRoomPage.openConfig()"
@@ -201,6 +202,7 @@
                 <option value="genres">🎨 题材策略</option>
                 <option value="relations">🔗 实体关系</option>
                 <option value="materials">📎 参考素材</option>
+                <option value="tones">🎭 基调与文风</option>
               </optgroup>
             </select>
             <select id="disc-data-category" class="w-full border rounded-lg px-3 py-2 text-sm mb-3 hidden">
