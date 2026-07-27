@@ -231,7 +231,7 @@
         document.getElementById('volume-status').value = vol.status || 'planned';
         document.getElementById('volume-summary').value = vol.summary || '';
         document.getElementById('volume-outline').value = vol.outline || '';
-        document.getElementById('volume-goals').value = (vol.goals || []).join('\n');
+        document.getElementById('volume-goals').value = (Array.isArray(vol.goals) ? vol.goals : []).join('\n');
         document.getElementById('volume-modal').classList.remove('hidden');
       } catch (error) {
         alert('加载卷失败: ' + error.message);

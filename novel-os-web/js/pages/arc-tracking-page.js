@@ -52,7 +52,7 @@
               return `
               <div class="border rounded-lg p-4">
                 <h3 class="font-semibold">${c.name}</h3>
-                <p class="text-sm text-gray-600 mt-1">${arc?.summary || arc?.content || '暂无弧光数据'}</p>
+                <p class="text-sm whitespace-pre-line text-gray-600 mt-1">${typeof arc === 'string' ? arc : (arc?.summary || arc?.content || '暂无弧光数据')}</p>
                 ${arc?.emotion ? `<span class="inline-block mt-2 px-2 py-0.5 bg-yellow-100 text-yellow-700 rounded text-xs">😊 ${arc.emotion}</span>` : ''}
                 ${arc?.power_level ? `<span class="inline-block mt-2 px-2 py-0.5 bg-green-100 text-green-700 rounded text-xs">⚡ ${arc.power_level}</span>` : ''}
               </div>`;

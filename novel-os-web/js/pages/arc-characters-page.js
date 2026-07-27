@@ -144,13 +144,19 @@
       }
       return `
         <div class="space-y-2 max-h-64 overflow-y-auto">
-          ${timeline.map(item => `
+          ${timeline.map(item => {
+            const s = item.state || {};
+            const emotion = s.emotion || item.emotion || '?';
+            const intensity = s.intensity !== undefined ? s.intensity : item.intensity;
+            return `
             <div class="flex items-center gap-3 p-2 bg-gray-50 rounded">
               <span class="text-xs text-gray-500">第${item.chapter_no}章</span>
-              <span class="font-medium">${item.emotion}</span>
-              <span class="text-xs text-gray-400">强度: ${item.intensity}/10</span>
+              <span class="font-medium">${emotion}</span>
+              <span class="text-xs text-gray-400">强度: ${intensity}/1</span>
+              ${item.change_summary ? `<span class="text-xs text-gray-500">${item.change_summary}</span>` : ''}
             </div>
-          `).join('')}
+          `;
+          }).join('')}
         </div>
       `;
     },
@@ -161,15 +167,20 @@
       }
       return `
         <div class="space-y-2 max-h-64 overflow-y-auto">
-          ${progression.map(item => `
+          ${progression.map(item => {
+            const s = item.state || {};
+            const oldLvl = s.old_level || item.old_level || '无';
+            const newLvl = s.new_level || item.new_level || '无';
+            const method = s.method || item.method;
+            return `
             <div class="flex items-center gap-3 p-2 bg-gray-50 rounded">
               <span class="text-xs text-gray-500">第${item.chapter_no}章</span>
-              <span class="text-xs text-gray-400">${item.old_level || '无'}</span>
+              <span class="text-xs text-gray-400">${oldLvl}</span>
               <span class="text-gray-400">→</span>
-              <span class="font-medium text-green-600">${item.new_level}</span>
-              ${item.method ? `<span class="text-xs text-gray-400">(${item.method})</span>` : ''}
+              <span class="font-medium text-green-600">${newLvl}</span>
+              ${method ? `<span class="text-xs text-gray-400">(${method})</span>` : ''}
             </div>
-          `).join('')}
+          `;}).join('')}
         </div>
       `;
     },
@@ -180,15 +191,20 @@
       }
       return `
         <div class="space-y-2 max-h-64 overflow-y-auto">
-          ${relationships.map(item => `
+          ${relationships.map(item => {
+            const s = item.state || {};
+            const target = s.target_name || s.target || item.target_name || item.target || '?';
+            const oldRel = s.old_relation || item.old_relation || '无';
+            const newRel = s.new_relation || item.new_relation || '无';
+            return `
             <div class="flex items-center gap-3 p-2 bg-gray-50 rounded">
-              <span class="font-medium">${item.target_name || item.target}</span>
-              <span class="text-xs text-gray-400">${item.old_relation || '无'}</span>
+              <span class="font-medium">${target}</span>
+              <span class="text-xs text-gray-400">${oldRel}</span>
               <span class="text-gray-400">→</span>
-              <span class="font-medium text-blue-600">${item.new_relation}</span>
+              <span class="font-medium text-blue-600">${newRel}</span>
               <span class="text-xs text-gray-500">第${item.chapter_no}章</span>
             </div>
-          `).join('')}
+          `;}).join('')}
         </div>
       `;
     },
