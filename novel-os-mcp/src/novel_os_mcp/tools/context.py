@@ -75,19 +75,25 @@ async def workflow_prepare_chapter_context(
                 "note": "AI 根据上下文包约束生成正文，填入 content 字段"
             },
             {
-                "step_no": 4, "name": "记录生成结果",
+                "step_no": 4, "name": "保存初稿到本地",
+                "tool": "_agent_evaluate",
+                "params": {"instruction": "将步骤3生成的初稿正文保存到本地文件。目录: chapters/第`chapter_no:02d`章/，文件名: ch`chapter_no:02d`_draft.md。保存完整正文到该路径。"},
+                "next": "next_step",
+            },
+            {
+                "step_no": 5, "name": "记录生成结果",
                 "tool": "pipeline.run_full",
                 "params": {"workspace": workspace, "project": project, "chapter_no": chapter_no, "draft_content": "$from_step_3.text"},
                 "next": "next_step",
             },
             {
-                "step_no": 5, "name": "内容校验",
+                "step_no": 6, "name": "内容校验",
                 "tool": "workflow.validate_content",
                 "params": {"workspace": workspace, "project": project, "chapter_no": chapter_no, "content": "$from_step_3.text"},
                 "next": "next_step",
             },
             {
-                "step_no": 6, "name": "启动审核",
+                "step_no": 7, "name": "启动审核",
                 "tool": "review.start_job",
                 "params": {
                     "workspace": workspace, "project": project, "chapter_no": chapter_no,
@@ -95,58 +101,64 @@ async def workflow_prepare_chapter_context(
                     "chapter_content": "$from_step_3.text",
                 },
                 "next": "next_step",
-                "note": "审核初稿全文。不通过则修订后回到步骤4重新跑（最多3轮）"
+                "note": "审核初稿全文。不通过则修订后回到步骤5重新跑"
             },
             {
-                "step_no": 7, "name": "等待审核完成",
+                "step_no": 8, "name": "等待审核完成",
                 "tool": "discussion_room.get_updates",
-                "params": {"session_id": "$from_step_6.session_id"},
+                "params": {"session_id": "$from_step_7.session_id"},
                 "next": "wait_for_async",
                 "poll": {"interval": 5, "max_retries": 240, "field": "status", "until": "status IN ('completed','partial')"},
             },
             {
-                "step_no": 8, "name": "获取审核结论",
+                "step_no": 9, "name": "获取审核结论",
                 "tool": "discussion_room.get_session",
-                "params": {"session_id": "$from_step_6.session_id"},
+                "params": {"session_id": "$from_step_7.session_id"},
                 "next": "next_step",
             },
             {
-                "step_no": 9, "name": "审核结论判定",
+                "step_no": 10, "name": "审核结论判定",
                 "tool": "_agent_evaluate",
                 "params": {
-                    "instruction": "读取步骤8返回的 status 和 responses 数组。\n如果 status='completed' 且 consensus_reached=true：进入下一步(润色)。\n如果 status='partial'：遍历 responses 中所有 role='reviewer' 的 content，提取全部审查意见，去重后分类为「已解决」「未解决」「新增」，输出结构化报告。根据「未解决」修订正文，然后跳回步骤6(review.start_job)创建新审核 session。新 session 的 topic 追加「未解决问题列表+修订后正文」。无限循环直到共识达成。"
+                    "instruction": "读取步骤9返回的 status 和 responses 数组。\n如果 status='completed' 且 consensus_reached=true：进入下一步(润色)。\n如果 status='partial'：遍历 responses 中所有 role='reviewer' 的 content，提取全部审查意见，去重后分类为「已解决」「未解决」「新增」，输出结构化报告。根据「未解决」修订正文，然后跳回步骤7(review.start_job)创建新审核 session。新 session 的 topic 追加「未解决问题列表+修订后正文」。无限循环直到共识达成。"
                 },
-                "goto_step": 6,
-                "goto_note": "跳回 step6 时 review.start_job 的 chapter_content 用修订后的最新正文，topic 追加未解决问题列表",
+                "goto_step": 7,
+                "goto_note": "跳回 step7 时 review.start_job 的 chapter_content 用修订后的最新正文，topic 追加未解决问题列表",
                 "next": "next_step",
             },
             {
-                "step_no": 10, "name": "润色终稿",
+                "step_no": 11, "name": "润色终稿",
                 "tool": "pipeline.generate",
                 "params": {"workspace": workspace, "project": project, "chapter_no": chapter_no, "task_type": "polish", "content": "$from_step_3.text"},
                 "next": "next_step",
                 "note": "审核通过后润色。content 取步骤3的初稿（如果审核中修订过，用修订后正文）"
             },
             {
-                "step_no": 11, "name": "提交章节",
+                "step_no": 12, "name": "保存终稿到本地",
+                "tool": "_agent_evaluate",
+                "params": {"instruction": "将步骤11润色后的终稿正文保存到本地文件。目录: chapters/第`chapter_no:02d`章/，文件名: ch`chapter_no:02d`_final.md。保存完整正文。"},
+                "next": "next_step",
+            },
+            {
+                "step_no": 13, "name": "提交章节",
                 "tool": "workflow.submit_chapter_commit",
                 "params": {"workspace": workspace, "project": project, "chapter_no": chapter_no, "title": "$title", "local_files": "$local_files", "commit": "$commit"},
                 "next": "next_step",
             },
             {
-                "step_no": 12, "name": "记录情绪节奏",
+                "step_no": 14, "name": "记录情绪节奏",
                 "tool": "pacing.record_emotion",
                 "params": {"workspace": workspace, "project": project, "project_id": project_id, "chapter_no": chapter_no, "tension": "$tension", "emotion": "$emotion", "emotion_intensity": "$intensity", "pacing_type": "$pacing_type"},
                 "next": "next_step",
             },
             {
-                "step_no": 13, "name": "维护角色弧光",
+                "step_no": 15, "name": "维护角色弧光",
                 "tool": "_agent_evaluate",
                 "params": {"instruction": "根据本章内容，依次调用：1) arc.record_relationship 记录角色关系变化 2) arc.record_personality 记录性格演变 3) arc.record_power 记录实力变化（如无变化可跳过）"},
                 "next": "next_step",
             },
             {
-                "step_no": 14, "name": "维护情节线/伏笔",
+                "step_no": 16, "name": "维护情节线/伏笔",
                 "tool": "_agent_evaluate",
                 "params": {"instruction": "根据本章内容：1) 调 plot.thread.advance 推进涉及的情节线 2) 调 plot.upsert_foreshadowing 记录本章新埋的伏笔 3) 调 foreshadowing.payoff 标记本章回收的伏笔"},
                 "next": "wait_user_confirm",
