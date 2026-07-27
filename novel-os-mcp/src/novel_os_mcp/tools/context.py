@@ -102,7 +102,7 @@ async def workflow_prepare_chapter_context(
                 "tool": "discussion_room.get_updates",
                 "params": {"session_id": "$from_step_6.session_id"},
                 "next": "wait_for_async",
-                "poll": {"interval": 5, "max_retries": 240, "field": "status", "until": "status == 'completed'"},
+                "poll": {"interval": 5, "max_retries": 240, "field": "status", "until": "status IN ('completed','partial')"},
             },
             {
                 "step_no": 8, "name": "获取审核结论",
@@ -114,11 +114,10 @@ async def workflow_prepare_chapter_context(
                 "step_no": 9, "name": "审核结论判定",
                 "tool": "_agent_evaluate",
                 "params": {
-                    "instruction": "读取步骤8返回的 summary 字段。如果结论是「不完备」或「需修订」：根据审核意见修订正文，跳回到步骤4(pipeline.run_full)，用修订后正文替换 draft_content 重新跑。最多循环3轮。如果结论是「完备」：进入下一步。"
+                    "instruction": "读取步骤8返回的 status 和 responses 数组。\n如果 status='completed' 且 consensus_reached=true：进入下一步(润色)。\n如果 status='partial'：遍历 responses 中所有 role='reviewer' 的 content，提取全部审查意见，去重后分类为「已解决」「未解决」「新增」，输出结构化报告。根据「未解决」修订正文，然后跳回步骤6(review.start_job)创建新审核 session。新 session 的 topic 追加「未解决问题列表+修订后正文」。无限循环直到共识达成。"
                 },
-                "goto_step": 4,
-                "goto_note": "跳回 step4 时 pipeline.run_full 的 draft_content 用修订后的最新正文",
-                "max_loops": 3,
+                "goto_step": 6,
+                "goto_note": "跳回 step6 时 review.start_job 的 chapter_content 用修订后的最新正文，topic 追加未解决问题列表",
                 "next": "next_step",
             },
             {

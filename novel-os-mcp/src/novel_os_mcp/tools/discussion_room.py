@@ -862,7 +862,7 @@ async def _run_discussion(
         proposal_system = "你是小说创作知识库专家。请输出具体、可操作的知识条目建议，包含分类归属。"
 
     objections_history = []
-    max_rounds = 10
+    max_rounds = 3
 
     for main_round in range(max_rounds):
         # Phase 2: Proposals (skip on subsequent rounds, only discuss disputes)
@@ -974,7 +974,8 @@ async def _run_discussion(
         consensus = False
 
     await _update_phase(session_id, "completed", round_num=main_round + 1,
-                        status="completed", consensus_reached=consensus,
+                        status="completed" if consensus else "partial",
+                        consensus_reached=consensus,
                         summary=summary_text)
     logger.info("Session %s completed, consensus=%s, rounds=%d", session_id, consensus, main_round + 1)
 
