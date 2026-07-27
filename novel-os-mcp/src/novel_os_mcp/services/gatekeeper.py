@@ -42,7 +42,7 @@ class GatekeeperService:
             log_entry["risk_level"], log_entry["risk_reason"],
             log_entry["auto_applied"], log_entry["created_by"],
         )
-        log_entry["id"] = row["id"]
+        log_entry["id"] = str(row["id"])
         return log_entry
 
     def _rule_based_assess(

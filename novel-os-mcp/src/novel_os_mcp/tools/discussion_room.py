@@ -271,8 +271,10 @@ async def discussion_room_apply_results(
     )
     if not row:
         return {"ok": False, "error": "session not found"}
-    if not row["consensus_reached"]:
-        return {"ok": False, "error": "尚未达成共识"}
+    if not row["consensus_reached"] and row["status"] == "partial":
+        logger.warning("apply_results with partial consensus: session=%s", session_id)
+    elif not row["consensus_reached"]:
+        return {"ok": False, "error": "尚未达成共识且讨论室仍在运行中，请等待完成后再试"}
     if not row["summary"]:
         return {"ok": False, "error": "总结为空"}
 
@@ -950,7 +952,7 @@ async def _run_discussion(
         proposal_system = "你是小说创作知识库专家。请输出具体、可操作的知识条目建议，包含分类归属。"
 
     objections_history = []
-    max_rounds = 3
+    max_rounds = 8
 
     for main_round in range(max_rounds):
         # Phase 2: Proposals (skip on subsequent rounds, only discuss disputes)
