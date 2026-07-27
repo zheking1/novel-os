@@ -59,7 +59,7 @@ async def discussion_room_create_session(
     project: str,
     topic: str,
     model_keys: list[str] | None = None,
-    rate_limit_delay: float = 1.5,
+    rate_limit_delay: float = 3.0,
     rate_limit_retries: int = 3,
     data_source: str = "knowledge-entries",
     data_category: str | None = None,
@@ -216,7 +216,7 @@ async def discussion_room_resume_session(
     project: str,
     session_id: str,
     new_topic: str = "",
-    rate_limit_delay: float = 1.5,
+    rate_limit_delay: float = 3.0,
     rate_limit_retries: int = 3,
 ) -> dict[str, Any]:
     """从断点继续讨论。new_topic 可选，传入用户新增的问题。"""
@@ -1043,22 +1043,30 @@ async def _continue_discussion(
 async def _call(
     user_id: str, model: str, messages: list[dict], delay: float, max_retries: int,
 ) -> dict:
-    """调用模型，带限流和重试。"""
+    """调用模型，带指数退避和无限 429 重试。"""
     import asyncio
-    for attempt in range(max_retries + 1):
+    attempt = 0
+    while True:
         try:
             return await llm_client.chat_with_profile(
                 user_id, model, messages, temperature=0.3, max_tokens=4096,
             )
         except Exception as e:
             err = str(e)
-            if "429" in err and attempt < max_retries:
-                wait = 10 * (attempt + 1)
+            if "429" in err:
+                wait = min(10 * (2 ** attempt), 120)  # 10s, 20s, 40s, 80s, 120s...
                 logger.warning("429 for %s, retry %d after %ds", model, attempt + 1, wait)
                 await asyncio.sleep(wait)
-            else:
-                logger.warning("Model %s failed: %s", model, err)
-                return {"text": f"[模型调用失败: {err[:100]}]"}
+                attempt += 1
+                continue
+            # Non-429 errors: retry up to max_retries
+            if attempt < max_retries:
+                wait = 3 * (attempt + 1)
+                logger.warning("Model %s failed (attempt %d): %s", model, attempt + 1, err)
+                await asyncio.sleep(wait)
+                attempt += 1
+                continue
+            logger.warning("Model %s failed after %d retries: %s", model, max_retries + 1, err)
+            return {"text": f"[模型调用失败: {err[:100]}]"}
         finally:
             await asyncio.sleep(delay)
-    return {"text": "[重试耗尽]"}
