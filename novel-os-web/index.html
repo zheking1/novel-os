@@ -941,6 +941,9 @@ case 'system-evolution':
         case 'style-profiles':
           window.StyleProfilesPage?.init() || showPlaceholder(t('nav.styleProfiles'));
           break;
+        case 'tone-management':
+          window.ToneManagementPage?.init() || showPlaceholder(t('nav.toneManagement'));
+          break;
         case 'workspace-manage':
           window.WorkspaceManagePage?.init() || showPlaceholder(t('nav.workspaceManage'));
           break;
