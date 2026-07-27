@@ -1448,14 +1448,14 @@ async def pipeline_generate(
     max_tokens: int = 4096,
     save_pass: bool = True,
 ) -> dict[str, Any]:
-    """记录生成内容到系统。
+    """记录生成内容到系统。正文保存在用户本地，此处只存 200 字摘要。
 
     两条路径二选一：
-    1. 传 content — AI 自行生成的内容，系统只存摘要/字数
+    1. 传 content — 系统提取 200 字摘要（超出部分截断），统计字数存 generation_passes
     2. 传 user_prompt — 系统调用配置的模型生成
 
     Args:
-        content: AI 工具已生成的内容（与 user_prompt 二选一，至少传一个）
+        content: 章节摘要或正文（仅前 200 字入库，全文存本地）
         user_prompt: 用户提示词（与 content 二选一，至少传一个）
 
     Args:

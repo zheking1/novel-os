@@ -604,7 +604,7 @@ async def discussion_room_apply_results(
         msg += f"，{len(schema_changes)} 条结构变更待手动处理"
     if errors:
         msg += f"，{len(errors)} 条失败"
-    return {"ok": True, "message": msg, "proposal_id": proposal_id, "applied": len(applied_items), "schema_changes": len(schema_changes), "errors": len(errors)}
+    return {"ok": True, "message": msg, "proposal_id": str(proposal_id), "applied": len(applied_items), "schema_changes": len(schema_changes), "errors": len(errors)}
 
 
 @mcp.tool(name="discussion_room.delete_session")

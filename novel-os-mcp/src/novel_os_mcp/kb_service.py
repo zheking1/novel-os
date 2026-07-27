@@ -388,7 +388,7 @@ class KBService:
             INSERT INTO universal_knowledge
                 (category_id, topic, content, summary, structured_data, era,
                  year_range, genre_tags, source, source_url, reliability, tags)
-            VALUES ($1,$2,$3,$4,$5::jsonb,$6,$7,$8,$9,$10,$11,$12)
+            VALUES ($1,$2,$3,$4,$5::jsonb,$6,$7::int[],$8,$9,$10,$11,$12)
             RETURNING id::text, topic, summary, era, year_range, genre_tags,
                       source, reliability, status, created_at
             """,

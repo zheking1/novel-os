@@ -1525,6 +1525,7 @@ async def novel_wizard_build_world(
     existing_chapters = await db.fetchval("SELECT COUNT(*) FROM chapters WHERE project_id = $1", project_id) or 0
     existing_kb = await db.fetchval("SELECT COUNT(*) FROM project_knowledge WHERE project_id = $1", project_id) or 0
     existing_foreshadowing = await db.fetchval("SELECT COUNT(*) FROM foreshadowing WHERE project_id = $1", project_id) or 0
+    existing_plans = await db.fetchval("SELECT COUNT(*) FROM chapter_plans WHERE project_id = $1", project_id) or 0
 
     phase = 1
     if existing_volumes > 0:
@@ -1533,7 +1534,7 @@ async def novel_wizard_build_world(
         phase = 3
     if existing_entities > 3 and existing_foreshadowing > 2 and existing_chapters == 0:
         phase = 4
-    if existing_chapters > 0:
+    if existing_plans > 0 and existing_chapters == 0:
         phase = 5
 
     # 查询卷列表（用于阶段3确定当前卷）
@@ -1794,9 +1795,9 @@ def _build_world_steps(
                 "step_no": 1, "name": "跨卷全局检查",
                 "tool": "_agent_evaluate",
                 "params": {
-                    "instruction": f"对「{title}」的 {existing_volumes} 卷进行全局一致性检查：\n1. 逐个角色检查成长弧线是否完整\n2. 逐个伏笔检查是否有回收计划\n3. 逐卷检查世界规则是否有矛盾\n4. 列出所有遗漏和矛盾\n5. 补全后输出完成报告"
+                    "instruction": f"对「{title}」的 {existing_volumes} 卷进行全局一致性检查：\n1. 逐个角色检查成长弧线是否完整\n2. 逐个伏笔检查是否有回收计划\n3. 逐卷检查世界规则是否有矛盾\n4. 列出所有遗漏和矛盾\n5. 补全后输出完成报告，然后进入下一步"
                 },
-                "next": "wait_user_confirm",
+                "next": "next_step",
             },
             {
                 "step_no": 2, "name": "重新调用 build_world 推进到下一阶段",

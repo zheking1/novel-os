@@ -278,7 +278,19 @@ async def state_relationship_upsert(
     source_commit_id: str | None = None,
     metadata: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
-    """创建或更新实体间关系。定义关系类型、态度和强度，支持视角控制。"""
+    """创建或更新实体间关系。至少传入 (source_entity_id) 或 (source_entity_type+source_name) 来标识源实体。target 同理。
+
+    Args:
+        relation_type: 关系类型，如 主从/盟友/敌对/师徒/亲缘/恋慕
+        source_entity_id: 源实体 UUID（优先）
+        source_entity_type: 源实体类型，如 character/location/faction
+        source_name: 源实体名称
+        target_entity_id: 目标实体 UUID（优先）
+        target_entity_type: 目标实体类型
+        target_name: 目标实体名称
+        attitude: 关系态度，如 忠诚/友善/中立/敌意/仇恨
+        intensity: 关系强度 0.0-1.0
+    """
     principal = await get_principal("write")
     logger.info("state_relationship_upsert called")
     validate_required(locals(), "workspace", "project")
