@@ -912,6 +912,7 @@ async def _run_discussion(
         "genres": "本次讨论的数据来源是「题材策略」。\n数据表: genre_knowledge_config + genre_canonical\n结构: NEED: schema table=genre_knowledge_config\n结构: NEED: schema table=genre_canonical",
         "relations": "本次讨论的数据来源是「实体关系」。\n数据表: knowledge_entities + knowledge_relations\n结构: NEED: schema table=knowledge_relations",
         "materials": "本次讨论的数据来源是「参考素材」。\n数据表: reference_materials + reference_sources\n结构: NEED: schema table=reference_materials",
+        "tones": "本次讨论的数据来源是「基调与文风」。\n数据表: ref_tones + ref_tone_rules + system_style_profiles\n结构: NEED: schema table=ref_tones\n结构: NEED: schema table=ref_tone_rules\n结构: NEED: schema table=system_style_profiles",
     }
     source_context = source_hints.get(data_source, source_hints["knowledge-entries"])
 

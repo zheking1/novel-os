@@ -17,6 +17,7 @@
     genres: { label: '题材策略', hint: 'NEED: schema table=genre_knowledge_config  # 题材配置\nNEED: schema table=genre_canonical  # 题材类型' },
     relations: { label: '实体关系', hint: 'NEED: entities entity_type=角色  # 实体\nNEED: schema table=knowledge_relations' },
     materials: { label: '参考素材', hint: 'NEED: schema table=reference_materials' },
+    tones: { label: '基调与文风', hint: 'NEED: schema table=ref_tones  # 基调定义\nNEED: schema table=ref_tone_rules  # 基调规则\nNEED: schema table=system_style_profiles  # 文风档案' },
   };
 
   function getCategoryHint(catSlug) {
