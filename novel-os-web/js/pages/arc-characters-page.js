@@ -126,14 +126,16 @@
       const labels = { emotion: '😊 情感', power: '⚡ 实力', relationship: '🤝 关系', personality: '🧠 性格' };
       return `
         <div class="space-y-3 text-sm">
-          ${Object.entries(arcState).map(([type, data]) => `
+          ${Object.entries(arcState).map(([type, data]) => {
+            const dataState = typeof data.state === 'string' ? (JSON.parse(data.state) || {}) : (data.state || {});
+            return `
             <div class="p-2 bg-gray-50 rounded">
               <div class="font-medium text-gray-700">${labels[type] || type}</div>
               <div class="text-xs text-gray-500 mt-1">第${data.chapter_no || '?'}章</div>
               ${data.change_summary ? `<div class="text-xs text-gray-600 mt-1">${data.change_summary}</div>` : ''}
-              ${data.state && Object.keys(data.state).length ? `<div class="text-xs text-gray-400 mt-1">${Object.entries(data.state).map(([k, v]) => `${k}: ${v}`).join(' | ')}</div>` : ''}
+              ${Object.keys(dataState).length ? `<div class="text-xs text-gray-400 mt-1">${Object.entries(dataState).map(([k, v]) => `${k}: ${v}`).join(' | ')}</div>` : ''}
             </div>
-          `).join('')}
+          `;}).join('')}
         </div>
       `;
     },
@@ -145,7 +147,7 @@
       return `
         <div class="space-y-2 max-h-64 overflow-y-auto">
           ${timeline.map(item => {
-            const s = item.state || {};
+            const s = typeof item.state === 'string' ? (JSON.parse(item.state) || {}) : (item.state || {});
             const emotion = s.emotion || item.emotion || '?';
             const intensity = s.intensity !== undefined ? s.intensity : item.intensity;
             return `
@@ -168,7 +170,7 @@
       return `
         <div class="space-y-2 max-h-64 overflow-y-auto">
           ${progression.map(item => {
-            const s = item.state || {};
+            const s = typeof item.state === 'string' ? (JSON.parse(item.state) || {}) : (item.state || {});
             const oldLvl = s.old_level || item.old_level || '无';
             const newLvl = s.new_level || item.new_level || '无';
             const method = s.method || item.method;
@@ -192,7 +194,7 @@
       return `
         <div class="space-y-2 max-h-64 overflow-y-auto">
           ${relationships.map(item => {
-            const s = item.state || {};
+            const s = typeof item.state === 'string' ? (JSON.parse(item.state) || {}) : (item.state || {});
             const target = s.target_name || s.target || item.target_name || item.target || '?';
             const oldRel = s.old_relation || item.old_relation || '无';
             const newRel = s.new_relation || item.new_relation || '无';
