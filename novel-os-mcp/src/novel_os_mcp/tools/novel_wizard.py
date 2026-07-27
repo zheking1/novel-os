@@ -1624,6 +1624,7 @@ def _build_world_steps(
                 "batch": True,
                 "params": {"workspace": ws_slug, "project": prj_slug},
                 "params_from": "step_1_result",
+                "note": "必须填写 start_chapter_no 和 end_chapter_no（如第1卷: 1-25章）。每卷章节范围不重叠。",
                 "next": "repeat_until_done",
             },
             {
@@ -1716,7 +1717,7 @@ def _build_world_steps(
                 "batch": True,
                 "params": {"entity_type": "character", "workspace": ws_slug, "project": prj_slug, "project_id": project_id},
                 "params_from": "step_1_confirmed",
-                "note": "每次调用必须填: name, summary(50-200字描述角色作用和特点), importance(high/medium/low), profile(json{age,appearance,personality,background,skills})。建议填: aliases[], tags[], description",
+                "note": "每次调用必须填: name, summary(50-200字描述角色作用和特点), importance(high/medium/low), profile(json{age,appearance,personality,background,skills}), first_seen_chapter_no(本卷起始章节号), first_seen_volume_no(当前卷号)。建议填: aliases[], tags[], description",
                 "next": "repeat_until_done",
             },
             {
@@ -1725,7 +1726,7 @@ def _build_world_steps(
                 "batch": True,
                 "params": {"entity_type": "location", "workspace": ws_slug, "project": prj_slug, "project_id": project_id},
                 "params_from": "step_1_confirmed",
-                "note": "每次调用必须填: name, summary(地点描述和故事作用), importance, description(详细环境描写)",
+                "note": "每次调用必须填: name, summary(地点描述和故事作用), importance, first_seen_chapter_no, first_seen_volume_no, description(详细环境描写)",
                 "next": "repeat_until_done",
             },
             {
@@ -1734,7 +1735,7 @@ def _build_world_steps(
                 "batch": True,
                 "params": {"entity_type": "faction", "workspace": ws_slug, "project": prj_slug, "project_id": project_id},
                 "params_from": "step_1_confirmed",
-                "note": "每次调用必须填: name, summary(势力目标和特点), importance, description(组织结构/历史背景)。profile(json{members,territory,goals})",
+                "note": "每次调用必须填: name, summary(势力目标和特点), importance, first_seen_chapter_no, first_seen_volume_no, description(组织结构/历史背景)。profile(json{members,territory,goals})",
                 "next": "repeat_until_done",
             },
             {
