@@ -1874,3 +1874,76 @@ async def _create_world_state(
         )
     except Exception as e:
         logger.warning(f"Failed to create world state: {e}")
+
+# ===== Tone Management Tools =====
+
+@mcp.tool(name="tone.list")
+async def tone_list() -> list[dict[str, Any]]:
+    """列出所有基调及其关联规则。"""
+    principal = await get_principal("read")
+    tones = await db.fetch("SELECT id::text, slug, name, description, is_active, sort_order FROM ref_tones ORDER BY sort_order")
+    result = []
+    for t in tones:
+        rules = await db.fetch(
+            "SELECT id::text, rule_type, title, content, severity, sort_order FROM ref_tone_rules WHERE tone_slug = $1 ORDER BY sort_order",
+            t["slug"],
+        )
+        result.append({**dict(t), "rules": [dict(r) for r in rules]})
+    return result
+
+@mcp.tool(name="tone.upsert")
+async def tone_upsert(
+    slug: str,
+    name: str,
+    description: str = "",
+    is_active: bool = True,
+    sort_order: int = 0,
+) -> dict[str, Any]:
+    """创建或更新基调。"""
+    principal = await get_principal("admin")
+    await db.execute(
+        """INSERT INTO ref_tones (slug, name, description, is_active, sort_order)
+           VALUES ($1,$2,$3,$4,$5)
+           ON CONFLICT (slug) DO UPDATE SET name=$2, description=$3, is_active=$4, sort_order=$5""",
+        slug, name, description, is_active, sort_order,
+    )
+    return {"ok": True, "slug": slug}
+
+@mcp.tool(name="tone.delete")
+async def tone_delete(slug: str) -> dict[str, Any]:
+    """删除基调及其关联规则。"""
+    principal = await get_principal("admin")
+    await db.execute("DELETE FROM ref_tone_rules WHERE tone_slug = $1", slug)
+    await db.execute("DELETE FROM ref_tones WHERE slug = $1", slug)
+    return {"ok": True, "deleted": slug}
+
+@mcp.tool(name="tone.rule.upsert")
+async def tone_rule_upsert(
+    tone_slug: str,
+    rule_type: str,
+    title: str,
+    content: str,
+    severity: str = "warning",
+    sort_order: int = 0,
+    rule_id: str | None = None,
+) -> dict[str, Any]:
+    """创建或更新基调关联规则。"""
+    principal = await get_principal("admin")
+    if rule_id:
+        await db.execute(
+            "UPDATE ref_tone_rules SET rule_type=$1, title=$2, content=$3, severity=$4, sort_order=$5 WHERE id=$6",
+            rule_type, title, content, severity, sort_order, rule_id,
+        )
+    else:
+        await db.execute(
+            "INSERT INTO ref_tone_rules (tone_slug, rule_type, title, content, severity, sort_order) VALUES ($1,$2,$3,$4,$5,$6)",
+            tone_slug, rule_type, title, content, severity, sort_order,
+        )
+    return {"ok": True}
+
+@mcp.tool(name="tone.rule.delete")
+async def tone_rule_delete(rule_id: str) -> dict[str, Any]:
+    """删除基调规则。"""
+    principal = await get_principal("admin")
+    await db.execute("DELETE FROM ref_tone_rules WHERE id = $1", rule_id)
+    return {"ok": True, "deleted": rule_id}

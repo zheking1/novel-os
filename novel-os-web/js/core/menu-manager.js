@@ -151,6 +151,7 @@
               { id: 'knowledge-graph', labelKey: 'nav.knowledgeGraph', icon: '🕸️', path: '/knowledge/graph' },
               { id: 'knowledge-stats', labelKey: 'nav.knowledgeStats', icon: '📊', path: '/knowledge/stats' },
               { id: 'style-profiles', labelKey: 'nav.styleProfiles', icon: '📋', path: '/knowledge/style-profiles' },
+              { id: 'tone-management', labelKey: 'nav.toneManagement', icon: '🎭', path: '/knowledge/tone-management' },
               { id: 'style-analysis', labelKey: 'nav.styleAnalysis', icon: '🔬', path: '/knowledge/style-analysis' },
               { id: 'style-drift', labelKey: 'nav.styleDrift', icon: '📊', path: '/knowledge/style-drift' },
               { id: 'category-manage', labelKey: 'category.title', icon: '📂', path: '/knowledge/category' }
