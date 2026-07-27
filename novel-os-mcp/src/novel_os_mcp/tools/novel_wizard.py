@@ -1714,6 +1714,7 @@ def _build_world_steps(
                 "batch": True,
                 "params": {"entity_type": "character", "workspace": ws_slug, "project": prj_slug, "project_id": project_id},
                 "params_from": "step_1_confirmed",
+                "note": "每次调用必须填: name, summary(50-200字描述角色作用和特点), importance(high/medium/low), profile(json{age,appearance,personality,background,skills})。建议填: aliases[], tags[], description",
                 "next": "repeat_until_done",
             },
             {
@@ -1722,6 +1723,7 @@ def _build_world_steps(
                 "batch": True,
                 "params": {"entity_type": "location", "workspace": ws_slug, "project": prj_slug, "project_id": project_id},
                 "params_from": "step_1_confirmed",
+                "note": "每次调用必须填: name, summary(地点描述和故事作用), importance, description(详细环境描写)",
                 "next": "repeat_until_done",
             },
             {
@@ -1730,6 +1732,7 @@ def _build_world_steps(
                 "batch": True,
                 "params": {"entity_type": "faction", "workspace": ws_slug, "project": prj_slug, "project_id": project_id},
                 "params_from": "step_1_confirmed",
+                "note": "每次调用必须填: name, summary(势力目标和特点), importance, description(组织结构/历史背景)。profile(json{members,territory,goals})",
                 "next": "repeat_until_done",
             },
             {
@@ -1738,6 +1741,7 @@ def _build_world_steps(
                 "batch": True,
                 "params": {"workspace": ws_slug, "project": prj_slug},
                 "params_from": "step_1_confirmed",
+                "note": "必填: key(英文标识), title, importance(high/medium/low), layer(visible/hidden/deep)。付费伏笔填 must_payoff=true 和 payoff_deadline_chapter",
                 "next": "repeat_until_done",
             },
             {

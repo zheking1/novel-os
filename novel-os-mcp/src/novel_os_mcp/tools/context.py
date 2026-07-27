@@ -120,7 +120,7 @@ async def workflow_prepare_chapter_context(
                 "step_no": 10, "name": "审核结论判定",
                 "tool": "_agent_evaluate",
                 "params": {
-                    "instruction": "读取步骤9返回的 status 和 responses 数组。\n\n如果 status='partial'：遍历 responses 中所有 role='reviewer' 的 content，提取全部审查意见，去重后分类为「已解决」「未解决」「新增」，输出结构化报告。根据「未解决」修订正文，然后跳回步骤7(review.start_job)创建新审核 session。新 session 的 topic 追加「未解决问题列表+修订后正文」。无限循环直到共识达成。\n\n如果 status='completed' 且 consensus_reached=true：【必须先执行审核补充项，再进入下一步】。读取 summary 和 responses 中所有 role='reviewer' 的 content，提取所有「需补充」「需创建」「建议添加」的设定项，逐条执行：缺角色→调 state.entity.upsert，缺地点→调 state.entity.upsert，缺伏笔→调 plot.upsert_foreshadowing，需正文微调→直接改动用 pipeline.generate 保存修订版。全部补充完成后才进入下一步(润色)。禁止跳过补充直接润色。"
+                    "instruction": "读取步骤9返回的 status 和 responses 数组。\n\n如果 status='partial'：遍历 responses 中所有 role='reviewer' 的 content，提取全部审查意见，去重后分类为「已解决」「未解决」「新增」，输出结构化报告。根据「未解决」修订正文，然后跳回步骤7(review.start_job)创建新审核 session。新 session 的 topic 追加「未解决问题列表+修订后正文」。无限循环直到共识达成。\n\n如果 status='completed' 且 consensus_reached=true：【必须先执行审核补充项，再进入下一步】。读取 summary 和 responses 中所有 role='reviewer' 的 content，提取所有「需补充」「需创建」「建议添加」的设定项，逐条执行：缺角色→调 state.entity.upsert(必须填name/summary/importance/profile)，缺地点→调 state.entity.upsert(必须填name/summary/importance)，缺伏笔→调 plot.upsert_foreshadowing(必须填key/title/importance/layer)，需正文微调→直接改动用 pipeline.generate 保存修订版。全部补充完成后才进入下一步(润色)。禁止跳过补充直接润色。"
                 },
                 "goto_step": 7,
                 "goto_note": "跳回 step7 时 review.start_job 的 chapter_content 用修订后的最新正文，topic 追加未解决问题列表",
@@ -160,7 +160,7 @@ async def workflow_prepare_chapter_context(
             {
                 "step_no": 16, "name": "维护情节线/伏笔",
                 "tool": "_agent_evaluate",
-                "params": {"instruction": "根据本章内容：1) 调 plot.thread.advance 推进涉及的情节线 2) 调 plot.upsert_foreshadowing 记录本章新埋的伏笔 3) 调 foreshadowing.payoff 标记本章回收的伏笔"},
+                "params": {"instruction": "根据本章内容：1) 调 plot.thread.advance 推进涉及的情节线，必须传 thread_type(main/side)、current_chapter_no、progress_note(本章进展)；缺少 thread_type 的工具调用将被拒绝。2) 调 plot.thread.upsert 创建本章新出现的情节线，必须填 key、title、thread_type、importance。3) 调 plot.upsert_foreshadowing 记录本章新埋的伏笔，必须填 key、title、importance、layer。4) 调 foreshadowing.payoff 标记本章回收的伏笔"},
                 "next": "wait_user_confirm",
             },
         ],
