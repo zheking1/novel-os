@@ -944,27 +944,36 @@ async def _run_discussion(
         review_models = ROTATION[main_round % len(ROTATION)]
         for mk in review_models:
             r = await _call(user_id, mk, [
-                {"role": "system", "content": "审阅讨论归纳。如果完全同意回复「无异议」，否则逐条指出你不同意的具体内容和理由。讨论会继续直到所有异议解决，请务必诚实地指出所有你不同意的地方。"},
+                {"role": "system", "content": "审阅讨论归纳。如果完全同意回复「无异议」，否则逐条指出你不同意的具体内容和理由。"},
                 {"role": "user", "content": f"审阅以下关于「{topic}」的讨论归纳：\n\n{interim_text}"},
             ], delay, retries)
             text = r.get("text", "")
-            # Check for explicit objection indicators first
-            has_obj = any(p in text.lower() for p in ["不同意", "有争议", "需要修改", "需要调整", "有不同意见", "持保留意见"])
-            if not has_obj:
-                # Only check approval keywords if no explicit objection found
-                has_obj = not any(kw in text.lower() for kw in ["无异议", "没有异议", "同意", "no objection", "i agree"])
+            has_obj = not any(kw in text.lower() for kw in ["无异议", "没有异议", "同意", "no objection", "i agree"])
             await _append_response(
                 session_id, "reviewer" if has_obj else "approver", mk, f"review_r{main_round+1}", text,
             )
             if has_obj:
-                objections.append(mk)
                 objection_texts.append(f"[{mk}] {text[:200]}")
             await asyncio.sleep(delay)
 
         objections_history.append(objection_texts)
 
-        if not objections:
-            # No objections → interim_summary becomes final
+        if not objection_texts:
+            # All reviewers approved → interim_summary becomes final
+            summary_text = interim_text
+            consensus = True
+            break
+
+        # Reviewers had objections — let control model make the final call
+        all_feedback = "\n".join(objection_texts)
+        verdict = await _call(user_id, control, [
+            {"role": "system", "content": "你已读完所有 reviewer 的完整反馈。请判断本章是否可以发布？只回答 YES 或 NO，然后一句话解释。"},
+            {"role": "user", "content": f"反馈汇总：\n{all_feedback}\n\n归纳草案：\n{interim_text[:1000]}"},
+        ], delay, retries)
+        verdict_text = verdict.get("text", "")
+        await _append_response(session_id, "control", control, "verdict", verdict_text)
+
+        if "YES" in verdict_text[:10].upper():
             summary_text = interim_text
             consensus = True
             break
