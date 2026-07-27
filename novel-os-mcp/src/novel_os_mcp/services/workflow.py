@@ -428,6 +428,17 @@ class WorkflowService:
                 project_id, chapter_no, title or f"第{chapter_no}章", volume_no,
             )
             chapter_id = ch_row["id"]
+        else:
+            # Update volume_no for existing chapters
+            vol_row = await self._db.fetchrow(
+                "SELECT volume_no FROM volumes WHERE project_id = $1 AND start_chapter_no <= $2 AND (end_chapter_no IS NULL OR end_chapter_no >= $2) LIMIT 1",
+                project_id, chapter_no,
+            )
+            if vol_row:
+                await self._db.execute(
+                    "UPDATE chapters SET volume_no = $1, updated_at = NOW() WHERE id = $2",
+                    vol_row["volume_no"], chapter_id,
+                )
 
         # 强制审核：检查是否有已完成（含已汇总）的审核任务
         review_count = await self._db.fetchval(
@@ -468,6 +479,14 @@ class WorkflowService:
                         """,
                         project_id, chapter_id, title,
                     )
+
+                # Backfill volume end_chapter_no
+                await conn.execute(
+                    """UPDATE volumes SET end_chapter_no = (
+                        SELECT MAX(chapter_no) FROM chapters WHERE project_id = $1 AND volume_no = volumes.volume_no
+                    ), updated_at = NOW() WHERE project_id = $1""",
+                    project_id,
+                )
 
                 # Audit log
                 await conn.execute(

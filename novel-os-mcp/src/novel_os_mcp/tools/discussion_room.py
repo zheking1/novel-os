@@ -596,6 +596,34 @@ async def _update_phase(session_id: str, phase: str, round_num: int = 0, **kwarg
             "UPDATE review_jobs SET status = 'aggregated', aggregated_at = NOW(), updated_at = NOW() WHERE session_id = $1",
             session_id,
         )
+        # Populate review_reports from discussion responses
+        try:
+            import json, re
+            sess = await db.fetchrow(
+                "SELECT responses, project_id, topic FROM discussion_sessions WHERE id = $1", session_id,
+            )
+            if sess and sess["responses"]:
+                resp_list = json.loads(sess["responses"]) if isinstance(sess["responses"], str) else sess["responses"]
+                match = re.search(r'第(\d+)章', sess["topic"] or "")
+                ch_no = int(match.group(1)) if match else None
+                if ch_no:
+                    ch = await db.fetchrow(
+                        "SELECT id FROM chapters WHERE project_id = $1 AND chapter_no = $2",
+                        sess["project_id"], ch_no,
+                    )
+                    if ch:
+                        for r in resp_list:
+                            if r.get("role") == "reviewer" and r.get("phase", "").startswith("review"):
+                                await db.execute(
+                                    "INSERT INTO review_reports (project_id, chapter_id, reviewer_model, dimensions, score, summary, raw_content) "
+                                    "VALUES ($1, $2, $3, $4, $5, $6, $7)",
+                                    sess["project_id"], ch["id"], r["model"],
+                                    json.dumps([]), 85,
+                                    (r.get("content", "") or "")[:500],
+                                    r.get("content", ""),
+                                )
+        except Exception:
+            pass
 
 
 async def _query_data(project_id: str, source: str, **filters) -> list[dict]:

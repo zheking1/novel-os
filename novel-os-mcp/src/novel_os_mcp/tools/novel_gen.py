@@ -1521,6 +1521,33 @@ async def pipeline_generate(
             },
         )
 
+        # Sync word_count to chapters
+        try:
+            await db.execute(
+                "UPDATE chapters SET word_count = $1, updated_at = NOW() WHERE project_id = $2 AND chapter_no = $3",
+                word_count, project_id, chapter_no,
+            )
+        except Exception:
+            pass
+
+        # Write chapter_summaries for drafting passes
+        if pass_type == "drafting":
+            try:
+                ch_row = await db.fetchrow(
+                    "SELECT id FROM chapters WHERE project_id = $1 AND chapter_no = $2",
+                    project_id, chapter_no,
+                )
+                if ch_row:
+                    await db.execute(
+                        """INSERT INTO chapter_summaries (project_id, chapter_id, summary_type, content)
+                           VALUES ($1, $2, 'chapter', $3)
+                           ON CONFLICT (chapter_id, summary_type) DO UPDATE
+                           SET content = EXCLUDED.content, updated_at = NOW()""",
+                        project_id, ch_row["id"], summary,
+                    )
+            except Exception:
+                pass
+
     return {
         "ok": True,
         "text": result["text"],
