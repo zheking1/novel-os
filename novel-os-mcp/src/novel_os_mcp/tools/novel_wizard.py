@@ -1747,16 +1747,24 @@ def _build_world_steps(
                 "next": "repeat_until_done",
             },
             {
-                "step_no": 6, "name": "逐章自诊报告",
+                "step_no": 6, "name": "批量创建实体关系",
+                "tool": "state.relationship.upsert",
+                "batch": True,
+                "params": {"workspace": ws_slug, "project": prj_slug},
+                "note": "根据卷纲中的人物关系创建关联。必填: source_name, target_name, relation_type(主从/盟友/敌对/亲缘), source_entity_type, target_entity_type(character/faction)。选填: attitude(忠诚/友善/敌意), intensity(0-1)",
+                "next": "repeat_until_done",
+            },
+            {
+                "step_no": 7, "name": "逐章自诊报告",
                 "tool": "_agent_evaluate",
                 "params": {
-                    "instruction": f"逐章(第{vol_info.get('start_chapter','?')}-{vol_info.get('end_chapter','?')}章)检查：每个场景所需的地点、角色、势力、伏笔是否都已创建。用 ✓/✗ 格式列出。有✗则回到步骤2补缺，全部✓则进入下一步。"
+                    "instruction": f"逐章(第{vol_info.get('start_chapter','?')}-{vol_info.get('end_chapter','?')}章)检查：每个场景所需的地点、角色、势力、伏笔、关系是否都已创建。用 ✓/✗ 格式列出。有✗则回到步骤2补缺，全部✓则进入下一步。"
                 },
                 "on_fail": "goto_step_2",
                 "next": "next_step",
             },
             {
-                "step_no": 7, "name": "启动讨论室把关",
+                "step_no": 8, "name": "启动讨论室把关",
                 "tool": "discussion_room.create_session",
                 "params": {
                     "workspace": ws_slug, "project": prj_slug,
@@ -1767,21 +1775,22 @@ def _build_world_steps(
                 "next": "next_step",
             },
             {
-                "step_no": 8, "name": "等待讨论完成",
+                "step_no": 9, "name": "等待讨论完成",
                 "tool": "discussion_room.get_updates",
-                "params": {"session_id": "$from_step_7"},
+                "params": {"session_id": "$from_step_8"},
                 "next": "wait_for_async",
-                "poll": {"interval": 5, "max_retries": 40, "field": "status", "until": "status == 'completed'"},
+                "poll": {"interval": 5, "max_retries": 240, "field": "status", "until": "status IN ('completed','partial')"},
+                "note": "⚠️ 禁止跳过。status=partial 也是有效结果，可以继续。",
             },
             {
-                "step_no": 9, "name": "读取审查结论并决定下一步",
+                "step_no": 10, "name": "读取审查结论并决定下一步",
                 "tool": "discussion_room.get_session",
-                "params": {"session_id": "$from_step_7"},
-                "condition": "summary 包含'不完备' → 回到步骤2补缺；包含'完备' → 下一步",
+                "params": {"session_id": "$from_step_8"},
+                "condition": "status='completed'且consensus=true → 继续下一卷。status='partial' → 读取responses，提取审核意见，手动补缺后继续。",
                 "next": "next_step",
             },
             {
-                "step_no": 10, "name": "重新调用 build_world 推进到下一卷或下一阶段",
+                "step_no": 11, "name": "重新调用 build_world 推进到下一卷或下一阶段",
                 "tool": "novel.wizard.build_world",
                 "params": {"workspace": ws_slug, "project": prj_slug},
                 "display_before": f"第{current_volume}卷完成：地点X个 角色Y个 势力Z个 伏笔W个（统计后填入实际数字）\nAgent诊断 ✓ / 讨论室 ✓",
