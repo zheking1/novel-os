@@ -1534,11 +1534,16 @@ async def novel_wizard_build_world(
     existing_kb = await db.fetchval("SELECT COUNT(*) FROM project_knowledge WHERE project_id = $1", project_id) or 0
     existing_foreshadowing = await db.fetchval("SELECT COUNT(*) FROM foreshadowing WHERE project_id = $1", project_id) or 0
     existing_plans = await db.fetchval("SELECT COUNT(*) FROM chapter_plans WHERE project_id = $1", project_id) or 0
+    # Check if discussion room knowledge was applied (required for Phase 2→3)
+    has_discussion_kb = await db.fetchval(
+        "SELECT COUNT(*) FROM discussion_sessions WHERE project=$1 AND status IN ('completed','partial','pending_admin') AND consensus_reached=true",
+        prj_slug
+    ) or 0
 
     phase = 1
     if existing_volumes > 0:
         phase = 2
-    if existing_kb > 3:
+    if existing_kb > 3 and has_discussion_kb > 0:
         phase = 3
     if existing_entities > 3 and existing_foreshadowing > 2 and existing_chapters == 0:
         phase = 4
