@@ -242,7 +242,7 @@ async def novel_wizard_generate(
     ]
     
     # Generate initial rules based on tone/style
-    initial_rules = _generate_rules_by_tone(tone_style)
+    initial_rules = await _generate_rules_by_tone(tone_style)
     
     # 推荐系统级配置
     recommended_configs = await _recommend_system_configs(
