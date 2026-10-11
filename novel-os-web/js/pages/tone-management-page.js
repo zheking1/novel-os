@@ -73,7 +73,7 @@
           if (!s || !n) { alert('Slug和名称必填'); return; }
           await window.ApiClient.callTool('tone.upsert', {
             slug: s, name: n,
-            description: document.getElementById('tone-description')?.value || '',
+            description: document.getElementById('tone-desc')?.value || '',
             is_active: document.getElementById('tone-active').checked,
             sort_order: parseInt(document.getElementById('tone-order').value) || 0
           });
@@ -157,9 +157,11 @@
 
     async deleteRule(id) {
       if (!confirm('确认删除此规则？')) return;
-      await window.ApiClient.callTool('tone.rule.delete', { rule_id: id });
-      // Refresh parent modal
+      // 先记住所属基调，删除后要重新打开它的规则弹窗
       const slug = this.tones.find(t => t.rules?.some(r => r.id === id))?.slug;
+      await window.ApiClient.callTool('tone.rule.delete', { rule_id: id });
+      // 重新拉取数据，否则 this.tones 仍是旧快照，被删规则会残留在列表里
+      await this.loadTones();
       if (slug) this.showRuleModal(slug);
     },
   };

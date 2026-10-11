@@ -42,6 +42,18 @@ INDEX = Path(__file__).with_name("index.html")
 SPA_INDEX = Path(__file__).with_name("spa.html")
 SESSION_COOKIE = "novel_os_web_session"
 SESSION_TTL_SECONDS = int(os.environ.get("NOVEL_OS_WEB_SESSION_TTL_SECONDS", str(7 * 24 * 3600)))
+# 管理员名单（逗号分隔）。不要把真实账号名写进仓库，部署时在 .env / 容器环境设置。
+ADMIN_USERS_ENV = os.environ.get("NOVEL_OS_ADMIN_USERS", "admin")
+
+
+def admin_usernames() -> set[str]:
+    """解析管理员名单。默认仅 admin。"""
+    return {u.strip() for u in ADMIN_USERS_ENV.split(",") if u.strip()}
+
+
+def is_admin_username(username: str | None) -> bool:
+    """管理员判定。前端读不到环境变量，统一由后端判定后随 /api/me 下发。"""
+    return bool(username) and username in admin_usernames()
 
 
 def get_db_connection():
@@ -413,6 +425,9 @@ class Handler(BaseHTTPRequestHandler):
                     "default_mcp_url": DEFAULT_MCP_URL,
                     "mcp_url": current_user_data.get("mcp_url") if current else None,
                     "has_mcp_token": bool(current_user_data.get("mcp_token")) if current else False,
+                    # 前端读不到环境变量，管理员判定统一由后端下发
+                    "is_admin": is_admin_username(current[0] if current else None),
+                    "admin_users": sorted(admin_usernames()),
                 },
             )
             return
@@ -530,14 +545,23 @@ class Handler(BaseHTTPRequestHandler):
         if mcp_token:
             set_user_mcp_token(username, mcp_token)
         cookie_header = f"{SESSION_COOKIE}={sign_session(username)}; Path=/; HttpOnly; SameSite=Lax; Max-Age={SESSION_TTL_SECONDS}"
-        self.send_json(200, {"ok": True, "username": username}, cookie_header)
+        self.send_json(
+            200,
+            {
+                "ok": True,
+                "username": username,
+                "is_admin": is_admin_username(username),
+                "admin_users": sorted(admin_usernames()),
+            },
+            cookie_header,
+        )
 
     def _create_user_token(self, username: str, user: dict) -> str | None:
         """Auto-create personal MCP token for user. Admin users get admin scope."""
         try:
             client = McpClient(DEFAULT_MCP_URL, MCP_SERVICE_TOKEN)
             # Create fresh token (admin users get admin scope)
-            is_admin = username in ("admin", "admin")
+            is_admin = is_admin_username(username)
             result = client.call_tool(
                 "auth.create_api_token",
                 {"name": f"auto_{username}", "scopes": (["admin", "read", "write"] if is_admin else ["read", "write"]), "username": username},
@@ -675,7 +699,7 @@ class Handler(BaseHTTPRequestHandler):
             self.send_json(401, {"ok": False, "error": "login required"})
             return
         _, user = current
-        if user.get("username") not in ("admin", "admin"):
+        if not is_admin_username(user.get("username")):
             self.send_json(403, {"ok": False, "error": "admin only"})
             return
         from urllib.parse import parse_qs, urlparse
@@ -694,7 +718,7 @@ class Handler(BaseHTTPRequestHandler):
             self.send_json(401, {"ok": False, "error": "login required"})
             return
         _, user = current
-        if user.get("username") not in ("admin", "admin"):
+        if not is_admin_username(user.get("username")):
             self.send_json(403, {"ok": False, "error": "admin only"})
             return
         payload = self.read_json()

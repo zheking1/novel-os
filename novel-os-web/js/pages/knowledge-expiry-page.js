@@ -22,7 +22,10 @@
     async loadData() {
       const container = document.getElementById('expiry-content');
       try {
-        const gaps = await window.ApiClient.callTool('kb.gap.list').catch(() => []);
+        // kb.gap.list 的 workspace / project 是必填参数
+        const ws = window.AppState && window.AppState.currentWorkspace;
+        const prj = window.AppState && window.AppState.currentProject;
+        const gaps = await window.ApiClient.callTool('kb.gap.list', { workspace: ws, project: prj }).catch(() => []);
         const list = Array.isArray(gaps) ? gaps : (gaps?.gaps || []);
         if (!list || list.length === 0) {
           container.innerHTML = `<div class="p-8 text-center text-gray-500">暂无知识缺口 🎉</div>`;

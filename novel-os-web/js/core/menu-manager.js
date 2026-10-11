@@ -242,8 +242,7 @@
             order: 2,
             requiresProject: false,
             items: [
-              { id: 'template-list', labelKey: 'nav.templateList', icon: '📝', path: '/system/templates' },
-              { id: 'market-browse', labelKey: 'nav.marketBrowse', icon: '🏪', path: '/system/market' }
+              { id: 'template-list', labelKey: 'nav.templateList', icon: '📝', path: '/system/templates' }
             ]
           },
           // Skill 管理

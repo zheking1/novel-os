@@ -27,8 +27,10 @@
     async loadData() {
       const container = document.getElementById('auto-search-content');
       try {
-        // List search jobs
-        const result = await window.ApiClient.callTool('kb.gap.list').catch(() => []);
+        // kb.gap.list 的 workspace / project 是必填参数，缺参会直接报错
+        const workspace = window.AppState && window.AppState.currentWorkspace;
+        const project = window.AppState && window.AppState.currentProject;
+        const result = await window.ApiClient.callTool('kb.gap.list', { workspace, project }).catch(() => []);
         this.jobs = Array.isArray(result) ? result : (result?.gaps || result?.result || []);
         this.renderJobs();
       } catch (e) {
@@ -111,7 +113,6 @@
           if (!query) { alert('请输入搜索查询'); return; }
           
           try {
-            const projectId = window.AppState.currentProjectId || window.AppState.currentProject || '';
             await window.ApiClient.callTool('kb.auto.search', {
               query,
               category_slug,
@@ -127,16 +128,15 @@
     },
 
     async executeSearch(gapId) {
+      if (!gapId) { alert('缺少缺口 ID'); return; }
       try {
-        // This would trigger the actual web search and store results
-        alert('执行搜索功能需要配置外部搜索API');
+        // 标记为已处理；真正的联网搜索由 kb.auto.search 创建的任务驱动
+        await window.ApiClient.callTool('kb.gap.resolve', { gap_id: gapId });
+        alert('已标记为已处理');
+        await this.loadData();
       } catch (e) {
-        alert('执行失败: ' + e.message);
+        alert('执行失败: ' + (e && e.message));
       }
-    },
-
-    loadData() {
-      this.loadData();
     }
   };
 })();

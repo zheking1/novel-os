@@ -21,7 +21,7 @@
       { key: 'proposal_type', header: '类型', type: 'badge', width: '80px' },
       { key: 'target_entity_type', header: '目标类型', type: 'badge', width: '100px' },
       { key: 'status', header: '状态', type: 'badge', width: '100px' },
-      { key: 'ai_review_score', header: 'AI评分', width: '80px' },
+      { key: 'ai_score', header: 'AI评分', width: '80px' },
       { key: 'created_at', header: '创建时间', type: 'date', width: '150px' }
     ],
     filters: [
@@ -295,7 +295,7 @@
                   <div class="flex items-center gap-4 mt-2 text-xs text-gray-400">
                     <span>类型: ${item.proposal_type || '-'}</span>
                     <span>目标: ${item.target_entity_type || '-'}</span>
-                    ${item.ai_review_score ? `<span>AI评分: ${item.ai_review_score}</span>` : ''}
+                    ${item.ai_score != null ? `<span>AI评分: ${item.ai_score}</span>` : '<span class="text-gray-400">AI评分: 未评分</span>'}
                     <span>${item.created_at ? new Date(item.created_at).toLocaleString() : '-'}</span>
                   </div>
                 </div>
@@ -356,7 +356,7 @@
                 <p><span class="font-medium">状态:</span> ${result.status || '-'}</p>
                 <p><span class="font-medium">类型:</span> ${result.proposal_type || '-'}</p>
                 <p><span class="font-medium">目标:</span> ${result.target_entity_type || '-'}</p>
-                ${result.ai_review_score ? `<p><span class="font-medium">AI评分:</span> ${result.ai_review_score}</p>` : ''}
+                ${result.ai_score != null ? `<p><span class="font-medium">AI评分:</span> ${result.ai_score}</p>` : '<p><span class="font-medium">AI评分:</span> <span class="text-gray-400">未评分</span></p>'}
                 ${result.ai_review_comment ? `<p><span class="font-medium">AI评语:</span> ${result.ai_review_comment}</p>` : ''}
               </div>
             </div>

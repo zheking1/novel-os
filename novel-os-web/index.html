@@ -172,7 +172,6 @@
   <script src="js/core/app-core.js?v=42"></script>
   <script src="js/core/api-client.js?v=44"></script>
   <script src="js/core/menu-manager.js?v=42"></script>
-  <script src="js/core/router.js?v=42"></script>
 
   <!-- 工具函数 -->
   <script src="js/utils/error-handler.js?v=42"></script>
@@ -208,6 +207,7 @@
   <script src="js/pages/model-profiles-page.js?v=45"></script>
   <script src="js/pages/model-routes-page.js?v=42"></script>
   <script src="js/pages/model-rate-limits-page.js?v=42"></script>
+  <script src="js/pages/model-cost-page.js?v=45"></script>
   <script src="js/pages/kb-pk-list-page.js?v=42"></script>
   <script src="js/pages/kb-uk-list-page.js?v=42"></script>
   <script src="js/pages/uk-manage-page.js?v=42"></script>
@@ -277,7 +277,8 @@
         const me = await fetch('/api/me').then(r => r.json());
         if (me.authenticated) {
           window.AppState.username = me.username;
-          window.AppState.isAdmin = me.username === 'admin' || me.username === 'admin';
+          window.AppState.isAdmin = !!(me.is_admin ?? (me.username === 'admin'));
+          window.AppState.adminUsers = me.admin_users || [];
           showApp();
           await initApp();
         } else {
@@ -359,7 +360,8 @@
         const data = await resp.json();
         if (data.ok) {
           window.AppState.username = data.username;
-          window.AppState.isAdmin = data.username === 'admin' || data.username === 'admin';
+          window.AppState.isAdmin = !!(data.is_admin ?? (data.username === 'admin'));
+          window.AppState.adminUsers = data.admin_users || [];
           showApp();
           await initApp();
         } else {
@@ -378,7 +380,7 @@
     async function waitForModules() {
       let retries = 0;
       while (retries < 50) {
-        if (window.i18n && window.AppCore && window.ApiClient && window.MenuManager && window.NovelRouter) {
+        if (window.i18n && window.AppCore && window.ApiClient && window.MenuManager) {
           console.log('[App] All modules ready');
           return;
         }
@@ -772,17 +774,8 @@
           break;
           
         // ===== 项目管理 - 本地 =====
-        case 'knowledge-pack':
-          window.KnowledgePackPage?.init() || showPlaceholder(t('nav.knowledgePack'));
-          break;
         case 'local-projects':
           window.LocalProjectsPage?.init() || showPlaceholder(t('nav.localProjects'));
-          break;
-        case 'local-chapters':
-          window.LocalChaptersPage?.init() || showPlaceholder(t('nav.localChapters'));
-          break;
-        case 'local-pipeline':
-          window.LocalPipelinePage?.init() || showPlaceholder(t('nav.localPipeline'));
           break;
           
         // ===== 知识库 =====
@@ -790,7 +783,7 @@
           window.UkManagePage?.init() || showPlaceholder(t('nav.ukManage'));
           break;
         case 'auto-search':
-          window.AutoSearchPage?.init() || showPlaceholder(t('nav.autoSearch'));
+          window.KbAutoSearchPage?.init() || showPlaceholder(t('nav.autoSearch'));
           break;
         case 'knowledge-graph':
           window.KnowledgeGraphPage?.init('global') || showPlaceholder(t('nav.knowledgeGraph'));
@@ -851,9 +844,6 @@ case 'system-evolution':
           break;
         case 'template-list':
           window.TemplateListPage?.init() || showPlaceholder(t('nav.templateList'));
-          break;
-        case 'market-browse':
-          window.MarketBrowsePage?.init() || showPlaceholder(t('nav.marketBrowse'));
           break;
         case 'skill-manage':
           window.SkillManagePage?.init() || showPlaceholder(t('nav.skillManage'));

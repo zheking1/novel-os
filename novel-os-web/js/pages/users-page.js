@@ -59,7 +59,7 @@
                 <th class="px-4 py-3 text-left font-medium text-gray-600">状态</th>
               </tr></thead>
               <tbody class="divide-y divide-gray-100">
-                ${users.map(function(u) { var isAdmin = (u.username === 'admin' || u.username === 'admin'); return '<tr class="hover:bg-gray-50"><td class="px-4 py-3 font-medium text-gray-800">' + escapeHtml(u.username) + '</td><td class="px-4 py-3 text-gray-600">' + (u.display_name || '-') + '</td><td class="px-4 py-3"><span class="px-2 py-1 text-xs rounded ' + (isAdmin ? 'bg-red-100 text-red-700' : 'bg-blue-100 text-blue-700') + '">' + (isAdmin ? '管理员' : '用户') + '</span></td><td class="px-4 py-3"><span class="px-2 py-1 text-xs rounded ' + (u.status === 'active' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500') + '">' + (u.status || 'active') + '</span></td></tr>'; }).join('')}
+                ${users.map(function(u) { var isAdmin = ((window.AppState && window.AppState.adminUsers) || ['admin']).indexOf(u.username) >= 0; return '<tr class="hover:bg-gray-50"><td class="px-4 py-3 font-medium text-gray-800">' + escapeHtml(u.username) + '</td><td class="px-4 py-3 text-gray-600">' + (u.display_name || '-') + '</td><td class="px-4 py-3"><span class="px-2 py-1 text-xs rounded ' + (isAdmin ? 'bg-red-100 text-red-700' : 'bg-blue-100 text-blue-700') + '">' + (isAdmin ? '管理员' : '用户') + '</span></td><td class="px-4 py-3"><span class="px-2 py-1 text-xs rounded ' + (u.status === 'active' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500') + '">' + (u.status || 'active') + '</span></td></tr>'; }).join('')}
               </tbody>
             </table>
           </div>`;
