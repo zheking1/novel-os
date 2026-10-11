@@ -42,13 +42,14 @@ INDEX = Path(__file__).with_name("index.html")
 SPA_INDEX = Path(__file__).with_name("spa.html")
 SESSION_COOKIE = "novel_os_web_session"
 SESSION_TTL_SECONDS = int(os.environ.get("NOVEL_OS_WEB_SESSION_TTL_SECONDS", str(7 * 24 * 3600)))
-# 管理员名单（逗号分隔）。不要把真实账号名写进仓库，部署时在 .env / 容器环境设置。
-ADMIN_USERS_ENV = os.environ.get("NOVEL_OS_ADMIN_USERS", "admin")
-
-
 def admin_usernames() -> set[str]:
-    """解析管理员名单。默认仅 admin。"""
-    return {u.strip() for u in ADMIN_USERS_ENV.split(",") if u.strip()}
+    """解析管理员名单（逗号分隔），默认仅 admin。
+
+    每次调用重新读取环境变量，避免模块导入后运行期改配置不生效。
+    不要把真实账号名写进仓库 —— 部署时在 .env / 容器环境设置 NOVEL_OS_ADMIN_USERS。
+    """
+    raw = os.environ.get("NOVEL_OS_ADMIN_USERS", "admin")
+    return {u.strip() for u in raw.split(",") if u.strip()}
 
 
 def is_admin_username(username: str | None) -> bool:

@@ -14,6 +14,29 @@ from ..tool_auth import get_principal, validate_required
 logger = logging.getLogger("novel_os_mcp.tools.system_evolution")
 
 
+def _as_dict(value: Any) -> dict:
+    """把 JSONB 列统一成 dict。
+
+    asyncpg 在未注册 codec 时会把 jsonb 解成 str，直接 .get() 会抛 AttributeError；
+    同文件其他地方已对同类列做了 str 兜底，这里统一处理。
+    """
+    if value is None:
+        return {}
+    if isinstance(value, dict):
+        return value
+    if isinstance(value, str):
+        try:
+            parsed = json.loads(value)
+        except (TypeError, ValueError):
+            return {}
+        return parsed if isinstance(parsed, dict) else {}
+    return {}
+
+
+# 持有后台任务强引用：asyncio 内部只保留弱引用，不持有会在 GC 时被取消
+_background_tasks: set = set()
+
+
 async def _schedule_ai_review() -> None:
     """触发 AI 初审队列（进程内 fire-and-forget）。
 
@@ -31,7 +54,9 @@ async def _schedule_ai_review() -> None:
         except Exception as exc:  # 队列失败不应影响主流程
             logger.warning("AI review queue run failed: %s", exc)
 
-    asyncio.create_task(_run())
+    task = asyncio.create_task(_run())
+    _background_tasks.add(task)
+    task.add_done_callback(_background_tasks.discard)
 
 
 # ============================================================================
@@ -219,7 +244,7 @@ async def system_evolution_list(
             "target_entity_type": row["target_entity_type"],
             "target_entity_key": row["target_entity_key"],
             "status": row["status"],
-            "ai_score": row["ai_review_result"].get("score") if row["ai_review_result"] else None,
+            "ai_score": _as_dict(row["ai_review_result"]).get("score"),
             "is_ai_submitted": row["ai_submitter"] is not None,
             "created_at": row["created_at"].isoformat() if row["created_at"] else None,
             "updated_at": row["updated_at"].isoformat() if row["updated_at"] else None,
@@ -670,7 +695,7 @@ async def system_evolution_get_history(
             "title": row["title"],
             "proposal_type": row["proposal_type"],
             "status": row["status"],
-            "ai_score": row["ai_review_result"].get("score") if row["ai_review_result"] else None,
+            "ai_score": _as_dict(row["ai_review_result"]).get("score"),
             "applied_version": row["applied_version"],
             "created_at": row["created_at"].isoformat() if row["created_at"] else None,
         })

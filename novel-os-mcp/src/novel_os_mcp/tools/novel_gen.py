@@ -1550,14 +1550,17 @@ async def pipeline_generate(
                 )
                 if ch_row:
                     await db.execute(
+                        # chapter_summaries 没有 updated_at 列（见 010_core_schema.sql）。
+                        # 旧写法带 updated_at = NOW() 会抛 UndefinedColumn，又被下面 except 静默吞掉，
+                        # 摘要实际一直没写进去。这里只更新 content。
                         """INSERT INTO chapter_summaries (project_id, chapter_id, summary_type, content)
                            VALUES ($1, $2, 'chapter', $3)
                            ON CONFLICT (chapter_id, summary_type) DO UPDATE
-                           SET content = EXCLUDED.content, updated_at = NOW()""",
+                           SET content = EXCLUDED.content""",
                         project_id, ch_row["id"], pass_summary,
                     )
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.warning("write chapter_summaries failed for chapter %s: %s", chapter_no, exc)
 
     ret_actions = [
         "outline→draft→polish→review 顺序推进",
