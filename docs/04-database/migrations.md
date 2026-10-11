@@ -60,6 +60,7 @@
 | 222 | 222_runtime_tables.sql | 补齐代码已读写但仓库缺失的 4 张表：`global_rules` (rule_key UNIQUE, rule_type creative/compliance/polish, source_project_id FK projects, promoted_from_rule_id FK canon_rules)、`evolution_logs` (old/new_value JSONB, proposal_id FK system_evolution_proposals)、`ref_tones` (slug UNIQUE)、`ref_tone_rules` (tone_slug，不建外键)。ALTER canon_rules +promotion_status/promoted_to_global_id/discussion_id。复用 220 的 `update_updated_at_column` 触发器 |
 | 223 | 223_rule_summaries.sql | `rule_summaries` (project_id FK projects CASCADE, rule_group, genre, summary, source_rule_ids TEXT[])，供动态规则检索方案使用，当前代码尚未引用 |
 | 224 | 224_drop_legacy_kb_tables.sql | **破坏性**。删除旧知识体系 5 张废弃表：`knowledge_tags`、`knowledge_vectors`、`setting_category_relations`、`genre_category_bindings`、`categories`。先动态解除 `knowledge_base.category_id → categories(id)` 外键，否则 DROP 会被拒绝。执行前必须逐表 `pg_dump --data-only` 备份 |
+| 225 | 225_runtime_tables_2.sql | 补齐代码已读写但仓库缺失的 4 张表：`discussion_sessions`（多模型讨论室会话，消息存 responses JSONB 数组）、`tasks`（写作任务，priority 用 CASE 排序）、`workflows`、`workflow_steps`。并 ALTER 补齐列漂移：`review_jobs` +chapter_no/session_id/aggregated_at、`review_reports` +reviewer_model/raw_content。列定义均由源码 SQL 反推 |
 
 ## Schema Evolution Summary
 
