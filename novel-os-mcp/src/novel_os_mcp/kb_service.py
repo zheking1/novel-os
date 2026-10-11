@@ -362,6 +362,27 @@ class KBService:
         )
         return rows_to_dicts(rows)
 
+    async def uk_entry_get(self, entry_id: str) -> dict | None:
+        """通过 ID 获取单条 universal_knowledge 条目详情。
+
+        与 uk_search 的区别：返回完整字段（含 structured_data、last_verified_at），
+        并额外给出 category 别名（= category_slug），便于前端详情弹窗直接消费。
+        """
+        row = await self._db.fetchrow(
+            """
+            SELECT uk.id::text, uk.topic, uk.summary, uk.content, uk.structured_data,
+                   uk.era, uk.year_range, uk.genre_tags, uk.source, uk.source_url,
+                   uk.reliability, uk.last_verified_at, uk.tags, uk.use_count, uk.status,
+                   uk.created_at, uk.updated_at,
+                   rc.slug AS category, rc.slug AS category_slug, rc.name AS category_name
+            FROM universal_knowledge uk
+            LEFT JOIN ref_categories rc ON rc.id = uk.category_id
+            WHERE uk.id = $1
+            """,
+            entry_id,
+        )
+        return row_to_dict(row) if row else None
+
     async def uk_entry_create(
         self,
         topic: str,

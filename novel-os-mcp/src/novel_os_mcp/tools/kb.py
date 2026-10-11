@@ -197,6 +197,22 @@ async def kb_uk_search(
     )
 
 
+@mcp.tool(name="kb.uk.get")
+async def kb_uk_get(entry_id: str) -> dict[str, Any]:
+    """通过 ID 获取单条 universal_knowledge 条目详情。
+
+    与 kb.uk.search 的区别：search 返回精简列表，本工具返回完整字段（含 content、
+    structured_data、来源与可信度），供详情弹窗展示。
+    """
+    principal = await get_principal(None)
+    logger.info("kb_uk_get called")
+    validate_required(locals(), "entry_id")
+    result = await kb_service.uk_entry_get(entry_id=entry_id)
+    if not result:
+        raise ValueError(f"UK 条目未找到（entry_id={entry_id}）")
+    return result
+
+
 @mcp.tool(name="kb.uk.create")
 async def kb_uk_create(
     topic: str,
@@ -407,6 +423,39 @@ async def kb_search_complete_job(
     validate_required(locals(), "job_id", "results_count", "entries_created")
     await kb_service.search_complete_job(
         job_id=job_id, results_count=results_count, entries_created=entries_created,
+    )
+
+
+@mcp.tool(name="kb.auto.search")
+async def kb_auto_search(
+    query: str,
+    workspace: str,
+    project: str,
+    category_slug: str | None = None,
+    chapter_no: int | None = None,
+    triggered_by: str = "manual",
+) -> dict[str, Any]:
+    """创建知识自动搜索任务（kb.search.create_job 的别名入口）。
+
+    只登记任务，不立即写入知识库；搜索完成后用 kb.search.complete_job 标记结果。
+
+    Args:
+        query: 搜索关键词
+        workspace / project: 项目定位
+        category_slug: 限定知识分类
+        chapter_no: 关联章节号
+        triggered_by: 触发来源，默认 manual
+
+    Returns:
+        {id, query_text, status, created_at}
+    """
+    principal = await get_principal("write")
+    project_id = await auth.resolve_project_id(workspace, project, principal, access="write")
+    logger.info("kb_auto_search called: query=%s", query)
+    validate_required(locals(), "query")
+    return await kb_service.search_create_job(
+        query_text=query, project_id=project_id,
+        category_slug=category_slug, chapter_no=chapter_no, triggered_by=triggered_by,
     )
 
 

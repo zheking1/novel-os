@@ -174,8 +174,7 @@ async def system_style_profile_fork(
         }
     """
     principal = await get_principal("write")
-    # TODO: 验证项目访问权限
-    # await auth.require_project_access(principal, project_id)
+    await auth.require_project_access(principal, project_id, access="write")
     
     validate_required(locals(), "profile_key", "project_id")
     
@@ -199,13 +198,35 @@ async def system_style_profile_fork(
         profile_data.update(customizations)
     
     # 创建项目级文风档案
-    # TODO: 需要确认项目级表结构，这里假设使用style_profiles表
+    # style_profiles 的真实列（见 203_style_fingerprint.sql）只有：
+    #   project_id / profile_name / narrative_pov / tense / tone / target_metrics
+    # 系统档案的 description / characteristics / sample_paragraphs 与来源标记
+    # 均无对应列，统一折叠进 target_metrics，避免报 UndefinedColumn。
+    import json
+
+    metrics = profile_data.get("target_metrics") or {}
+    if isinstance(metrics, str):
+        try:
+            metrics = json.loads(metrics)
+        except (TypeError, ValueError):
+            metrics = {}
+    metrics = dict(metrics)
+    metrics["_forked_from_system_key"] = profile_key
+    metrics["_description"] = profile_data.get("description")
+    metrics["_characteristics"] = profile_data.get("characteristics")
+    metrics["_sample_paragraphs"] = profile_data.get("sample_paragraphs")
+
     row = await db.fetchrow(
         """
-        INSERT INTO style_profiles 
-        (project_id, profile_name, narrative_pov, tense, tone, target_metrics,
-         description, characteristics, sample_paragraphs, forked_from_system_key)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+        INSERT INTO style_profiles
+        (project_id, profile_name, narrative_pov, tense, tone, target_metrics)
+        VALUES ($1, $2, $3, $4, $5, $6::jsonb)
+        ON CONFLICT (project_id, profile_name) DO UPDATE
+          SET narrative_pov = EXCLUDED.narrative_pov,
+              tense = EXCLUDED.tense,
+              tone = EXCLUDED.tone,
+              target_metrics = EXCLUDED.target_metrics,
+              updated_at = now()
         RETURNING id::text
         """,
         project_id,
@@ -213,11 +234,7 @@ async def system_style_profile_fork(
         profile_data["narrative_pov"],
         profile_data["tense"],
         profile_data["tone"],
-        profile_data["target_metrics"],
-        profile_data["description"],
-        profile_data["characteristics"],
-        profile_data["sample_paragraphs"],
-        profile_key
+        json.dumps(metrics, ensure_ascii=False),
     )
     
     return {
@@ -539,15 +556,28 @@ async def system_prompt_template_fork(
         raise ValueError(f"Active prompt template not found: {template_key}")
     
     # 创建项目级模板
-    # TODO: 需要确认项目级表结构
+    # prompt_templates 的真实列（见 160_p7_enhancement.sql）：
+    #   project_id / template_key / name / description / template_content /
+    #   template_type / variables / genre / scene
+    # 注意：列名是 name 而非 template_name；forked_from_system_key 仅 model_profiles 才有。
+    import json
+
     name = custom_name or system_template["template_name"]
-    
+
     row = await db.fetchrow(
         """
-        INSERT INTO prompt_templates 
-        (project_id, template_key, template_name, template_content, description,
-         template_type, genre, scene, variables, forked_from_system_key)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+        INSERT INTO prompt_templates
+        (project_id, template_key, name, template_content, description,
+         template_type, genre, scene, variables)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb)
+        ON CONFLICT (project_id, template_key) DO UPDATE
+          SET name = EXCLUDED.name,
+              template_content = EXCLUDED.template_content,
+              description = EXCLUDED.description,
+              template_type = EXCLUDED.template_type,
+              genre = EXCLUDED.genre,
+              scene = EXCLUDED.scene,
+              variables = EXCLUDED.variables
         RETURNING id::text
         """,
         project_id,
@@ -558,8 +588,7 @@ async def system_prompt_template_fork(
         system_template["template_type"],
         system_template["genre"],
         system_template["scene"],
-        system_template["variables"],
-        template_key
+        json.dumps(system_template["variables"] or []),
     )
     
     return {

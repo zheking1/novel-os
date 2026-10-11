@@ -274,7 +274,8 @@ async def review_aggregate(
             "phase": "章节审核",
             "review_round": 1,
             "max_rounds": 3,
-            "next_tool": "workflow.submit_chapter_commit",
+            "next_tool": "pipeline.generate",
+            "next_tool_params": {"task_type": "polish"},
             "description": "讨论室审核完成。如果 consensus_reached=true 且无意见→润色→提交。否则修订正文后重新调用 review.start_job",
             "loop_instruction": "如果 summary 中有明确的问题指出需要修改 → 修订正文 → 再次 review.start_job。无意见 → 润色 → 提交",
             "next_steps": [

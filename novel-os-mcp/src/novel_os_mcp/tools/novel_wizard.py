@@ -93,7 +93,7 @@ async def novel_wizard_start() -> dict[str, Any]:
     logger.info(f"novel_wizard_start: {wizard_id}")
     
     # 查询已有工作区
-    workspaces = await workspace_service.list_workspaces()
+    workspaces = await workspace_service.list_workspaces(username=principal.username)
     
     # 构建工作区选择选项
     ws_options = []
@@ -1056,6 +1056,18 @@ async def novel_wizard_submit_knowledge_proposals(
         "submitted": results["submitted"],
         "errors": results["errors"],
         "message": f"成功提交 {results['submitted']} 个知识提案，等待管理员审批",
+        "workflow_guide": {
+            "mode": "strict",
+            "phase": "知识提案已提交",
+            "description": "知识提案已提交，继续世界构建",
+            "steps": [{
+                "step_no": 1,
+                "name": "继续世界构建",
+                "tool": "novel.wizard.build_world",
+                "params": {"workspace": workspace, "project": project},
+                "next": "next_step",
+            }],
+        },
     }
 
 
@@ -1598,6 +1610,7 @@ async def novel_wizard_build_world(
     else:
         guide["mode"] = "done"
         guide["message"] = "所有阶段已完成，世界构建结束。可进入章节生成。"
+        guide["description"] = "流程一（创建小说+构建世界）已完成。用户说'生成章节'时进入流程二，调用 workflow.prepare_chapter_context"
 
     return {
         "project_id": project_id,

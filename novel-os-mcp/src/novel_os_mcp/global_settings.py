@@ -508,16 +508,83 @@ class GlobalSettingsService:
                 r["aliases"] = list(r["aliases"]) if hasattr(r["aliases"], "__iter__") else []
         return results
 
+    async def upsert_genre(
+        self,
+        slug: str,
+        name: str,
+        description: str | None = None,
+        aliases: list[str] | None = None,
+        typical_elements: list[str] | None = None,
+        platform_tags: list[str] | None = None,
+        target_audience: str | None = None,
+    ) -> dict[str, Any]:
+        """创建或更新规范题材（genre_canonical）。
+
+        canonical_genre 主键取 name；slug 并入 platform_tags，使 setting.genre.resolve
+        能命中、列表也能回显 slug。typical_elements / target_audience 存于 metadata。
+        """
+        canonical_genre = (name or slug).strip()
+        tags = list(platform_tags or [])
+        if slug and slug not in tags:
+            tags.append(slug)
+
+        meta: dict[str, Any] = {}
+        if typical_elements is not None:
+            meta["typical_elements"] = typical_elements
+        if target_audience is not None:
+            meta["target_audience"] = target_audience
+
+        row = await self._db.fetchrow(
+            """
+            INSERT INTO genre_canonical (canonical_genre, platform_tags, aliases, description, metadata)
+            VALUES ($1, $2::TEXT[], $3::TEXT[], $4, $5::jsonb)
+            ON CONFLICT (canonical_genre) DO UPDATE SET
+                platform_tags = CASE WHEN array_length($2::TEXT[], 1) IS NULL
+                                     THEN genre_canonical.platform_tags ELSE $2::TEXT[] END,
+                aliases       = CASE WHEN array_length($3::TEXT[], 1) IS NULL
+                                     THEN genre_canonical.aliases ELSE $3::TEXT[] END,
+                description   = COALESCE($4, genre_canonical.description),
+                metadata      = genre_canonical.metadata || $5::jsonb,
+                updated_at    = now()
+            RETURNING canonical_genre, platform_tags, aliases, description, metadata
+            """,
+            canonical_genre, tags, aliases or [], description,
+            json.dumps(meta, ensure_ascii=False),
+        )
+        d = row_to_dict(row)
+        raw_meta = d.get("metadata")
+        if isinstance(raw_meta, str):
+            try:
+                raw_meta = json.loads(raw_meta)
+            except (TypeError, ValueError):
+                raw_meta = {}
+        raw_meta = raw_meta or {}
+        d["slug"] = slug
+        d["name"] = d.get("canonical_genre")
+        d["typical_elements"] = raw_meta.get("typical_elements") or []
+        d["target_audience"] = raw_meta.get("target_audience") or ""
+        d["ok"] = True
+        return d
+
     # ========== CSV 导入导出 ==========
 
     async def delete_genre(self, slug: str) -> dict[str, Any]:
+        """删除规范题材。
+
+        原实现写 setting_genres（该表不存在，调用必然 UndefinedTable）；
+        改为操作真实的 genre_canonical，按 canonical_genre → platform_tags 顺序匹配。
+        """
         row = await self._db.fetchrow(
-            "UPDATE setting_genres SET is_active = false WHERE slug = $1 RETURNING slug",
+            """
+            DELETE FROM genre_canonical
+            WHERE canonical_genre = $1 OR $1 = ANY(platform_tags)
+            RETURNING canonical_genre
+            """,
             slug,
         )
         if row is None:
             raise ValueError(f"Genre not found: {slug}")
-        return {"ok": True, "slug": row["slug"]}
+        return {"ok": True, "slug": slug, "canonical_genre": row["canonical_genre"]}
 
     async def csv_import(
         self,

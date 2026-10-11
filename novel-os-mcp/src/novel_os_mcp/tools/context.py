@@ -70,7 +70,7 @@ async def workflow_prepare_chapter_context(
             {
                 "step_no": 3, "name": "生成初稿并记录",
                 "tool": "_agent_evaluate",
-                "params": {"instruction": "1) 根据上下文包约束生成章节正文 2) 保存到本地文件 chapters/第`chapter_no:02d`章/ch`chapter_no:02d`_draft.md 3) 调 pipeline.generate(task_type='draft', content=正文) 记录摘要 4) 调 pipeline.run_full(draft_content=正文) 记录生成passes。完成后再进入下一步。"},
+                "params": {"instruction": "1) 根据上下文包约束生成章节正文 2) 保存到本地文件 chapters/第`chapter_no:02d`章/ch`chapter_no:02d`_draft.md 3) 调 pipeline.generate(task_type='draft', summary=200字摘要) 记录摘要 4) 调 pipeline.run_full(draft_content=正文) 记录生成passes。完成后再进入下一步。"},
                 "next": "next_step",
             },
             {
@@ -117,9 +117,9 @@ async def workflow_prepare_chapter_context(
             {
                 "step_no": 9, "name": "润色终稿",
                 "tool": "pipeline.generate",
-                "params": {"workspace": workspace, "project": project, "chapter_no": chapter_no, "task_type": "polish", "content": "$from_step_3.text"},
+                "params": {"workspace": workspace, "project": project, "chapter_no": chapter_no, "task_type": "polish", "summary": "$from_step_3.summary"},
                 "next": "next_step",
-                "note": "审核通过后润色。content 取步骤3的初稿（如果审核中修订过，用修订后正文）"
+                "note": "审核通过后润色。summary 只取步骤3结果的前 200 字摘要（正文全文不入库）"
             },
             {
                 "step_no": 10, "name": "保存终稿到本地",
@@ -149,7 +149,14 @@ async def workflow_prepare_chapter_context(
                 "step_no": 14, "name": "维护情节线/伏笔",
                 "tool": "_agent_evaluate",
                 "params": {"instruction": "对本章涉及的情节线和伏笔，依次调用：1) plot.thread.advance(workspace, project, key=情节线key, chapter_no, progress_note='本章进展') 推进每条涉及的情节线 2) plot.upsert_foreshadowing(workspace, project, key=伏笔key, title='伏笔名', importance=high/medium/low, layer=visible/hidden/deep, payload=伏笔详细内容) 记录本章新埋的伏笔 3) foreshadowing.payoff(workspace, project, key=被回收的伏笔key, payoff_chapter_no=chapter_no) 标记本章回收的伏笔"},
-                "next": "wait_user_confirm",
+                "next": "next_step",
+            },
+            {
+                "step_no": 15, "name": "判断是否继续生成下一章",
+                "tool": "_agent_evaluate",
+                "params": {"instruction": "检查当前上下文中的 remaining_count 或 end_chapter_no 等目标章节信息。如果还有剩余章节待生成：chapter_no += 1，调用 workflow.prepare_chapter_context(chapter_no=新章节号) 启动下一章生成流程。如果已全部完成或用户只指定了单章：输出完成摘要（章节号、字数、审核结果），流程结束。"},
+                "note": "多章连续生成：此步骤自动判断是否 continue 下一章",
+                "next": "next_step",
             },
         ],
     }
@@ -672,7 +679,7 @@ pipeline.generate(
   project: "{project_slug}",
   chapter_no: {chapter_no},
   task_type: "polish",
-  content: "正文全文",
+  summary: "200字摘要（正文全文不入库）",
   user_prompt: "请润色以下章节，提升文笔质量"
 )
 ```

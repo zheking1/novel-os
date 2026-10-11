@@ -1443,7 +1443,8 @@ async def pipeline_generate(
     task_type: str = "draft",
     system_prompt: str = "",
     user_prompt: str = "",
-    content: str | None = None,
+    summary: str | None = None,
+    content: str | None = None,  # 废弃别名：等同 summary，保留以兼容旧调用方
     temperature: float = 0.7,
     max_tokens: int = 4096,
     save_pass: bool = True,
@@ -1451,12 +1452,12 @@ async def pipeline_generate(
     """记录生成内容到系统。正文保存在用户本地，此处只存 200 字摘要。
 
     两条路径二选一：
-    1. 传 content — 系统提取 200 字摘要（超出部分截断），统计字数存 generation_passes
+    1. 传 summary — 系统只存前 200 字（超出直接报错），统计字数存 generation_passes
     2. 传 user_prompt — 系统调用配置的模型生成
 
     Args:
-        content: 章节摘要或正文（仅前 200 字入库，全文存本地）
-        user_prompt: 用户提示词（与 content 二选一，至少传一个）
+        summary: 章节摘要（<=200 字；正文全文存本地，不要传入库）
+        user_prompt: 用户提示词（与 summary 二选一，至少传一个）
 
     Args:
         workspace: 工作区
@@ -1465,7 +1466,8 @@ async def pipeline_generate(
         task_type: 任务类型 — outline(大纲)/draft(初稿)/polish(润色)/review(审核)/manual(手动)
         system_prompt: 系统提示词（仅 review 等系统模型任务时使用）
         user_prompt: 用户提示词（仅 review 等系统模型任务时使用）
-        content: AI 工具已生成的内容。传入后系统会提取摘要、统计字数，不存全文。
+        summary: AI 工具已生成的摘要（<=200 字）。传入后系统统计字数，不存全文。
+        content: [已废弃] summary 的旧名，保留仅为兼容，请勿在新代码中使用。
         temperature: 生成温度（仅 review 等系统模型任务时使用）
         max_tokens: 最大 token 数（仅 review 等系统模型任务时使用）
         save_pass: 是否自动保存为 generation_pass
@@ -1474,21 +1476,30 @@ async def pipeline_generate(
         生成结果，包含 text、model、usage 等
     """
     principal = await get_principal("write")
-    logger.info("pipeline.generate: ws=%s prj=%s ch=%d task=%s save_pass=%s has_content=%s", workspace, project, chapter_no, task_type, save_pass, bool(content))
+    # 兼容旧名：content 等同 summary
+    if summary is None and content is not None:
+        summary = content
+    logger.info("pipeline.generate: ws=%s prj=%s ch=%d task=%s save_pass=%s has_summary=%s legacy_content=%s",
+                workspace, project, chapter_no, task_type, save_pass, bool(summary), content is not None)
     validate_required(locals(), "workspace", "project", "chapter_no")
     project_id = await auth.resolve_project_id(workspace, project, principal, access="write")
 
+    if summary is not None and len(summary) > 200:
+        raise ValueError(
+            f"summary 长度 {len(summary)} 超过 200 字上限；本参数只存摘要，正文请保存在本地"
+        )
+
     # AI 工具已提供内容 → 直接保存，跳过 LLM
-    if content:
+    if summary:
         result = {
-            "text": content,
+            "text": summary,
             "model": "ai_tool",
             "usage": {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0},
         }
     else:
         # 走系统配置的模型（review/analysis 等）
         if not user_prompt:
-            raise ValueError("不传入 content 时必须提供 user_prompt")
+            raise ValueError("不传入 summary 时必须提供 user_prompt")
         messages = []
         if system_prompt:
             messages.append({"role": "system", "content": system_prompt})
@@ -1497,7 +1508,7 @@ async def pipeline_generate(
             result = await llm_client.chat(project_id, task_type, messages, temperature, max_tokens)
         except ValueError as e:
             raise ValueError(
-                f"系统未配置 {task_type} 类型的模型，请传入 content 参数由 AI 工具自行生成内容。"
+                f"系统未配置 {task_type} 类型的模型，请传入 summary 参数由 AI 工具自行生成内容。"
                 f"（{e}）"
             )
 
@@ -1506,18 +1517,18 @@ async def pipeline_generate(
         text = result["text"]
         pass_number = {"planning": 1, "outline": 1, "drafting": 2, "draft": 2, "polishing": 3, "polish": 3, "verification": 4, "review": 4, "manual": 2}.get(task_type, 2)
         word_count = len(text)
-        summary = text[:200].replace("\n", " ") if len(text) > 200 else text.replace("\n", " ")
+        pass_summary = text[:200].replace("\n", " ") if len(text) > 200 else text.replace("\n", " ")
         file_name = f"ch{chapter_no:02d}_{task_type}.md"
         folder_name = f"第{chapter_no:02d}章"
         pass_type_map = {"outline": "planning", "draft": "drafting", "polish": "polishing", "review": "verification", "manual": "drafting"}
         pass_type = pass_type_map.get(task_type, task_type)
         await multipass_service.create_generation_pass(
             project_id=project_id, chapter_no=chapter_no, pass_number=pass_number,
-            pass_type=pass_type, content=summary,
+            pass_type=pass_type, content=pass_summary,
             metadata={
                 "word_count": word_count,
                 "file_path": f"{folder_name}/{file_name}",
-                "summary": summary,
+                "summary": pass_summary,
             },
         )
 
@@ -1543,10 +1554,24 @@ async def pipeline_generate(
                            VALUES ($1, $2, 'chapter', $3)
                            ON CONFLICT (chapter_id, summary_type) DO UPDATE
                            SET content = EXCLUDED.content, updated_at = NOW()""",
-                        project_id, ch_row["id"], summary,
+                        project_id, ch_row["id"], pass_summary,
                     )
             except Exception:
                 pass
+
+    ret_actions = [
+        "outline→draft→polish→review 顺序推进",
+        "提交章节后调用 kb.world.auto_update 更新世界状态",
+        "提交章节后调用 arc.record_* 记录角色弧光",
+        "提交章节后调用 plot.thread.advance 推进剧情线",
+        "提交章节后调用 foreshadowing.payoff 回收到期伏笔",
+    ] if task_type != "review" else [
+        "review 完成，润色后调用 workflow.submit_chapter_commit 提交章节",
+        "提交章节后调用 kb.world.auto_update 更新世界状态",
+        "提交章节后调用 arc.record_* 记录角色弧光",
+        "提交章节后调用 plot.thread.advance 推进剧情线",
+        "提交章节后调用 foreshadowing.payoff 回收到期伏笔",
+    ]
 
     return {
         "ok": True,
@@ -1563,14 +1588,7 @@ async def pipeline_generate(
             "phase": "写作流程",
             "next_tool": "pipeline.generate" if task_type != "review" else "workflow.submit_chapter_commit",
             "description": f"第{chapter_no}章 {task_type} 生成完成",
-            "next_actions": [
-                f"outline→draft→polish→review 顺序推进" if task_type != "review" else f"review 完成，调用 workflow.submit_chapter_commit 提交章节",
-                "然后调用 kb.world.auto_update 更新世界状态",
-                "然后调用 arc.record_* 记录角色弧光",
-                "然后调用 plot.thread.advance 推进剧情线",
-                "然后调用 foreshadowing.payoff 回收到期伏笔",
-                "然后调用 review.start_job 触发审核",
-            ],
+            "next_actions": ret_actions,
             "workflow": [
                 {"step": 1, "tool": "pipeline.generate", "task_type": "outline", "status": "done" if task_type == "outline" or task_type in ("draft", "polish", "review") else "pending", "desc": "生成大纲"},
                 {"step": 2, "tool": "pipeline.generate", "task_type": "draft", "status": "done" if task_type == "draft" or task_type in ("polish", "review") else "pending", "desc": "生成初稿"},

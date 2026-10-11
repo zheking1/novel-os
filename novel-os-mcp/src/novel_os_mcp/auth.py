@@ -132,6 +132,14 @@ class AuthService:
         if row is None or not self._role_allows(row["role"], access):
             raise PermissionError("无权限访问该项目。你可能不是该项目成员，请让项目 owner 添加你")
 
+    async def require_admin(self, principal: Principal) -> None:
+        """要求管理员权限。用于系统级终审等敏感工具。"""
+        if "admin" not in principal.scopes:
+            raise PermissionError(
+                f"需要管理员权限。当前 token scopes={sorted(principal.scopes)}，"
+                f"用户 '{principal.username}' 不是管理员。"
+            )
+
     async def resolve_project_id(
         self,
         workspace_slug: str,

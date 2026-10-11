@@ -285,6 +285,43 @@ async def setting_genre_list() -> list[dict[str, Any]]:
     return await global_settings_service.list_genres()
 
 
+@mcp.tool(name="setting.genre.upsert")
+async def setting_genre_upsert(
+    slug: str,
+    name: str,
+    description: str | None = None,
+    aliases: list[str] | None = None,
+    typical_elements: list[str] | None = None,
+    platform_tags: list[str] | None = None,
+    target_audience: str | None = None,
+) -> dict[str, Any]:
+    """创建或更新系统预设题材。
+
+    canonical_genre 以 name 为准，slug 会并入 platform_tags 以便 setting.genre.resolve 命中。
+
+    Args:
+        slug: 题材唯一标识（英文短名）
+        name: 题材显示名称（同时作为 canonical_genre 主键）
+        description: 题材描述
+        aliases: 别名列表
+        typical_elements: 典型元素列表（存 metadata）
+        platform_tags: 平台标签（可选）
+        target_audience: 目标读者（可选，存 metadata）
+
+    Returns:
+        {ok, slug, name, canonical_genre, description, aliases, platform_tags,
+         typical_elements, target_audience}
+    """
+    principal = await get_principal("write")
+    logger.info("setting_genre_upsert called: %s", slug)
+    validate_required(locals(), "slug", "name")
+    return await global_settings_service.upsert_genre(
+        slug=slug, name=name, description=description,
+        aliases=aliases, typical_elements=typical_elements,
+        platform_tags=platform_tags, target_audience=target_audience,
+    )
+
+
 @mcp.tool(name="setting.genre.delete")
 async def setting_genre_delete(slug: str) -> dict[str, Any]:
     """删除指定题材。"""

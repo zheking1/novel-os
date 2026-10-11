@@ -146,7 +146,7 @@ async def discussion_room_get_updates(session_id: str) -> dict[str, Any]:
         }
 
     # Detect stall: >3 minutes since last update, still running
-    stale_seconds = (datetime.datetime.utcnow() - row["updated_at"]).total_seconds()
+    stale_seconds = (datetime.datetime.now(datetime.timezone.utc) - row["updated_at"]).total_seconds()
     if stale_seconds > 180 and row["status"] == "running":
         stalled = True
         stalled_msg = f"讨论室已 {int(stale_seconds/60)} 分钟无新响应，可能某个模型卡住了"
@@ -378,6 +378,9 @@ async def discussion_room_apply_results(
 
     backup_snapshots = {}
     applied_items = []
+    # 被门禁拦截（中/高风险）的写入：不落库，随提案交管理员审批后再执行
+    deferred_writes = []
+    deferred_log_ids = []
     errors = []
 
     for item in items:
@@ -451,19 +454,34 @@ async def discussion_room_apply_results(
                     backup_snapshots.setdefault("universal_knowledge", {})[item_name] = {
                         "topic": item_name, "content": old["content"], "summary": old["summary"],
                     }
-                # Upsert by topic
+                # Upsert by topic —— 先经门禁评估，中/高风险转为待审批写入
                 old_row = await db.fetchrow("SELECT id FROM universal_knowledge WHERE topic=$1", item_name)
-                if old_row:
-                    await db.execute(
-                        "UPDATE universal_knowledge SET content=$1, summary=$2, category_id=$3, source='discussion_room', updated_at=NOW() WHERE id=$4",
-                        item_desc, item_desc[:200], cat_id, old_row["id"],
-                    )
+                uk_action = "UPDATE" if old_row else "INSERT"
+                uk_risk = await gatekeeper_service.assess(
+                    project_id=pid, action=uk_action, target_table="universal_knowledge",
+                    content={"name": item_name, "desc": item_desc[:200]},
+                    source_type="discussion_room", source_id=session_id,
+                    old_value=dict(old) if old else None, created_by=principal.username,
+                )
+                if not uk_risk["auto_applied"]:
+                    deferred_writes.append({
+                        "table": "universal_knowledge", "action": uk_action, "key": item_name,
+                        "content": item_desc, "category_id": str(cat_id) if cat_id else None,
+                        "risk_level": uk_risk["risk_level"], "risk_reason": uk_risk["risk_reason"],
+                    })
+                    deferred_log_ids.append(uk_risk["id"])
                 else:
-                    await db.execute(
-                        "INSERT INTO universal_knowledge (topic, content, summary, category_id, source) VALUES ($1, $2, $3, $4, 'discussion_room')",
-                        item_name, item_desc, item_desc[:200], cat_id,
-                    )
-                applied_items.append(f"{table}:{item_name}")
+                    if old_row:
+                        await db.execute(
+                            "UPDATE universal_knowledge SET content=$1, summary=$2, category_id=$3, source='discussion_room', updated_at=NOW() WHERE id=$4",
+                            item_desc, item_desc[:200], cat_id, old_row["id"],
+                        )
+                    else:
+                        await db.execute(
+                            "INSERT INTO universal_knowledge (topic, content, summary, category_id, source) VALUES ($1, $2, $3, $4, 'discussion_room')",
+                            item_name, item_desc, item_desc[:200], cat_id,
+                        )
+                    applied_items.append(f"{table}:{item_name}")
 
             elif table == "setting_items":
                 # Allow item to specify category_slug, fallback to discussion category
@@ -561,27 +579,41 @@ async def discussion_room_apply_results(
             elif table == "global_rules":
                 rule_key = f"disc_global_{item_name[:30]}_{session_id[:8]}"
                 rule_type = item.get("rule_type", "creative")
-                old_row = await db.fetchrow("SELECT id FROM global_rules WHERE rule_key=$1", rule_key)
+                old_row = await db.fetchrow(
+                    "SELECT id, title, content FROM global_rules WHERE rule_key=$1", rule_key)
+                gr_action = "UPDATE" if old_row else "INSERT"
+                old_value = ({"rule_key": rule_key, "title": old_row["title"],
+                              "content": old_row["content"]} if old_row else None)
                 if old_row:
+                    backup_snapshots.setdefault("global_rules", {})[rule_key] = old_value
+
+                # 先评估：中/高风险不落库，转交管理员审批
+                gr_risk = await gatekeeper_service.assess(
+                    project_id=pid, action=gr_action, target_table="global_rules",
+                    content={"name": item_name, "desc": item_desc[:200]},
+                    source_type="discussion_room", source_id=session_id,
+                    old_value=old_value, created_by=principal.username,
+                )
+                if not gr_risk["auto_applied"]:
+                    deferred_writes.append({
+                        "table": "global_rules", "action": gr_action, "key": rule_key,
+                        "rule_type": rule_type, "title": item_name[:200], "content": item_desc,
+                        "risk_level": gr_risk["risk_level"], "risk_reason": gr_risk["risk_reason"],
+                    })
+                    deferred_log_ids.append(gr_risk["id"])
+                elif old_row:
                     await db.execute(
                         "UPDATE global_rules SET title=$1, content=$2, rule_type=$3, updated_at=NOW() WHERE id=$4",
                         item_name[:200], item_desc, rule_type, old_row["id"],
                     )
+                    applied_items.append(f"{table}:{rule_key}")
                 else:
                     await db.execute(
                         """INSERT INTO global_rules (rule_key, rule_type, title, content, severity, status, discussion_id)
                            VALUES ($1, $2, $3, $4, 'warning', 'active', $5)""",
                         rule_key, rule_type, item_name[:200], item_desc, session_id,
                     )
-                applied_items.append(f"{table}:{rule_key}")
-
-            # Gatekeeper log for global tables
-            if table in ("global_rules", "universal_knowledge"):
-                await gatekeeper_service.assess(
-                    project_id=pid, action="INSERT" if item_type == "knowledge" else "UPDATE",
-                    target_table=table, content={"name": item_name, "desc": item_desc[:200]},
-                    source_type="discussion_room", source_id=session_id, created_by=principal.username,
-                )
+                    applied_items.append(f"{table}:{rule_key}")
 
         except Exception as exc:
             errors.append(f"{item_name}: {exc}")
@@ -606,10 +638,16 @@ async def discussion_room_apply_results(
         f"讨论室: {row['topic'][:50]}",
         "、".join(desc_parts) or f"来自讨论室 session {session_id}",
         "create", "setting_item",
-        json.dumps({"summary": row["summary"], "applied_items": applied_items, "schema_changes": schema_changes, "errors": errors}),
+        json.dumps({"summary": row["summary"], "applied_items": applied_items,
+                    "deferred_writes": deferred_writes, "schema_changes": schema_changes,
+                    "errors": errors}),
         f"讨论室应用: {row['topic'][:30]}", pid, "discussion_room", "pending_admin",
         json.dumps(backup_snapshots), session_id, list(set(t.split(":")[0] for t in applied_items)),
     )
+
+    # 把被拦截的门禁日志挂到提案上，便于事后追溯
+    if deferred_log_ids:
+        await gatekeeper_service.link_proposal(deferred_log_ids, proposal_id)
 
     # Audit log
     await db.execute(

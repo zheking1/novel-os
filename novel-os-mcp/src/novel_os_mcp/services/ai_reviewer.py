@@ -107,12 +107,13 @@ class AIEvolutionReviewer:
             )
             
             # 根据冲突调整评分
-            if conflicts.get("has_high_severity_conflict", False):
+            if result.get("score") is not None and conflicts.get("has_high_severity_conflict", False):
                 result["score"] = max(0, result["score"] - 0.3)
                 result["verdict"] = "reject"
-                result["reasoning"] += "\n\n[系统自动调整] 检测到严重冲突，评分已降低。"
+                result["reasoning"] = (result.get("reasoning") or "") + "\n\n[系统自动调整] 检测到严重冲突，评分已降低。"
             
-            logger.info(f"AI review completed for {proposal_id}: score={result['score']:.2f}, verdict={result['verdict']}")
+            logger.info("AI review completed for %s: score=%s, verdict=%s",
+                        proposal_id, result.get("score"), result.get("verdict"))
             
             return result
             
@@ -126,7 +127,8 @@ class AIEvolutionReviewer:
             """
             SELECT 
                 id::text, title, description, proposal_type, target_entity_type,
-                target_entity_key, proposed_content, evolution_reason, evidence
+                target_entity_key, proposed_content, evolution_reason, evidence,
+                source_project_id::text
             FROM system_evolution_proposals
             WHERE id = $1
             """,
@@ -201,33 +203,45 @@ class AIEvolutionReviewer:
         review_result = await self._mock_ai_review(system_prompt, user_prompt)
         return review_result
     
+    @classmethod
+    def unscored(cls, reason: str) -> dict[str, Any]:
+        """LLM 不可用时诚实表达"未评分"，而不是给出伪装成通过的假分数。"""
+        return {
+            "score": None,
+            "scored": False,
+            "verdict": "unscored",
+            "reasoning": reason,
+            "risk_assessment": "未评估：LLM 审查服务未配置或调用失败，未生成评分",
+            "suggestions": [],
+            "dimension_scores": {},
+            "confidence": 0.0,
+        }
+
     async def _specialized_review(self, proposal: dict) -> dict[str, Any]:
-        """专项评审。"""
+        """专项评审。
+
+        未接入专项维度评审前不臆造维度分：历史实现会对每个维度写死 0.85，
+        使最终分变成"LLM 真实分与 0.85 的平均"，属于假数据。
+        返回空维度集，由 _merge_reviews 忽略。
+        """
         entity_type = proposal["target_entity_type"]
-        
         if entity_type not in self.DIMENSIONS:
             return {"dimension_scores": {}}
-        
-        weights = self.DIMENSIONS[entity_type]
-        
-        # 根据实体类型进行专项评审
-        # TODO: 实现具体的专项评审逻辑
-        dimension_scores = {}
-        for dimension in weights.keys():
-            dimension_scores[dimension] = {
-                "score": 0.85,  # 模拟评分
-                "reasoning": f"{dimension}评估通过"
-            }
-        
-        return {"dimension_scores": dimension_scores}
+        return {"dimension_scores": {}}
     
     def _merge_reviews(self, general: dict, specialized: dict, conflicts: dict) -> dict[str, Any]:
-        """合并评审结果。"""
-        score = general.get("score", 0)
-        
+        """合并评审结果。general 未评分（score=None）时原样透出，不参与算术。"""
+        score = general.get("score")
+        dim_scores = specialized.get("dimension_scores") or {}
+
+        if score is None:
+            merged = dict(self.unscored(general.get("reasoning") or "LLM 审查不可用，未生成评分"))
+            merged["dimension_scores"] = dim_scores
+            merged["conflicts_detected"] = conflicts["has_conflict"]
+            return merged
+
         # 计算综合评分
-        if specialized.get("dimension_scores"):
-            dim_scores = specialized["dimension_scores"]
+        if dim_scores:
             avg_dim_score = sum(d.get("score", 0) for d in dim_scores.values()) / len(dim_scores)
             score = (score + avg_dim_score) / 2
         
@@ -241,11 +255,12 @@ class AIEvolutionReviewer:
         
         return {
             "score": round(score, 2),
+            "scored": True,
             "verdict": verdict,
             "reasoning": general.get("reasoning", ""),
             "risk_assessment": general.get("risk_assessment", ""),
             "suggestions": general.get("suggestions", []),
-            "dimension_scores": specialized.get("dimension_scores", {}),
+            "dimension_scores": dim_scores,
             "confidence": general.get("confidence", 0.8),
             "conflicts_detected": conflicts["has_conflict"]
         }
@@ -321,38 +336,45 @@ class AIEvolutionReviewer:
         return prompt
     
     async def _mock_ai_review(self, system_prompt: str, user_prompt: str) -> dict[str, Any]:
-        """使用真实 LLM 模型进行评审，失败时回退到模拟数据。"""
-        if self._llm:
-            try:
-                proposal = {}
-                if hasattr(self, '_current_proposal'):
-                    proposal = self._current_proposal
-                project_id = proposal.get('project_id') or proposal.get('source_project_id')
-                if project_id:
-                    result = await self._llm.chat_simple(project_id, "review",
-                        system_prompt, user_prompt, temperature=0.3, max_tokens=2000)
-                    text = result.get("text", "")
-                    # Try to parse JSON from the response
-                    import json
-                    try:
-                        return json.loads(text)
-                    except json.JSONDecodeError:
-                        # Try to extract JSON from text
-                        import re
-                        match = re.search(r'\{[\s\S]*\}', text)
-                        if match:
-                            return json.loads(match.group())
-            except Exception as e:
-                logger.warning("LLM review failed, using mock: %s", e)
+        """调用真实 LLM 评审；不可用时返回「未评分」结果，不再给假分数。
 
-        return {
-            "score": 0.85,
-            "verdict": "pass",
-            "reasoning": "该提案提供了合理的改进方案。(Mock — LLM 审查服务未配置或调用失败)",
-            "risk_assessment": "低风险。",
-            "suggestions": [],
-            "confidence": 0.5,
-        }
+        历史行为：LLM 不可用时返回 score=0.85 / verdict=pass。由于通过阈值是 0.8，
+        未评审的提案会被伪装成"AI 初审已通过"，这是本次修复要消除的问题。
+        """
+        import json
+        import re
+
+        proposal = getattr(self, "_current_proposal", {}) or {}
+        project_id = proposal.get("project_id") or proposal.get("source_project_id")
+
+        if not self._llm:
+            return self.unscored("LLM 审查服务未配置（llm_client 为空）")
+        if not project_id:
+            # 原来这里静默跳过，连日志都不打
+            logger.warning("LLM review skipped: proposal has no project_id/source_project_id")
+            return self.unscored("提案缺少 project_id / source_project_id，无法选择审查模型")
+
+        try:
+            result = await self._llm.chat_simple(project_id, "review",
+                                                 system_prompt, user_prompt,
+                                                 temperature=0.3, max_tokens=2000)
+            text = (result.get("text") or "").strip()
+        except Exception as e:
+            logger.warning("LLM review failed: %s", e)
+            return self.unscored(f"LLM 调用失败：{e}")
+
+        try:
+            return json.loads(text)
+        except json.JSONDecodeError:
+            match = re.search(r'\{[\s\S]*\}', text)
+            if match:
+                try:
+                    return json.loads(match.group())
+                except json.JSONDecodeError:
+                    pass
+
+        logger.warning("LLM review returned non-JSON: %s", text[:200])
+        return self.unscored("LLM 返回内容无法解析为 JSON")
 
 
 # 全局评审器实例（llm_client 由 deps 注入）
@@ -411,7 +433,21 @@ async def process_ai_review_queue() -> dict[str, Any]:
             
             # 执行评审
             review_result = await ai_reviewer.review_proposal(proposal_id)
-            
+
+            # 未评分：保留待重试，不推进状态、不谎报结果
+            if review_result.get("score") is None:
+                await db.execute(
+                    """
+                    UPDATE system_evolution_proposals
+                    SET ai_review_result = $1, ai_last_error = $2,
+                        ai_retry_count = ai_retry_count + 1, updated_at = now()
+                    WHERE id = $3
+                    """,
+                    review_result, (review_result.get("reasoning") or "未评分")[:500], proposal_id,
+                )
+                failed += 1
+                continue
+
             # 更新评审结果
             new_status = 'ai_reviewed' if review_result["verdict"] != "reject" else 'ai_rejected'
             
@@ -538,7 +574,19 @@ async def system_evolution_ai_review(
     
     # 执行评审
     review_result = await ai_reviewer.review_proposal(proposal_id)
-    
+
+    # 未评分：如实返回，不推进状态、不谎报"已通过"
+    if review_result.get("score") is None:
+        return {
+            "id": proposal_id,
+            "score": None,
+            "scored": False,
+            "verdict": "unscored",
+            "status": current,
+            "ai_review_result": review_result,
+            "message": "AI 初审未完成：LLM 审查服务未配置或调用失败，未生成评分（不写入假分数）"
+        }
+
     # 更新状态
     new_status = 'ai_reviewed' if review_result["verdict"] != "reject" else 'ai_rejected'
     
@@ -558,6 +606,7 @@ async def system_evolution_ai_review(
     return {
         "id": proposal_id,
         "score": review_result["score"],
+        "scored": True,
         "verdict": review_result["verdict"],
         "status": new_status,
         "ai_review_result": review_result,

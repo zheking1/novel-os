@@ -506,7 +506,8 @@ class ModelCostService:
                 COUNT(*)::int AS total_requests,
                 SUM(input_tokens)::bigint AS total_input_tokens,
                 SUM(output_tokens)::bigint AS total_output_tokens,
-                SUM(cost_amount)::float AS total_cost_usd
+                SUM(cost_amount)::float AS total_cost_usd,
+                AVG(NULLIF(latency_ms, 0))::float AS avg_latency_ms
             FROM model_usage_records
             WHERE {where_clause}
             """,

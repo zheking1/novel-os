@@ -14,6 +14,26 @@ from ..tool_auth import get_principal, validate_required
 logger = logging.getLogger("novel_os_mcp.tools.system_evolution")
 
 
+async def _schedule_ai_review() -> None:
+    """触发 AI 初审队列（进程内 fire-and-forget）。
+
+    process_ai_review_queue 此前没有任何调度方，导致提案创建后永远停在
+    ai_reviewing、返回值却谎称"已进入队列"。这里在提案创建/重试时异步拉起
+    一次队列消费；队列内部失败只记日志，不影响提案本身。
+    """
+    import asyncio
+
+    from ..services.ai_reviewer import process_ai_review_queue
+
+    async def _run() -> None:
+        try:
+            await process_ai_review_queue()
+        except Exception as exc:  # 队列失败不应影响主流程
+            logger.warning("AI review queue run failed: %s", exc)
+
+    asyncio.create_task(_run())
+
+
 # ============================================================================
 # 进化提案管理工具
 # ============================================================================
@@ -99,8 +119,8 @@ async def system_evolution_propose(
         metadata or {}
     )
     
-    # TODO: 触发AI初审（异步队列）
-    # await _trigger_ai_review(row['id'])
+    # 触发 AI 初审（异步队列）
+    await _schedule_ai_review()
     
     return {
         "id": row["id"],
@@ -108,8 +128,8 @@ async def system_evolution_propose(
         "title": title,
         "proposal_type": proposal_type,
         "target_entity_type": target_entity_type,
-        "message": "提案创建成功，已进入AI初审队列",
-        "next_step": "AI自动评审中，预计1-2分钟完成",
+        "message": "提案创建成功，已触发 AI 初审队列",
+        "next_step": "AI 自动评审中；若长时间状态未变化，可调用 system.evolution.retry_ai_review 手动推进",
         "created_at": row["created_at"].isoformat() if row["created_at"] else None
     }
 
@@ -371,7 +391,6 @@ async def _apply_proposal(proposal_id: str) -> dict[str, Any]:
         return {"ok": False, "error": str(e)}
 
 
-@mcp.tool(name="system.evolution.admin_review")
 async def _restore_from_backup(proposal_id: str, backup: dict) -> None:
     """从 backup_snapshots 恢复数据（审批拒绝时回滚）。"""
     import json
@@ -439,6 +458,62 @@ async def _restore_from_backup(proposal_id: str, backup: dict) -> None:
     logger.info("Restore: %d restored, %d conflicts", restored, conflicts)
 
 
+ALLOWED_DEFERRED_TABLES = {"global_rules", "universal_knowledge"}
+
+
+async def _apply_deferred_writes(proposal_id: str) -> dict[str, Any]:
+    """执行被门禁拦截、经管理员批准的写入。
+
+    这些写入在讨论室应用时因中/高风险被拦下，未落库，仅随提案保存；
+    管理员 approve 后才真正执行，从而实现"门禁拦截"而非"事后记账"。
+    """
+    import json
+    logger = logging.getLogger("novel_os_mcp.tools.system_evolution")
+
+    row = await db.fetchrow(
+        "SELECT proposed_content FROM system_evolution_proposals WHERE id = $1", proposal_id)
+    content = row["proposed_content"] if row else {}
+    if isinstance(content, str):
+        content = json.loads(content)
+    writes = content.get("deferred_writes") or []
+
+    applied = 0
+    for w in writes:
+        table = w.get("table")
+        if table not in ALLOWED_DEFERRED_TABLES:
+            logger.warning("deferred write skipped, table not allowed: %s", table)
+            continue
+        try:
+            if table == "global_rules":
+                await db.execute(
+                    """INSERT INTO global_rules (rule_key, rule_type, title, content, severity, status)
+                       VALUES ($1,$2,$3,$4,'warning','active')
+                       ON CONFLICT (rule_key) DO UPDATE SET
+                         title = EXCLUDED.title,
+                         content = EXCLUDED.content,
+                         rule_type = EXCLUDED.rule_type,
+                         updated_at = NOW()""",
+                    w["key"], w.get("rule_type", "creative"),
+                    (w.get("title") or "")[:200], w.get("content") or "",
+                )
+            elif table == "universal_knowledge":
+                await db.execute(
+                    """INSERT INTO universal_knowledge (topic, content, summary, source)
+                       VALUES ($1,$2,$3,'discussion_room')
+                       ON CONFLICT (topic) DO UPDATE SET
+                         content = EXCLUDED.content,
+                         summary = EXCLUDED.summary,
+                         source = 'discussion_room',
+                         updated_at = NOW()""",
+                    w["key"], w.get("content") or "", (w.get("content") or "")[:200],
+                )
+            applied += 1
+        except Exception as e:
+            logger.error("deferred write failed %s/%s: %s", table, w.get("key"), e)
+    return {"ok": True, "applied": applied}
+
+
+@mcp.tool(name="system.evolution.admin_review")
 async def system_evolution_admin_review(
     workspace: str,
     proposal_id: str,
@@ -463,8 +538,7 @@ async def system_evolution_admin_review(
         }
     """
     principal = await get_principal("write")
-    # TODO: 检查管理员权限
-    # await auth.require_admin(principal)
+    await auth.require_admin(principal)
     
     validate_required(locals(), "proposal_id", "decision")
     
@@ -502,8 +576,11 @@ async def system_evolution_admin_review(
             apply_result = await _apply_proposal(proposal_id)
             if not apply_result.get("ok"):
                 logger.warning("Proposal %s approved but apply failed: %s", proposal_id, apply_result.get("error"))
-        # 讨论室提案：数据已写入，只需清理备份
+        # 讨论室提案：低风险变更已写入；被门禁拦截的 deferred_writes 现在才落库
         if proposal["status"] == 'pending_admin':
+            deferred = await _apply_deferred_writes(proposal_id)
+            logger.info("Proposal %s: applied %s deferred writes",
+                        proposal_id, deferred.get("applied"))
             await db.execute(
                 "UPDATE system_evolution_proposals SET backup_snapshots='{}'::jsonb WHERE id=$1",
                 proposal_id,
@@ -630,7 +707,7 @@ async def system_evolution_retry_ai_review(
         }
     """
     principal = await get_principal("write")
-    # await auth.require_admin(principal)
+    await auth.require_admin(principal)
     
     validate_required(locals(), "proposal_id")
     
@@ -652,12 +729,13 @@ async def system_evolution_retry_ai_review(
         proposal_id
     )
     
-    # TODO: 触发AI初审
-    
+    # 触发 AI 初审（异步队列）
+    await _schedule_ai_review()
+
     return {
         "id": proposal_id,
         "status": "ai_reviewing",
-        "message": "已重新进入AI初审队列"
+        "message": "已重新进入 AI 初审队列（ai_retry_count+1）"
     }
 
 

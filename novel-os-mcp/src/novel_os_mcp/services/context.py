@@ -1,5 +1,6 @@
 import json
 import logging
+import os
 from datetime import datetime
 from typing import Any
 
@@ -36,6 +37,100 @@ class ContextService:
         self._causality = causality_service
         self._pacing = pacing_service
         self._style_fingerprint = style_fingerprint_service
+
+    # ===== 动态上下文预算（roadmap 阶段 2 / D-06）=====
+    # 见 docs/07-planning/dynamic-context-budget.md
+    # 说明：旧逻辑把 total_tokens 按固定百分比切分，且不感知模型上下文窗口大小，
+    #       128K 模型会浪费绝大部分空间，4K 模型则每个 section 都被过度压缩。
+
+    # 分配给上下文的总比例（其余留给模型输出）
+    CONTEXT_USABLE_RATIO = 0.6
+
+    # section -> (优先级, 保底 token, 上下文窗口占比上限)
+    # 优先级：0=必须 / 1=重要 / 2=增强 / 3=可选
+    _CONTEXT_SECTION_SPECS: dict[str, tuple[int, int, float]] = {
+        # P0 —— 没有就会写崩的
+        "active_rules": (0, 400, 0.15),
+        "current_state": (0, 600, 0.20),
+        "chapter_plan": (0, 200, 0.05),
+        # P1 —— 重要
+        "open_foreshadowing": (1, 300, 0.08),
+        "knowledge_base": (1, 250, 0.06),
+        "universal_knowledge": (1, 250, 0.06),
+        "project_knowledge": (1, 250, 0.06),
+        "canon_documents": (1, 250, 0.06),
+        # P2 —— 增强
+        "recent_summaries": (2, 300, 0.06),
+        "entity_relationships": (2, 200, 0.04),
+        "character_arcs": (2, 200, 0.04),
+        "pacing_guidance": (2, 150, 0.03),
+        "style_guidance": (2, 150, 0.03),
+        # P3 —— 可选，空间紧张时最先被跳过
+        "relevant_memory": (3, 0, 0.03),
+        "causal_chains": (3, 0, 0.03),
+        "compressed_context": (3, 0, 0.02),
+    }
+
+    # 已知模型的上下文窗口，用于 model_profiles 未配置时兜底
+    _KNOWN_CONTEXT_WINDOWS: dict[str, int] = {
+        "gpt-4o-mini": 128_000,
+        "gpt-4o": 128_000,
+        "gpt-4.1": 1_000_000,
+        "deepseek-v3": 64_000,
+        "deepseek-r1": 128_000,
+        "glm-4": 128_000,
+        "claude-3.5": 200_000,
+    }
+
+    # 节奏调整：各 pacing_type 在基础占比上的增量（新旧两条分配路径共用）
+    PACING_ADJUSTMENTS: dict[str, dict[str, float]] = {
+        "climax": {
+            "current_state": +0.04,
+            "open_foreshadowing": +0.03,
+            "entity_relationships": +0.02,
+            "compressed_context": -0.02,
+            "recent_summaries": -0.04,
+            "relevant_memory": -0.02,
+            "canon_documents": -0.01,
+        },
+        "climax_buildup": {
+            "current_state": +0.02,
+            "open_foreshadowing": +0.03,
+            "entity_relationships": +0.02,
+            "chapter_plan": +0.02,
+            "compressed_context": -0.02,
+            "recent_summaries": -0.04,
+            "relevant_memory": -0.02,
+            "canon_documents": -0.01,
+        },
+        "breather": {
+            "current_state": -0.06,
+            "relevant_memory": +0.04,
+            "knowledge_base": +0.02,
+            "canon_documents": +0.03,
+        },
+        "buildup": {
+            "open_foreshadowing": +0.03,
+            "chapter_plan": +0.02,
+            "canon_documents": +0.02,
+            "compressed_context": -0.02,
+            "recent_summaries": -0.02,
+            "relevant_memory": -0.02,
+        },
+        "resolution": {
+            "compressed_context": +0.04,
+            "open_foreshadowing": -0.04,
+            "entity_relationships": -0.02,
+        },
+        "transition": {
+            "recent_summaries": +0.03,
+            "relevant_memory": +0.03,
+            "canon_documents": +0.02,
+            "compressed_context": -0.03,
+            "current_state": -0.03,
+            "entity_relationships": -0.02,
+        },
+    }
 
     @staticmethod
     def _section(name: str, content: Any, source_count: int = 0) -> dict[str, Any]:
@@ -120,54 +215,8 @@ class ContextService:
         }
 
         # Pacing-specific adjustments (additive to base percentages)
-        ADJUSTMENTS = {
-            "climax": {
-                "current_state": +0.04,
-                "open_foreshadowing": +0.03,
-                "entity_relationships": +0.02,
-                "compressed_context": -0.02,
-                "recent_summaries": -0.04,
-                "relevant_memory": -0.02,
-                "canon_documents": -0.01,
-            },
-            "climax_buildup": {
-                "current_state": +0.02,
-                "open_foreshadowing": +0.03,
-                "entity_relationships": +0.02,
-                "chapter_plan": +0.02,
-                "compressed_context": -0.02,
-                "recent_summaries": -0.04,
-                "relevant_memory": -0.02,
-                "canon_documents": -0.01,
-            },
-            "breather": {
-                "current_state": -0.06,
-                "relevant_memory": +0.04,
-                "knowledge_base": +0.02,
-                "canon_documents": +0.03,
-            },
-            "buildup": {
-                "open_foreshadowing": +0.03,
-                "chapter_plan": +0.02,
-                "canon_documents": +0.02,
-                "compressed_context": -0.02,
-                "recent_summaries": -0.02,
-                "relevant_memory": -0.02,
-            },
-            "resolution": {
-                "compressed_context": +0.04,
-                "open_foreshadowing": -0.04,
-                "entity_relationships": -0.02,
-            },
-            "transition": {
-                "recent_summaries": +0.03,
-                "relevant_memory": +0.03,
-                "canon_documents": +0.02,
-                "compressed_context": -0.03,
-                "current_state": -0.03,
-                "entity_relationships": -0.02,
-            },
-        }
+        # 节奏增量表已提取为类常量 PACING_ADJUSTMENTS，动态预算路径（_allocate_dynamic_budgets）复用同一份
+        ADJUSTMENTS = ContextService.PACING_ADJUSTMENTS
 
         budget = dict(DEFAULT)
         adjustments = ADJUSTMENTS.get(pacing_type, {})
@@ -181,6 +230,166 @@ class ContextService:
             budget = {k: v * scale for k, v in budget.items()}
 
         return {k: int(total_tokens * v) for k, v in budget.items()}
+
+    async def _detect_context_window(self) -> int:
+        """推断当前所用模型的上下文窗口大小（token）。
+
+        取值顺序：model_profiles 的 metadata / default_params 中的显式配置
+        → 已知模型容量表 → 都取不到则返回 0（调用方据此回落到旧的固定百分比分配）。
+
+        注意：model_profiles.project_id 是 NOT NULL，模型配置是全局的，
+        这里沿用 llm_client._get_config 的查询模式（按 task_types 匹配，不按项目过滤）。
+        """
+        try:
+            row = await self._db.fetchrow(
+                """
+                SELECT model_name, metadata, default_params
+                FROM model_profiles
+                WHERE status = 'active'
+                  AND 'context' = ANY(task_types)
+                ORDER BY is_default DESC, tier
+                LIMIT 1
+                """
+            )
+            if not row:
+                # 没有专门承担 context 角色的模型时，退回任意默认模型
+                row = await self._db.fetchrow(
+                    """
+                    SELECT model_name, metadata, default_params
+                    FROM model_profiles
+                    WHERE status = 'active'
+                    ORDER BY is_default DESC, tier
+                    LIMIT 1
+                    """
+                )
+        except Exception:
+            logger.debug("context window detection skipped: model_profiles query failed", exc_info=True)
+            return 0
+
+        if not row:
+            return 0
+
+        # JSONB 列在 asyncpg 下返回字符串，统一先尝试解析
+        sources = [ensure_json_value(row["metadata"]), ensure_json_value(row["default_params"])]
+        for src in sources:
+            if not isinstance(src, dict):
+                continue
+            for key in ("max_tokens", "context_window", "context_length"):
+                val = src.get(key)
+                if isinstance(val, bool):
+                    continue
+                if isinstance(val, (int, float)) and val > 1000:
+                    return int(val)
+
+        name = (row["model_name"] or "").lower()
+        for key, window in self._KNOWN_CONTEXT_WINDOWS.items():
+            if key in name:
+                return window
+        return 0
+
+    def _allocate_by_priority(self, detected: int) -> dict[str, int]:
+        """两级分配：Round 1 按优先级顺序发保底，Round 2 把剩余空间按优先级权重分到上限。
+
+        空间不足时低优先级 section 直接为 0（例如 4K 模型下 P3 全部跳过），
+        避免像固定百分比那样"每个 section 都给一点、结果全都不够用"。
+        """
+        specs = self._CONTEXT_SECTION_SPECS
+        total = int(detected * self.CONTEXT_USABLE_RATIO)
+        budgets: dict[str, int] = {name: 0 for name in specs}
+        remaining = total
+
+        # Round 1: 保底，高优先级先拿
+        for prio in (0, 1, 2, 3):
+            for name, (p, min_tok, _) in specs.items():
+                if p != prio:
+                    continue
+                give = min(min_tok, max(0, remaining))
+                budgets[name] = give
+                remaining -= give
+            if remaining <= 0:
+                break
+
+        # Round 2: 剩余空间按权重（权重 = 4 - 优先级）分，受各 section 上限约束
+        caps = {name: int(detected * max_ratio) for name, (_, _, max_ratio) in specs.items()}
+        for _ in range(4):
+            if remaining <= 0:
+                break
+            candidates = [(n, p) for n, (p, _, _) in specs.items() if budgets[n] < caps[n]]
+            if not candidates:
+                break
+            total_weight = sum(4 - p for _, p in candidates)
+            if total_weight <= 0:
+                break
+            allocated = 0
+            for name, prio in candidates:
+                headroom = caps[name] - budgets[name]
+                share = int(remaining * ((4 - prio) / total_weight))
+                give = min(share, headroom, remaining - allocated)
+                if give > 0:
+                    budgets[name] += give
+                    allocated += give
+            if allocated <= 0:
+                break
+            remaining -= allocated
+
+        return budgets
+
+    # 调用方未指定预算时的兜底（仅当探测不到模型窗口时使用）
+    DEFAULT_TOTAL_TOKENS = 8000
+    # 动态上下文预算默认开启；部署侧可设 NOVEL_CONTEXT_DYNAMIC_BUDGET=0 回落固定百分比
+    CONTEXT_DYNAMIC_BUDGET_DEFAULT = "1"
+
+    def _allocate_dynamic_budgets(self, detected: int, pacing_type: str,
+                                  total_tokens: int = 0) -> dict[str, int]:
+        """按模型上下文窗口动态分配各 section 预算，并叠加节奏调整。
+
+        detected 只作为"上界"（窗口内可用空间），绝不放大调用方传入的预算：
+        各 section 之和 = min(detected * CONTEXT_USABLE_RATIO, total_tokens)。
+        """
+        budgets = self._allocate_by_priority(detected)
+        total = sum(budgets.values())
+        if total <= 0:
+            return self._compute_section_budgets(pacing_type, total_tokens)
+
+        # 归一化成比例后套用 PACING_ADJUSTMENTS（与旧路径语义一致：增量相加后重新归一化）
+        ratios = {k: v / total for k, v in budgets.items()}
+        for k, delta in self.PACING_ADJUSTMENTS.get(pacing_type, {}).items():
+            ratios[k] = max(0.0, ratios.get(k, 0.0) + delta)
+        ratio_total = sum(ratios.values()) or 1.0
+
+        # 窗口决定"最多能用多少"，调用方预算决定"实际给多少"
+        window_cap = int(detected * self.CONTEXT_USABLE_RATIO)
+        target = min(window_cap, total_tokens) if total_tokens > 0 else window_cap
+        out = {k: int(target * (v / ratio_total)) for k, v in ratios.items()}
+
+        # 保底不被取整抹掉：P0 section 至少拿到规格中的保底值
+        for name, spec in self._CONTEXT_SECTION_SPECS.items():
+            prio, min_tok = spec[0], spec[1]
+            if prio == 0:
+                out[name] = max(out[name], min(min_tok, target))
+        return out
+
+    async def _resolve_section_budgets(self, pacing_type: str, total_tokens: int) -> dict[str, int]:
+        """决定各 section 的 token 预算。
+
+        开关 `NOVEL_CONTEXT_DYNAMIC_BUDGET=1` 且能探测到模型上下文窗口时走动态分配，
+        否则回落到原有的固定百分比分配 —— 开关默认关闭，保证改造前后行为一致。
+        """
+        if os.getenv("NOVEL_CONTEXT_DYNAMIC_BUDGET", self.CONTEXT_DYNAMIC_BUDGET_DEFAULT) == "0":
+            return self._compute_section_budgets(pacing_type, total_tokens)
+
+        detected = await self._detect_context_window()
+        if detected <= 0:
+            logger.info("dynamic context budget disabled: context window not detected, falling back")
+            return self._compute_section_budgets(pacing_type, total_tokens)
+
+        budgets = self._allocate_dynamic_budgets(detected, pacing_type, total_tokens)
+        logger.info(
+            "dynamic context budget: window=%s requested=%s allocated=%s sections_nonzero=%s",
+            detected, total_tokens, sum(budgets.values()),
+            sum(1 for v in budgets.values() if v > 0),
+        )
+        return budgets
 
     async def _load_delta_state(
         self,
@@ -276,6 +485,68 @@ class ContextService:
         )
         return [r["name"] for r in entity_rows] if entity_rows else []
 
+    # 旧 knowledge_base 表的替代数据源（见 docs/07-planning/category-unification.md §2.3）：
+    #   角色 / 阵营卡片  → state_entities
+    #   力量体系 / 世界设定 / 情节参考 → project_knowledge
+    _ENTITY_CARD_TYPES = ("character", "faction", "organization")
+    _PK_CATEGORIES = ("power_system", "world_building", "plot_and_story")
+
+    async def _fetch_entity_cards(
+        self, project_id: str, keyword: str, limit: int = 3,
+    ) -> list[dict[str, Any]]:
+        """按关键词从 state_entities 取角色 / 阵营卡片。查询失败时返回空列表。"""
+        try:
+            rows = await self._db.fetch(
+                """
+                SELECT id::text, entity_type, name,
+                       COALESCE(summary, '') AS summary,
+                       COALESCE(description, '') AS description
+                FROM state_entities
+                WHERE project_id = $1
+                  AND entity_type = ANY($2::text[])
+                  AND lifecycle_status = 'active'
+                  AND (
+                        name ILIKE '%' || $3 || '%'
+                     OR summary ILIKE '%' || $3 || '%'
+                     OR description ILIKE '%' || $3 || '%'
+                  )
+                LIMIT $4
+                """,
+                project_id, list(self._ENTITY_CARD_TYPES), keyword, limit,
+            )
+            return [dict(r) for r in rows]
+        except Exception:
+            logger.warning("state_entities card retrieval failed", exc_info=True)
+            return []
+
+    async def _fetch_project_knowledge(
+        self, project_id: str, keyword: str, limit: int = 4,
+    ) -> list[dict[str, Any]]:
+        """按关键词从 project_knowledge 取力量体系 / 世界设定 / 情节参考。查询失败时返回空列表。"""
+        try:
+            rows = await self._db.fetch(
+                """
+                SELECT id::text, category, key,
+                       COALESCE(description, '') AS description,
+                       value::text AS value_text
+                FROM project_knowledge
+                WHERE project_id = $1
+                  AND category = ANY($2::text[])
+                  AND COALESCE(status, 'active') = 'active'
+                  AND (
+                        key ILIKE '%' || $3 || '%'
+                     OR description ILIKE '%' || $3 || '%'
+                     OR value::text ILIKE '%' || $3 || '%'
+                  )
+                LIMIT $4
+                """,
+                project_id, list(self._PK_CATEGORIES), keyword, limit,
+            )
+            return [dict(r) for r in rows]
+        except Exception:
+            logger.warning("project_knowledge retrieval failed", exc_info=True)
+            return []
+
     async def _retrieve_knowledge_base(
         self,
         project_id: str,
@@ -284,48 +555,50 @@ class ContextService:
         token_budget: int,
         genre: str | None = None,
     ) -> list[dict[str, Any]]:
-        """Retrieve relevant knowledge_base items (character cards, faction info, etc.).
+        """Retrieve relevant knowledge items (character cards, faction info, etc.).
+
+        数据源（已不依赖旧的 knowledge_base 表）：
+          - 角色 / 阵营卡片 → state_entities
+          - 力量体系 / 世界设定 / 情节参考 → project_knowledge
+          - 通用知识 → universal_knowledge
 
         Uses keyword ILIKE for candidate generation, then rerank for precision.
+
+        注意：section 名沿用 `knowledge_base`（预算配置、stage section 集合、
+        返回值统计都以此为键），仅 `kb_type` 标注真实来源。
         """
         results: list[dict[str, Any]] = []
         seen_ids: set[str] = set()
 
-        # Search by character names (扩大候选集)
+        # Search by character names — 角色 / 阵营卡片 (扩大候选集)
         for name in chapter_characters[:10]:
-            rows = await self._db.fetch(
-                """
-                SELECT id::text, title, content
-                FROM knowledge_base
-                WHERE status = 'active'
-                  AND (title ILIKE '%' || $1 || '%' OR content ILIKE '%' || $1 || '%')
-                LIMIT 5
-                """,
-                name,
-            )
-            for r in rows:
+            for r in await self._fetch_entity_cards(project_id, name, limit=3):
                 rid = r["id"]
                 if rid not in seen_ids:
                     seen_ids.add(rid)
-                    results.append({"id": rid, "kb_type": "knowledge_base", "title": r["title"], "content": r["content"], "tags": [], "relevance_score": 0})
+                    results.append({
+                        "id": rid,
+                        "kb_type": f"state_entity:{r['entity_type']}",
+                        "title": r["name"],
+                        "content": r["summary"] or r["description"],
+                        "tags": [],
+                        "relevance_score": 0,
+                    })
 
-        # Search by focus terms
+        # Search by focus terms — 项目知识（力量体系 / 世界设定 / 情节参考）
         for term in focus[:5]:
-            rows = await self._db.fetch(
-                """
-                SELECT id::text, title, content
-                FROM knowledge_base
-                WHERE status = 'active'
-                  AND (title ILIKE '%' || $1 || '%' OR content ILIKE '%' || $1 || '%')
-                LIMIT 4
-                """,
-                term,
-            )
-            for r in rows:
+            for r in await self._fetch_project_knowledge(project_id, term, limit=4):
                 rid = r["id"]
                 if rid not in seen_ids:
                     seen_ids.add(rid)
-                    results.append({"id": rid, "kb_type": "knowledge_base", "title": r["title"], "content": r["content"], "tags": [], "relevance_score": 0})
+                    results.append({
+                        "id": rid,
+                        "kb_type": f"project_knowledge:{r['category']}",
+                        "title": r["key"],
+                        "content": r["description"] or r["value_text"] or "",
+                        "tags": [],
+                        "relevance_score": 0,
+                    })
 
         # Also search UK with genre filtering for richer context
         if genre:
@@ -881,9 +1154,17 @@ class ContextService:
         pass_number: int | None = None,
         previous_context: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
-        total_budget = int(budget.get("total_tokens") or budget.get("max_tokens") or 8000)
+        raw_budget = budget.get("total_tokens") or budget.get("max_tokens")
+        if not raw_budget:
+            # 未给预算时按探测到的模型窗口取可用比例，探测不到才用常量兜底
+            detected_window = await self._detect_context_window()
+            raw_budget = (int(detected_window * self.CONTEXT_USABLE_RATIO)
+                          if detected_window > 0 else self.DEFAULT_TOTAL_TOKENS)
+            logger.info("chapter context budget not provided, fallback=%s (detected_window=%s)",
+                        raw_budget, detected_window)
+        total_budget = int(raw_budget)
         pacing_type = budget.get("pacing_type") or await self._resolve_pacing_type(project_id, chapter_no)
-        section_budgets = self._compute_section_budgets(pacing_type, total_budget)
+        section_budgets = await self._resolve_section_budgets(pacing_type, total_budget)
         output_overhead = int(total_budget * 0.03)
         effective_budget = total_budget - output_overhead
         wanted = self.PASS_SECTIONS.get(pass_number, set()) if pass_number else set()
