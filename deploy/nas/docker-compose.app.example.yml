@@ -66,6 +66,8 @@ services:
       NOVEL_OS_WEB_PORT: 8790
       NOVEL_OS_MCP_URL: http://novel-os-mcp:8787/mcp
       NOVEL_OS_WEB_DATA_DIR: /app/data
+      # 管理员名单（逗号分隔）；真实账号名不要写进仓库
+      NOVEL_OS_ADMIN_USERS: ${NOVEL_OS_ADMIN_USERS:-admin}
     ports:
       - "${NOVEL_WEB_BIND_ADDR:-127.0.0.1}:${NOVEL_WEB_PORT:-8790}:8790"
     volumes:

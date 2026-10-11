@@ -12,7 +12,7 @@
 | 查看状态 | 查询工具 | 自由查询 → 总结 → 建议下一步 |
 | 配置模型 | `model.profile.list` | 引导 → upsert |
 | 配置讨论室 | `model.profile.list` | 选贡献模型 → is_contributed=true |
-| 配置审核委员会 | `review.list_council_configs` | 选维度模型 → upsert_council_config |
+| 配置审核委员会 | `review.list_council_configs` | 选维度模型 → `review.upsert_council_config` |
 | 配置风格 | `model.profile.list` | 查/建/改 |
 | 配置提示词 | `prompt.template.list` | 查/建/改 |
 
@@ -24,8 +24,17 @@
 |---------|------|
 | `next_step` | 立即执行下一步 |
 | `wait_user_confirm` | 暂停，等用户回应后继续 |
-| `wait_for_async` | 不停调该 step 的 `poll.tool`，每 `poll.interval` 秒一次，直到 `poll.field` 满足 `poll.until` 或超 `poll.max_retries` 次。**禁止绕过，禁止手动替代，禁止等不及就跳。** |
+| `wait_for_async` | 循环调该 step 的 `tool`（参数 `params`），每 `poll.interval` 秒一次，检查返回结果中 `poll.field` 是否等于 `poll.until`，满足则继续，不满足则重试。超过 `poll.max_retries` 次报告超时并暂停。**禁止绕过，禁止手动替代，禁止等不及就跳。** |
 | `repeat_until_done` | 批量步骤，循环执行直到全部完成 |
+
+### 伪工具 _agent_display / _agent_evaluate
+
+step 中 `tool` 为 `_agent_display` 或 `_agent_evaluate` 时，不调用 MCP，由 AI 自行处理：
+
+| 伪工具 | 行为 |
+|--------|------|
+| `_agent_display` | 按 `params.instruction` 向用户展示信息，等待用户回应 |
+| `_agent_evaluate` | 按 `params.instruction` 评估上一步结果，判断成败并决定后续动作 |
 
 ### 条件跳转 goto_step
 

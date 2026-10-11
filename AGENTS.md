@@ -76,7 +76,7 @@ plink -batch -pw "${NAS_SSH_PASSWORD}" root@${NAS_HOST} "cd /opt/novel-os && doc
 ### User Management
 - `user.create(username, display_name?, email?, remark?, status?, password?)`
 - `user.list(status?, limit?)`
-- `user.update(username, display_name?, email?, remark?, status?, password?)`
+- 注：`user.update` 尚未实现，当前仅有 create / list / delete
 - `user.delete(username)`
 
 ### Auth
@@ -92,7 +92,7 @@ plink -batch -pw "${NAS_SSH_PASSWORD}" root@${NAS_HOST} "cd /opt/novel-os && doc
 - `kb.pack.create/get/update/categories/custom.*` — 项目知识包
 
 ### Entity (Story Runtime)
-- `state.entity.upsert(entity_type, name, summary?, description?, profile?, aliases?, tags?, importance?, lifecycle_status?, first_seen_chapter_no?, last_seen_chapter_no?)` — 创建/更新故事实体（角色/location/faction等），**character/faction 请用此工具而非 kb.pk.upsert**
+- `state.entity.upsert(workspace, project, entity_type, name, summary?, description?, profile?, aliases?, tags?, importance?, lifecycle_status?, first_seen_chapter_no?, last_seen_chapter_no?)` — 创建/更新故事实体（角色/location/faction等），**character/faction 请用此工具而非 kb.pk.upsert**
 - `state.entity.list(workspace, project, entity_type?, lifecycle_status?, query?, tags?)` — 列出实体
 - `state.entity.get(workspace, project, entity_id? | entity_type+name)` — 获取单个实体详情
 - `state.snapshot.upsert/list` — 实体状态快照管理
@@ -100,7 +100,7 @@ plink -batch -pw "${NAS_SSH_PASSWORD}" root@${NAS_HOST} "cd /opt/novel-os && doc
 
 ### Settings
 - `setting.category.list/get/upsert/delete`, `setting.item.list/upsert/delete`
-- `setting.genre.list/upsert/delete`
+- `setting.genre.list/resolve/delete`
 
 ### Prompt Templates
 - `prompt.template.list/get/upsert/delete/render`
@@ -119,7 +119,7 @@ plink -batch -pw "${NAS_SSH_PASSWORD}" root@${NAS_HOST} "cd /opt/novel-os && doc
 - `skill.list/get/create/update/delete`, `skill.step.list/add/update/delete`
 
 ### Plot (Story Planning)
-- `plot.upsert_foreshadowing(key, title, layer?, importance?, status?, must_payoff?, payoff_deadline_chapter?, payoff_deadline_volume?, overdue_policy?)` — 创建/更新伏笔（推荐）
+- `plot.upsert_foreshadowing(workspace, project, key, title, layer?, importance?, status?, must_payoff?, payoff_deadline_chapter?, payoff_deadline_volume?, overdue_policy?)` — 创建/更新伏笔（推荐）
 - `plot.list_foreshadowing` / `foreshadowing.payoff` / `foreshadowing.link` / `foreshadowing.check_overdue` — 伏笔管理
 - `plot.thread.upsert/list/advance/check_stalled/delete` — 情节线管理
 - `plot.create_chapter_plan/list_chapter_plans` — 章节大纲
@@ -129,7 +129,14 @@ plink -batch -pw "${NAS_SSH_PASSWORD}" root@${NAS_HOST} "cd /opt/novel-os && doc
 ### Workspace/Project
 - `workspace.list/create/add_member`, `project.list/create/add_member`
 
-## Passwords
-- Default user password: `123456`
-- Hash format: bcrypt (`$2b$...`) or pbkdf2_sha256 (legacy)
-- NAS root password: `${NAS_SSH_PASSWORD}`
+## Credentials
+
+> **本仓库不含任何真实凭证。** 所有敏感值一律用 `${...}` 占位符表示，真实值保存在仓库之外。
+
+- 部署变量见 [`deploy/nas/.env.example`](deploy/nas/.env.example)；复制为 `.env` 后填写（已被 `.gitignore` 忽略）
+- 文档命令中的 `${NAS_HOST}` / `${NAS_SSH_PASSWORD}` 等，请在本地导出后使用：
+  ```bash
+  set -a; . ~/.novel-os.env; set +a
+  ```
+- 种子管理员初始口令为 `123456`，**首次登录后必须立即修改**
+- 口令哈希格式：bcrypt（`$2b$...`），兼容旧版 pbkdf2_sha256
